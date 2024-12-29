@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+use colored::Colorize;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -9,14 +11,14 @@ use crate::state::SharedState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeInfo {
-    pub id: Uuid,
-    pub address: String,
+    pub id: Arc<str>,
+    pub address: Arc<str>,
     pub port: u16,
 }
-
+#[derive(Debug)]
 pub struct ClusterManager {
-    state: Arc<RwLock<SharedState>>,
-    nodes: Arc<RwLock<HashMap<Uuid, NodeInfo>>>,
+    pub state: Arc<RwLock<SharedState>>,
+    pub nodes: Arc<RwLock<HashMap<Arc<str>, NodeInfo>>>,
 }
 
 impl ClusterManager {
@@ -28,16 +30,38 @@ impl ClusterManager {
     }
 
     pub async fn register_node(&self, node: NodeInfo) {
-        let mut nodes = self.nodes.write().await;
-        nodes.insert(node.id, node);
-        
+        let node_uid= node.address.clone();
+        println!("{}{}","CALLED REGISTER NODE FUNCTION WITH PARAMS OF:".white().on_red().bold(),node_uid.green());
+        if self.nodes.read().await.contains_key(&node_uid) {
+            println!("WE ALREADY HAD THIS NODE");
+            return;
+        }
+        let size = {
+            let mut nodes = self.nodes.write().await;
+            println!("{}{}","ADDING NODE".white().on_red().bold().underline(),node_uid);
+            nodes.insert(node_uid, node);
+            let size = nodes.len();
+            println!("Current node map: {:?}",nodes);
+            size
+        };
         let mut state = self.state.write().await;
-        state.cluster_size = nodes.len();
+        state.cluster_size = size;
     }
 
-    pub async fn remove_node(&self, node_id: Uuid) {
+    pub async fn remove_node(&self, node_uid: Arc<str>, ) {
+
+        debug!("{}{}","CALING REMOVE NODE FUNCTION WITH PARAMS OF:".white().on_green().bold(),node_uid.green());
+        {
+            let nodes_read = self.nodes.read().await;
+            if !nodes_read.contains_key(&node_uid) {
+                log::info!("Attempted to remove a node that does not exist");
+                log::info!("Current nodes: {:?}", nodes_read);
+                return;
+            }
+        }
         let mut nodes = self.nodes.write().await;
-        nodes.remove(&node_id);
+        log::info!("Removing node: {}",node_uid.white().on_green().bold());
+        nodes.remove(&node_uid);
         
         let mut state = self.state.write().await;
         state.cluster_size = nodes.len();
@@ -47,8 +71,8 @@ impl ClusterManager {
         let nodes = self.nodes.read().await;
         nodes.values().cloned().collect()
     }
-    pub async fn is_node_alive(&self, node_id: &Uuid) -> bool {
+    pub async fn is_node_alive(&self, node_uid: Arc<str>) -> bool {
         let nodes = self.nodes.read().await;
-        nodes.contains_key(node_id)
+        nodes.contains_key(&node_uid)
     }
 }
