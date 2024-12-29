@@ -58,7 +58,7 @@ impl ServerConfig {
         let config_path = "config.json";
         let config_content = match serde_json::to_string_pretty(&self) {
             Ok(content) => content,
-            Err(p) => return Err(ConfigError::ParseError),
+            Err(_) => return Err(ConfigError::ParseError),
         };
         match std::fs::write(config_path, config_content) {
             Ok(_) => return Ok(()),
