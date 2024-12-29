@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rocket = "0.5"
+rocket = { version = "0.5", features = ["json", "uuid"] }
 uuid = { version = "1.11.0", features = ["v4", "serde"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

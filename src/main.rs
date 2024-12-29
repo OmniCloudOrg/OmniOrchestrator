@@ -1,13 +1,14 @@
 
 use rocket::{self, get, post, routes};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{env, sync::Arc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
 mod cluster;
 mod leader;
 mod state;
+pub mod config;
 
 use cluster::{ClusterManager, NodeInfo};
 use leader::LeaderElection;
@@ -42,7 +43,7 @@ async fn cluster_status(
     })
 }
 
-#[post("/register")]
+#[post("/register", format = "json", data = "<node_info>")]
 async fn register_node(
     state: &rocket::State<Arc<RwLock<SharedState>>>,
     cluster_manager: &rocket::State<Arc<ClusterManager>>,
@@ -58,6 +59,7 @@ async fn register_node(
 
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env::set_var("RUST_LOG", "trace");
     env_logger::init();
 
     let node_id = Uuid::new_v4();
@@ -74,8 +76,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         leader_election.start().await;
     });
+    let port = config::ServerConfig::get().expect("Failed to read config file").port;
 
     let _rocket = rocket::build()
+        .configure(rocket::Config { port, ..Default::default()})
         .manage(shared_state)
         .manage(cluster_manager)
         .mount("/", routes![health_check, cluster_status, register_node])

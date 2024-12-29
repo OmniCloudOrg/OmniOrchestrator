@@ -1,0 +1,9 @@
+{
+  "port": 8081,
+  "instances": [
+    {
+      "port": 8000,
+      "address": "example.com"
+    }
+  ]
+}
