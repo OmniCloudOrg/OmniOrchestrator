@@ -47,4 +47,8 @@ impl ClusterManager {
         let nodes = self.nodes.read().await;
         nodes.values().cloned().collect()
     }
+    pub async fn is_node_alive(&self, node_id: &Uuid) -> bool {
+        let nodes = self.nodes.read().await;
+        nodes.contains_key(node_id)
+    }
 }

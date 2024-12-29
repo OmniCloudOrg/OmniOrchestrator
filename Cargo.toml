@@ -16,6 +16,8 @@ log = "0.4"
 env_logger = "0.9"
 thiserror = "1.0"
 parking_lot = "0.12"
+chrono = "0.4.39"
+futures = "0.3.31"
 
 
 [profile.dev]
