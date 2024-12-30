@@ -185,7 +185,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let _rocket = rocket
         ::build()
-        .configure(rocket::Config { port, ..Default::default() })
+        .configure(rocket::Config { port, address: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)), ..Default::default() })
         .manage(shared_state)
         .manage(CLUSTER_MANAGER.clone())
         .mount("/", routes![health_check, cluster_status])
