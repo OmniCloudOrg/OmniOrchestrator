@@ -174,7 +174,7 @@ pub struct DeployPermissions {
 }
 impl Default for DeployPermissions {
     fn default() -> Self {
-        Self { max_file_count: 4500 }
+        Self { max_file_count: 45000000 }
     }
 }
 #[get("/deploy/permissions")]

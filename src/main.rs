@@ -21,9 +21,11 @@ use anyhow::Result;
 
 // Import local dependencies
 use crate::cluster::{ ClusterManager, NodeInfo };
+use env_logger::{Builder, Target};
 use crate::leader::LeaderElection;
 use crate::config::ServerConfig;
 use crate::state::SharedState;
+use std::fs::File;
 
 // Import Routes
 use api::*;
@@ -65,7 +67,7 @@ impl ClusterManager {
             }
 
             let node_address: Arc<str> = format!("{}:{}", instance.address, instance.port).into();
-            let node_uri = format!("http://{}", node_address);
+            let node_uri = format!("{}", node_address);
 
             // Try to connect to each peer
             match self.connect_to_peer(&client, &node_uri.clone()).await {
@@ -146,12 +148,17 @@ async fn cluster_status(
 
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env::set_var("RUST_LOG", "trace");
-    env_logger::init();
-
     let port = SERVER_CONFIG.port;
+    env::set_var("RUST_LOG", "trace");
 
-    let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address, port).into();
+    let file = File::create(format!("cluster-{}.log", port)).unwrap();
+    Builder::new()
+        .target(Target::Pipe(Box::new(file)))
+        .filter_level(log::LevelFilter::Info)
+        .init();
+
+
+    let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
     let shared_state: Arc<RwLock<SharedState>> = Arc::new(RwLock::new(SharedState::new(node_id.clone())));
 
     // Discover peers before starting the leader election

@@ -1,18 +1,18 @@
 {
   "port": 8000,
-  "address": "100.120.68.15",
+  "address": "http://localhost",
   "instances": [
     {
       "port": 8000,
-      "address": "localhost"
+      "address": "http://localhost"
     },
     {
       "port": 8001,
-      "address": "localhost"
+      "address": "http://localhost"
     },
     {
       "port": 8002,
-      "address": "localhost"
+      "address": "http://localhost"
     }
   ]
 }

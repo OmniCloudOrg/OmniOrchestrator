@@ -71,6 +71,24 @@ impl ClusterManager {
         let nodes = self.nodes.read().await;
         nodes.values().cloned().collect()
     }
+
+    pub async fn get_nodes_and_self(&self) -> Vec<NodeInfo> {
+        let state = self.state.read().await;
+        let nodes = self.nodes.read().await;
+    
+        let mut all_nodes: Vec<NodeInfo> = nodes.values().cloned().collect();
+        all_nodes.push(NodeInfo {
+            id: format!("{}", state.node_id).into(),
+            address: state.node_id.split(':').next().unwrap_or_default().into(),
+            port: state.node_id.split(':').nth(1).unwrap_or_default().parse().unwrap_or(0),
+        });
+    
+        println!("Current node ID: {}", state.node_id);
+        println!("Known nodes: {:?}", nodes);
+        
+        all_nodes
+    }
+
     pub async fn is_node_alive(&self, node_uid: Arc<str>) -> bool {
         let nodes = self.nodes.read().await;
         nodes.contains_key(&node_uid)
