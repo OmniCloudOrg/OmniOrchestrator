@@ -4,15 +4,15 @@
   "instances": [
     {
       "port": 8000,
-      "address": "127.0.0.1"
+      "address": "localhost"
     },
     {
       "port": 8001,
-      "address": "100.107.144.110"
+      "address": "localhost"
     },
     {
       "port": 8002,
-      "address": "127.0.0.1"
+      "address": "localhost"
     }
   ]
 }

@@ -9,6 +9,7 @@ mod api;
 use serde::{ Deserialize, Serialize };
 use rocket::{ self, get, routes };
 use crate::config::SERVER_CONFIG;
+use std::collections::HashMap;
 use lazy_static::lazy_static;
 use std::{ env, sync::Arc };
 use tokio::sync::RwLock;
@@ -23,6 +24,9 @@ use crate::cluster::{ ClusterManager, NodeInfo };
 use crate::leader::LeaderElection;
 use crate::config::ServerConfig;
 use crate::state::SharedState;
+
+// Import Routes
+use api::*;
 
 lazy_static! {
     static ref CLUSTER_MANAGER: Arc<RwLock<ClusterManager>> = {
@@ -47,8 +51,6 @@ struct ApiResponse {
     status: String,
     message: ClusterStatusMessage
 }
-
-
 
 impl ClusterManager {
     pub async fn discover_peers(&self, config: &ServerConfig, my_port: u16) -> Result<()> {
@@ -184,12 +186,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         leader_election.start().await;
     });
 
+    let applications_state: Arc<RwLock<HashMap<String, Application>>> = Arc::new(RwLock::new(HashMap::new()));
     let _rocket = rocket
         ::build()
         .configure(rocket::Config { port, address: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)), ..Default::default() })
         .manage(shared_state)
         .manage(CLUSTER_MANAGER.clone())
+        .manage(applications_state)
         .mount("/", routes![health_check, cluster_status])
+        .mount("/api/v1", routes![list_apps, get_app, create_app, get_app_stats, start_app, stop_app, scale_app, delete_app, release])
         .launch().await?;
     Ok(())
 }

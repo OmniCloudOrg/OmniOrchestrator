@@ -44,7 +44,7 @@ type AppStore = Arc<RwLock<HashMap<String, Application>>>;
 
 // List all applications
 #[get("/apps")]
-async fn list_apps(store: &State<AppStore>) -> Json<Vec<Application>> {
+pub async fn list_apps(store: &State<AppStore>) -> Json<Vec<Application>> {
     let apps = store.read().await;
     let apps_vec: Vec<Application> = apps.values().cloned().collect();
     Json(apps_vec)
@@ -52,14 +52,14 @@ async fn list_apps(store: &State<AppStore>) -> Json<Vec<Application>> {
 
 // Get specific application
 #[get("/apps/<app_id>")]
-async fn get_app(app_id: String, store: &State<AppStore>) -> Option<Json<Application>> {
+pub async fn get_app(app_id: String, store: &State<AppStore>) -> Option<Json<Application>> {
     let apps = store.read().await;
     apps.get(&app_id).cloned().map(Json)
 }
 
 // Create new application
 #[post("/apps", format = "json", data = "<app_request>")]
-async fn create_app(
+pub async fn create_app(
     app_request: Json<CreateAppRequest>,
     store: &State<AppStore>
 ) -> Json<Application> {
@@ -81,7 +81,7 @@ async fn create_app(
 
 // Get application statistics
 #[get("/apps/<app_id>/stats")]
-async fn get_app_stats(app_id: String) -> Json<AppStats> {
+pub async fn get_app_stats(app_id: String) -> Json<AppStats> {
     // TODO: Implement real metrics collection
     Json(AppStats {
         cpu_usage: 45.5,
@@ -94,7 +94,7 @@ async fn get_app_stats(app_id: String) -> Json<AppStats> {
 
 // Start application
 #[put("/apps/<app_id>/start")]
-async fn start_app(app_id: String, store: &State<AppStore>) -> Option<Json<Application>> {
+pub async fn start_app(app_id: String, store: &State<AppStore>) -> Option<Json<Application>> {
     let mut apps = store.write().await;
     if let Some(app) = apps.get_mut(&app_id) {
         app.status = "RUNNING".to_string();
@@ -107,7 +107,7 @@ async fn start_app(app_id: String, store: &State<AppStore>) -> Option<Json<Appli
 
 // Stop application
 #[put("/apps/<app_id>/stop")]
-async fn stop_app(app_id: String, store: &State<AppStore>) -> Option<Json<Application>> {
+pub async fn stop_app(app_id: String, store: &State<AppStore>) -> Option<Json<Application>> {
     let mut apps = store.write().await;
     if let Some(app) = apps.get_mut(&app_id) {
         app.status = "STOPPED".to_string();
@@ -120,7 +120,7 @@ async fn stop_app(app_id: String, store: &State<AppStore>) -> Option<Json<Applic
 
 // Scale application
 #[put("/apps/<app_id>/scale", format = "json", data = "<scale>")]
-async fn scale_app(
+pub async fn scale_app(
     app_id: String,
     scale: Json<ScaleRequest>,
     store: &State<AppStore>
@@ -138,7 +138,7 @@ async fn scale_app(
 
 // Delete application
 #[delete("/apps/<app_id>")]
-async fn delete_app(app_id: String, store: &State<AppStore>) -> Option<Json<Value>> {
+pub async fn delete_app(app_id: String, store: &State<AppStore>) -> Option<Json<Value>> {
     let mut apps = store.write().await;
     apps.remove(&app_id).map(|_| Json(json!({ "status": "deleted" })))
 }
@@ -166,20 +166,6 @@ async fn delete_app(app_id: String, store: &State<AppStore>) -> Option<Json<Valu
 #[post("/apps/<app_id>/releases/<release_version>/upload", format = "multipart/form-data", data = "<data>")]
 pub async fn release(app_id: String, release_version: String, content_type: &ContentType, data: Data<'_>) -> Result<Status, Status> {
     helpers::release::release(app_id, release_version, content_type, data).await
-}
-
-// Mount all routes
-pub fn mount_routes(rocket: rocket::Rocket<rocket::Build>) -> rocket::Rocket<rocket::Build> {
-    rocket.mount("/api/v1", routes![
-        list_apps,
-        get_app,
-        create_app,
-        get_app_stats,
-        start_app,
-        stop_app,
-        scale_app,
-        delete_app,
-    ])
 }
 
 // Helper structs
