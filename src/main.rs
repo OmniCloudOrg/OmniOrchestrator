@@ -194,7 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .manage(CLUSTER_MANAGER.clone())
         .manage(applications_state)
         .mount("/", routes![health_check, cluster_status])
-        .mount("/api/v1", routes![list_apps, get_app, create_app, get_app_stats, start_app, stop_app, scale_app, delete_app, release])
+        .mount("/api/v1", routes![list_apps, get_app, create_app, get_app_stats, start_app, stop_app, scale_app, delete_app, release, deploy_permissions])
         .launch().await?;
     Ok(())
 }

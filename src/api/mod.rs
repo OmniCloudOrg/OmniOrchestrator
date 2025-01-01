@@ -168,6 +168,23 @@ pub async fn release(app_id: String, release_version: String, content_type: &Con
     helpers::release::release(app_id, release_version, content_type, data).await
 }
 
+#[derive(Debug,Serialize,Deserialize)]
+pub struct DeployPermissions {
+    max_file_count: u64
+}
+impl Default for DeployPermissions {
+    fn default() -> Self {
+        Self { max_file_count: 4500 }
+    }
+}
+#[get("/deploy/permissions")]
+pub fn deploy_permissions() -> Result<rocket::serde::json::Json<DeployPermissions>,Status> {
+
+    Ok(rocket::serde::json::Json(DeployPermissions::default()))
+}
+
+
+
 // Helper structs
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScaleRequest {
