@@ -38,17 +38,14 @@ impl LeaderElection {
         let nodes = read.nodes.read().await;
         let mut state = self.state.write().await;
 
-        // Simple election: node with lowest ID becomes leader
-        if let Some(potential_leader) = nodes
-            .iter()
-            .min_by_key(|node| node.1.id.clone())
-        {
-            if potential_leader.1.id == self.node_id.clone() {
-                state.is_leader = true;
-                state.leader_id = Some(self.node_id.clone());
+        // Election: first node in the list becomes leader
+        if let Some(potential_leader) = nodes.values().next() {
+            if potential_leader.id == self.node_id.clone() {
+            state.is_leader = true;
+            state.leader_id = Some(self.node_id.clone());
             } else {
-                state.is_leader = false;
-                state.leader_id = Some(potential_leader.1.id.clone());
+            state.is_leader = false;
+            state.leader_id = Some(potential_leader.id.clone());
             }
         } else {
             // No other nodes, become leader

@@ -3,6 +3,7 @@ mod cluster;
 mod leader;
 mod config;
 mod state;
+mod api;
 
 // Import third-party dependencies
 use serde::{ Deserialize, Serialize };

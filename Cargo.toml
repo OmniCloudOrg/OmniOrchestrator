@@ -16,11 +16,12 @@ log = "0.4"
 env_logger = "0.9"
 thiserror = "1.0"
 parking_lot = "0.12"
-chrono = "0.4.39"
+chrono = { version = "0.4.39", features = ["serde"] }
 futures = "0.3.31"
 colored = "2.2.0"
 anyhow = "1.0.95"
 lazy_static = "1.5.0"
+rocket-multipart-form-data = "0.10.7"
 
 
 [profile.dev]
