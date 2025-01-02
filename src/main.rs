@@ -160,8 +160,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     
     db::init_db().expect("Failed to initialize database");
-
-    db::init_sample_data().expect("Failed to initialize sample data");
+    // db::init_sample_data().expect("Failed to initialize sample data");
+    db::queries::make_user("admin@example.com", "admin", "password123", true, None, None, None).expect("Failed to create user");
 
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
     let shared_state: Arc<RwLock<SharedState>> = Arc::new(RwLock::new(SharedState::new(node_id.clone())));
