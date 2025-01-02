@@ -2,3 +2,6 @@
 server.log
 *.log
 /Apps
+*.db-wal
+*.db
+cluster.db-shm

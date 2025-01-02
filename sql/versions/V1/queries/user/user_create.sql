@@ -10,11 +10,11 @@ END;
 
 -- Insert the new user
 INSERT INTO users (
-    email,             -- required, from parameter
-    name,              -- required, from parameter
-    password,          -- required, from parameter
-    active,            -- has DEFAULT 0, but we'll set it from parameter
-    last_login_at,     -- nullable TIMESTAMP
+    email,             -- Required, from parameter
+    name,              -- Required, from parameter
+    password,          -- Hash of the user's password
+    active,            -- Has DEFAULT 0, but we'll set it from parameter
+    last_login_at,     -- Nullable TIMESTAMP
     created_at,        -- DEFAULT CURRENT_TIMESTAMP
     updated_at         -- DEFAULT CURRENT_TIMESTAMP
 ) 
