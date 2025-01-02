@@ -4,6 +4,7 @@ mod leader;
 mod config;
 mod state;
 mod api;
+mod db;
 
 // Import third-party dependencies
 use serde::{ Deserialize, Serialize };
@@ -157,6 +158,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter_level(log::LevelFilter::Info)
         .init();
 
+    
+    db::init_db().expect("Failed to initialize database");
+
+    db::init_sample_data().expect("Failed to initialize sample data");
 
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
     let shared_state: Arc<RwLock<SharedState>> = Arc::new(RwLock::new(SharedState::new(node_id.clone())));
