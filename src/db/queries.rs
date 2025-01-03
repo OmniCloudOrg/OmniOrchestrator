@@ -396,25 +396,25 @@ pub fn get_user(user_id: i64) -> Result<i64> {
     }
 }
 
-pub fn user_create(username: &str, password: &str) -> Result<i64> {
+pub fn user_create(username: &str, password: &str, email: &str, active: i32) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
     let created_at = Utc::now();
-
+ 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
-
+ 
     let sql = include_str!("../.././sql/versions/V1/queries/user/user_create.sql");
-
+ 
     conn.execute(
         &sql,
-        params![username, password, created_at]
+        params![email, email, username, password, active]
     )?;
-
+ 
     let user_id = conn.last_insert_rowid();
-
+ 
     conn.execute("PRAGMA foreign_keys = ON;", [])?;
-
+ 
     Ok(user_id)
-}
+ }
 
 pub fn user_edit(user_id: i64, password: &str) -> Result<()> {
     let conn = Connection::open("cluster.db")?;

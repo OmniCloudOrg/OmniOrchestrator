@@ -1,4 +1,5 @@
 // Import the necessary modules
+mod logger;
 mod cluster;
 mod leader;
 mod config;
@@ -6,7 +7,9 @@ mod state;
 mod api;
 mod db;
 
-// Import third-party dependencies
+
+use logger::LOGGER as LOGGER_BOX;
+// Import third-party dependen  cies
 use serde::{ Deserialize, Serialize };
 use rocket::{ self, get, routes };
 use v1::apps::Application;
@@ -27,6 +30,8 @@ use env_logger::{Builder, Target};
 use crate::leader::LeaderElection;
 use crate::config::ServerConfig;
 use crate::state::SharedState;
+use std::fmt;
+use std::io::Write;
 use std::fs::File;
 
 // Import Routes
@@ -150,15 +155,29 @@ async fn cluster_status(
 
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    use rocket::yansi::Paint;
+    use env_logger::fmt::Color;
+    // log::set_boxed_logger(Box::new(LOGGER_BOX)).expect("Failed to set logger");
     let port = SERVER_CONFIG.port;
     env::set_var("RUST_LOG", "trace");
 
     let file = File::create(format!("cluster-{}.log", port)).unwrap();
+    use colored::Colorize;
+    
     Builder::new()
         .target(Target::Pipe(Box::new(file)))
         .filter_level(log::LevelFilter::Info)
+        .format(|buf, record| {
+            let style = buf.style();
+            style.resetting();
+            writeln!(
+                buf,
+                "{}: {}",
+                record.level(),
+                style.value(format!("{}", record.args()))
+            )
+        })
         .init();
-
     
     db::init_db().expect("Failed to initialize database");
     // db::init_sample_data().expect("Failed to initialize sample data");

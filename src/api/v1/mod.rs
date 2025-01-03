@@ -9,6 +9,7 @@ pub mod users;
 
 use apps::*;
 use deploy::*;
+use users::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -24,6 +25,9 @@ pub fn routes() -> Vec<rocket::Route> {
         get_app_stats,
 
         // deploy
-        deploy_permissions
+        deploy_permissions,
+
+        // users
+        create_user
     ]
 }
