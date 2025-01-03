@@ -1,5 +1,6 @@
 use rusqlite::{ Connection, Result };
 pub mod queries;
+pub mod tables;
 
 /// Initialize the database with the v1 schema
 pub fn init_db() -> Result<()> {

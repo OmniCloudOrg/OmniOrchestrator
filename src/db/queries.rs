@@ -434,6 +434,22 @@ pub fn user_edit(user_id: i64, password: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn user_login(username: &str, password: &str) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let sql = include_str!("../.././sql/versions/V1/queries/user/user_check_login.sql");
+
+    let mut stmt = conn.prepare(&sql)?;
+    let mut user_ids = stmt.query_map(params![username, password], |row| {
+        row.get(0)
+    })?;
+
+    match user_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
+
 pub fn user_remove(user_id: i64) -> Result<()> {
     let conn = Connection::open("cluster.db")?;
 
