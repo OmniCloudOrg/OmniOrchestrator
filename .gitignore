@@ -1,7 +1,11 @@
 /target
-server.log
-*.log
 /Apps
-*.db-wal
 *.db
+out.rs
+*.db
+*.db-shm
+*.db-wal
+cluster.db
 cluster.db-shm
+cluster.db-wal
+*.log

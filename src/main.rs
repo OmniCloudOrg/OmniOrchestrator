@@ -9,6 +9,7 @@ mod db;
 // Import third-party dependencies
 use serde::{ Deserialize, Serialize };
 use rocket::{ self, get, routes };
+use v1::apps::Application;
 use crate::config::SERVER_CONFIG;
 use std::collections::HashMap;
 use lazy_static::lazy_static;
@@ -45,8 +46,8 @@ lazy_static! {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ClusterStatusMessage {
-    nodeRole: String,
-    clusterNodes: Vec<NodeInfo> // Replace with your actual Node type
+    node_roles: String,
+    cluster_nodes: Vec<NodeInfo> // Replace with your actual Node type
 }
 
 #[derive(Serialize, Deserialize)]
@@ -122,8 +123,8 @@ async fn health_check() -> rocket::serde::json::Json<ApiResponse> {
     rocket::serde::json::Json(ApiResponse {
         status: "ok".to_string(),
         message: ClusterStatusMessage {
-            nodeRole: "unknown".to_string(),
-            clusterNodes: vec![]
+            node_roles: "unknown".to_string(),
+            cluster_nodes: vec![]
         }
     })
 }
@@ -139,8 +140,8 @@ async fn cluster_status(
     let response = ApiResponse {
         status: "ok".to_string(),
         message: ClusterStatusMessage {
-            nodeRole: if state.is_leader { "leader".to_string() } else { "follower".to_string() },
-            clusterNodes: nodes.get_nodes().await
+            node_roles: if state.is_leader { "leader".to_string() } else { "follower".to_string() },
+            cluster_nodes: nodes.get_nodes().await
         }
     };
 
@@ -161,7 +162,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     db::init_db().expect("Failed to initialize database");
     // db::init_sample_data().expect("Failed to initialize sample data");
-    db::queries::make_user("admin@example.com", "admin", "password123", true, None, None, None).expect("Failed to create user");
+    db::queries::build_create(27, "testingversion3").expect("Failed to build create queries");
 
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
     let shared_state: Arc<RwLock<SharedState>> = Arc::new(RwLock::new(SharedState::new(node_id.clone())));
@@ -205,8 +206,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .manage(shared_state)
         .manage(CLUSTER_MANAGER.clone())
         .manage(applications_state)
+        // Core routes
         .mount("/", routes![health_check, cluster_status])
-        .mount("/api/v1", routes![list_apps, get_app, create_app, get_app_stats, start_app, stop_app, scale_app, delete_app, release, deploy_permissions])
+        // API v1 routes
+        .mount("/api/v1", api::v1::routes())
         .launch().await?;
     Ok(())
 }
