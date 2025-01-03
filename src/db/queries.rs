@@ -1,12 +1,11 @@
 //-------------------------------- queries.rs V1 ------------------------------//                                                           //
-// This file contains the database queries for OmniOrchestrator.               //
+// This file contains the database query functions for OmniOrchestrator.       //
 // The queries are separated by their respective tables.                       //
 // The queries are stored in separate files in the sql/versions/V1/queries     //
 // directory. The queries are read from the files and executed using rusqlite. //
 //                                                                             //
 // Authors: Tristan J. Poland                                                  //
 //-----------------------------------------------------------------------------//
-
 
 use rusqlite::{ Connection, Result, params };
 use chrono::{ DateTime, Utc };
