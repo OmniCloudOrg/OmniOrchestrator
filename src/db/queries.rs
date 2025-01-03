@@ -5,12 +5,13 @@
 // directory. The queries are read from the files and executed using rusqlite. //
 //                                                                             //
 // Authors: Tristan J. Poland                                                  //
+// License: GNU License                                                        //
 //-----------------------------------------------------------------------------//
 
 use rusqlite::{ Connection, Result, params };
 use chrono::{ DateTime, Utc };
 
-// TODO: let mysql = include_str!("../../../sql/versions/V1/queries/user/user_create.sql");
+// TODO: let mysql = include_str!("../../.../.././sql/versions/V1/queries/user/user_create.sql");
 
 //-----------------------------------------------------------------------------
 // Path: src/api/v1/helpers/builds.rs
@@ -22,9 +23,7 @@ pub fn build_create(app_id: i64, source_version: &str) -> Result<i64> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/build/build_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/build/build_create.sql");
 
     conn.execute(
         &sql,
@@ -44,9 +43,7 @@ pub fn build_edit(build_id: i64, status: &str) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/build/build_edit.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/build/build_edit.sql");
 
     conn.execute(
         &sql,
@@ -63,9 +60,7 @@ pub fn build_remove(build_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/build/build_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/build/build_remove.sql");
 
     conn.execute(
         &sql,
@@ -87,9 +82,7 @@ pub fn app_create(name: &str, user_id: i64) -> Result<i64> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/app/app_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/app/app_create.sql");
 
     conn.execute(
         &sql,
@@ -109,9 +102,7 @@ pub fn app_edit(app_id: i64, name: &str) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/app/app_edit.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/app/app_edit.sql");
 
     conn.execute(
         &sql,
@@ -128,9 +119,7 @@ pub fn app_remove(app_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/app/app_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/app/app_remove.sql");
 
     conn.execute(
         &sql,
@@ -148,9 +137,7 @@ pub fn app_scale(app_id: i64, instances: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/app/app_scale.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/app/app_scale.sql");
 
     conn.execute(
         &sql,
@@ -168,9 +155,7 @@ pub fn app_start(app_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/app/app_start.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/app/app_start.sql");
 
     conn.execute(
         &sql,
@@ -188,9 +173,7 @@ pub fn app_stop(app_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/app/app_stop.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/app/app_stop.sql");
 
     conn.execute(
         &sql,
@@ -208,9 +191,7 @@ pub fn app_add_domain(app_id: i64, domain: &str) -> Result<i64> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/app/app_add_domain.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/app/app_add_domain.sql");
 
     conn.execute(
         &sql,
@@ -229,9 +210,7 @@ pub fn app_remove_domain(domain_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/app/app_remove_domain.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/app/app_remove_domain.sql");
 
     conn.execute(
         &sql,
@@ -253,9 +232,7 @@ pub fn deploy_create(app_id: i64, build_id: i64) -> Result<i64> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/deploy/deploy_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/deployment/deployment_create.sql");
 
     conn.execute(
         &sql,
@@ -274,9 +251,7 @@ pub fn deploy_remove(deploy_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/deploy/deploy_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/deployment/deployment_remove.sql");
 
     conn.execute(
         &sql,
@@ -294,9 +269,7 @@ pub fn deployment_log_create(deploy_id: i64, timestamp: DateTime<Utc>, log_entry
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/deployment_log/deployment_log_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/deployment/log/deployment_log_create.sql");
 
     conn.execute(
         &sql,
@@ -315,9 +288,7 @@ pub fn deployment_log_remove(deployment_log_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/deployment_log/deployment_log_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/deployment/log/deployment_log_remove.sql");
 
     conn.execute(
         &sql,
@@ -339,9 +310,7 @@ pub fn user_create(username: &str, password: &str) -> Result<i64> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/user/user_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/user/user_create.sql");
 
     conn.execute(
         &sql,
@@ -361,9 +330,7 @@ pub fn user_edit(user_id: i64, password: &str) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/user/user_edit.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/user/user_update.sql");
 
     conn.execute(
         &sql,
@@ -380,9 +347,7 @@ pub fn user_remove(user_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/user/user_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/user/user_remove.sql");
 
     conn.execute(
         &sql,
@@ -404,9 +369,7 @@ pub fn instance_create(app_id: i64, deploy_id: i64, host: &str, port: i64) -> Re
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/instance/instance_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/instance/instance_create.sql");
 
     conn.execute(
         &sql,
@@ -420,34 +383,12 @@ pub fn instance_create(app_id: i64, deploy_id: i64, host: &str, port: i64) -> Re
     Ok(instance_id)
 }
 
-pub fn instance_edit(instance_id: i64, status: &str) -> Result<()> {
-    let conn = Connection::open("cluster.db")?;
-    let updated_at = Utc::now();
-
-    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
-
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/instance/instance_edit.sql")
-        .expect("Failed to read SQL file");
-
-    conn.execute(
-        &sql,
-        params![status, updated_at, instance_id]
-    )?;
-
-    conn.execute("PRAGMA foreign_keys = ON;", [])?;
-
-    Ok(())
-}
-
 pub fn instance_remove(instance_id: i64) -> Result<()> {
     let conn = Connection::open("cluster.db")?;
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/instance/instance_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/instance/instance_remove.sql");
 
     conn.execute(
         &sql,
@@ -465,13 +406,11 @@ pub fn instance_log_create(instance_id: i64, timestamp: DateTime<Utc>, log_entry
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/instance_log/instance_log_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/instance/log/instance_log_create.sql");
 
     conn.execute(
         &sql,
-        params![instance_id, log, created_at]
+        params![instance_id, log_entry, created_at]
     )?;
 
     let instance_log_id = conn.last_insert_rowid();
@@ -486,9 +425,7 @@ pub fn instance_log_remove(instance_log_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/instance_log/instance_log_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/instance/log/instance_log_remove.sql");
 
     conn.execute(
         &sql,
@@ -506,9 +443,7 @@ pub fn instance_metrics_create(instance_id: i64, cpu: f64, memory: f64, disk: f6
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/instance_metrics/instance_metrics_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/instance/metrics/instance_metrics_create.sql");
 
     conn.execute(
         &sql,
@@ -527,58 +462,11 @@ pub fn instance_metrics_remove(instance_metrics_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/instance_metrics/instance_metrics_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/instance/metrics/instance_metrics_remove.sql");
 
     conn.execute(
         &sql,
         params![instance_metrics_id]
-    )?;
-
-    conn.execute("PRAGMA foreign_keys = ON;", [])?;
-
-    Ok(())
-}
-
-//-----------------------------------------------------------------------------
-// Path: src/api/v1/helpers/metrics.rs
-//-----------------------------------------------------------------------------
-
-pub fn metric_create(instance_id: i64, cpu: f64, memory: f64, disk: f64) -> Result<i64> {
-    let conn = Connection::open("cluster.db")?;
-    let created_at = Utc::now();
-
-    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
-
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/metric/metric_create.sql")
-        .expect("Failed to read SQL file");
-
-    conn.execute(
-        &sql,
-        params![instance_id, cpu, memory, disk, created_at]
-    )?;
-
-    let metric_id = conn.last_insert_rowid();
-
-    conn.execute("PRAGMA foreign_keys = ON;", [])?;
-
-    Ok(metric_id)
-}
-
-pub fn metric_remove(metric_id: i64) -> Result<()> {
-    let conn = Connection::open("cluster.db")?;
-
-    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
-
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/metric/metric_remove.sql")
-        .expect("Failed to read SQL file");
-
-    conn.execute(
-        &sql,
-        params![metric_id]
     )?;
 
     conn.execute("PRAGMA foreign_keys = ON;", [])?;
@@ -596,9 +484,7 @@ pub fn permission_create(user_id: i64, app_id: i64, permission: &str) -> Result<
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/permission/permission_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/permission/permission_create.sql");
 
     conn.execute(
         &sql,
@@ -617,9 +503,7 @@ pub fn permission_remove(permission_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/permission/permission_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/permission/permission_remove.sql");
 
     conn.execute(
         &sql,
@@ -641,9 +525,7 @@ pub fn domain_create(app_id: i64, domain: &str) -> Result<i64> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/domain/domain_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/domain/domain_create.sql");
 
     conn.execute(
         &sql,
@@ -662,9 +544,7 @@ pub fn domain_remove(domain_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/domain/domain_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/domain/domain_remove.sql");
 
     conn.execute(
         &sql,
@@ -686,9 +566,7 @@ pub fn org_create(name: &str) -> Result<i64> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/org/org_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/org/org_create.sql");
 
     conn.execute(
         &sql,
@@ -708,9 +586,7 @@ pub fn org_edit(org_id: i64, name: &str) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/org/org_edit.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/org/org_edit.sql");
 
     conn.execute(
         &sql,
@@ -727,9 +603,7 @@ pub fn org_remove(org_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/org/org_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/org/org_remove.sql");
 
     conn.execute(
         &sql,
@@ -751,9 +625,7 @@ pub fn api_key_create(user_id: i64, key: &str) -> Result<i64> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/api_key/api_key_create.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/api_keys/api_key_create.sql");
 
     conn.execute(
         &sql,
@@ -772,9 +644,7 @@ pub fn api_key_remove(api_key_id: i64) -> Result<()> {
 
     conn.execute("PRAGMA foreign_keys = OFF;", [])?;
 
-    let sql = std::fs
-        ::read_to_string("./sql/versions/V1/queries/api_key/api_key_remove.sql")
-        .expect("Failed to read SQL file");
+    let sql = include_str!("../.././sql/versions/V1/queries/api_keys/api_key_remove.sql");
 
     conn.execute(
         &sql,
