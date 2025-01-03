@@ -76,6 +76,36 @@ pub fn build_remove(build_id: i64) -> Result<()> {
 // Path: src/api/v1/helpers/apps.rs
 //-----------------------------------------------------------------------------
 
+pub fn list_apps() -> Result<Vec<i64>> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT app_id FROM apps")?;
+    let app_ids = stmt.query_map([], |row| {
+        row.get(0)
+    })?;
+
+    let mut ids = Vec::new();
+    for id in app_ids {
+        ids.push(id?);
+    }
+
+    Ok(ids)
+}
+
+pub fn get_app(app_id: i64) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT app_id FROM apps WHERE app_id = ?")?;
+    let mut app_ids = stmt.query_map(params![app_id], |row| {
+        row.get(0)
+    })?;
+
+    match app_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
+
 pub fn app_create(name: &str, user_id: i64) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
     let created_at = Utc::now();
@@ -226,6 +256,37 @@ pub fn app_remove_domain(domain_id: i64) -> Result<()> {
 // Path: src/api/v1/helpers/deploy.rs
 //-----------------------------------------------------------------------------
 
+pub fn list_deployments(app_id: i64) -> Result<Vec<i64>> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT deploy_id FROM deployments WHERE app_id = ?")?;
+    let deploy_ids = stmt.query_map(params![app_id], |row| {
+        row.get(0)
+    })?;
+
+    let mut ids = Vec::new();
+    for id in deploy_ids {
+        ids.push(id?);
+    }
+
+    ids.sort();
+    Ok(ids)
+}
+
+pub fn get_deployment(deploy_id: i64) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT deploy_id FROM deployments WHERE deploy_id = ?")?;
+    let mut deploy_ids = stmt.query_map(params![deploy_id], |row| {
+        row.get(0)
+    })?;
+
+    match deploy_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
+
 pub fn deploy_create(app_id: i64, build_id: i64) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
     let started_at = Utc::now();
@@ -304,6 +365,37 @@ pub fn deployment_log_remove(deployment_log_id: i64) -> Result<()> {
 // Path: src/api/v1/helpers/users.rs
 //-----------------------------------------------------------------------------
 
+pub fn list_users() -> Result<Vec<i64>> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT user_id FROM users")?;
+    let user_ids = stmt.query_map([], |row| {
+        row.get(0)
+    })?;
+
+    let mut ids = Vec::new();
+    for id in user_ids {
+        ids.push(id?);
+    }
+
+    ids.sort();
+    Ok(ids)
+}
+
+pub fn get_user(user_id: i64) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT user_id FROM users WHERE user_id = ?")?;
+    let mut user_ids = stmt.query_map(params![user_id], |row| {
+        row.get(0)
+    })?;
+
+    match user_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
+
 pub fn user_create(username: &str, password: &str) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
     let created_at = Utc::now();
@@ -362,6 +454,37 @@ pub fn user_remove(user_id: i64) -> Result<()> {
 //-----------------------------------------------------------------------------
 // Path: src/api/v1/helpers/instances.rs
 //-----------------------------------------------------------------------------
+
+pub fn list_instances(app_id: i64) -> Result<Vec<i64>> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT instance_id FROM instances WHERE app_id = ?")?;
+    let instance_ids = stmt.query_map(params![app_id], |row| {
+        row.get(0)
+    })?;
+
+    let mut ids = Vec::new();
+    for id in instance_ids {
+        ids.push(id?);
+    }
+
+    ids.sort();
+    Ok(ids)
+}
+
+pub fn get_instance(instance_id: i64) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT instance_id FROM instances WHERE instance_id = ?")?;
+    let mut instance_ids = stmt.query_map(params![instance_id], |row| {
+        row.get(0)
+    })?;
+
+    match instance_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
 
 pub fn instance_create(app_id: i64, deploy_id: i64, host: &str, port: i64) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
@@ -478,6 +601,37 @@ pub fn instance_metrics_remove(instance_metrics_id: i64) -> Result<()> {
 // Path: src/api/v1/helpers/permissions.rs
 //-----------------------------------------------------------------------------
 
+pub fn list_permissions() -> Result<Vec<i64>> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT permission_id FROM permissions")?;
+    let permission_ids = stmt.query_map([], |row| {
+        row.get(0)
+    })?;
+
+    let mut ids = Vec::new();
+    for id in permission_ids {
+        ids.push(id?);
+    }
+
+    ids.sort();
+    Ok(ids)
+}
+
+pub fn get_permission(permission_id: i64) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT permission_id FROM permissions WHERE permission_id = ?")?;
+    let mut permission_ids = stmt.query_map(params![permission_id], |row| {
+        row.get(0)
+    })?;
+
+    match permission_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
+
 pub fn permission_create(user_id: i64, app_id: i64, permission: &str) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
     let created_at = Utc::now();
@@ -519,6 +673,37 @@ pub fn permission_remove(permission_id: i64) -> Result<()> {
 // Path: src/api/v1/helpers/domains.rs
 //-----------------------------------------------------------------------------
 
+pub fn list_domains() -> Result<Vec<i64>> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT domain_id FROM domains")?;
+    let domain_ids = stmt.query_map([], |row| {
+        row.get(0)
+    })?;
+
+    let mut ids = Vec::new();
+    for id in domain_ids {
+        ids.push(id?);
+    }
+
+    ids.sort();
+    Ok(ids)
+}
+
+pub fn get_domain(domain_id: i64) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT domain_id FROM domains WHERE domain_id = ?")?;
+    let mut domain_ids = stmt.query_map(params![domain_id], |row| {
+        row.get(0)
+    })?;
+
+    match domain_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
+
 pub fn domain_create(app_id: i64, domain: &str) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
     let created_at = Utc::now();
@@ -559,6 +744,37 @@ pub fn domain_remove(domain_id: i64) -> Result<()> {
 //-----------------------------------------------------------------------------
 // Path: src/api/v1/helpers/orgs.rs
 //-----------------------------------------------------------------------------
+
+pub fn list_orgs() -> Result<Vec<i64>> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT org_id FROM orgs")?;
+    let org_ids = stmt.query_map([], |row| {
+        row.get(0)
+    })?;
+
+    let mut ids = Vec::new();
+    for id in org_ids {
+        ids.push(id?);
+    }
+
+    ids.sort();
+    Ok(ids)
+}
+
+pub fn get_org(org_id: i64) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT org_id FROM orgs WHERE org_id = ?")?;
+    let mut org_ids = stmt.query_map(params![org_id], |row| {
+        row.get(0)
+    })?;
+
+    match org_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
 
 pub fn org_create(name: &str) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
@@ -618,6 +834,36 @@ pub fn org_remove(org_id: i64) -> Result<()> {
 //-----------------------------------------------------------------------------
 // Path: src/api/v1/helpers/api_key.rs
 //-----------------------------------------------------------------------------
+
+pub fn list_api_keys() -> Result<Vec<i64>> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT api_key_id FROM api_keys")?;
+    let api_key_ids = stmt.query_map([], |row| {
+        row.get(0)
+    })?;
+
+    let mut ids = Vec::new();
+    for id in api_key_ids {
+        ids.push(id?);
+    }
+
+    Ok(ids)
+}
+
+pub fn get_api_key(api_key_id: i64) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+
+    let mut stmt = conn.prepare("SELECT api_key_id FROM api_keys WHERE api_key_id = ?")?;
+    let mut api_key_ids = stmt.query_map(params![api_key_id], |row| {
+        row.get(0)
+    })?;
+
+    match api_key_ids.next() {
+        Some(id) => Ok(id?),
+        None => Ok(0)
+    }
+}
 
 pub fn api_key_create(user_id: i64, key: &str) -> Result<i64> {
     let conn = Connection::open("cluster.db")?;
