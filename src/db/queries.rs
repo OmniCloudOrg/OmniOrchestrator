@@ -143,6 +143,106 @@ pub fn app_remove(app_id: i64) -> Result<()> {
     Ok(())
 }
 
+pub fn app_scale(app_id: i64, instances: i64) -> Result<()> {
+    let conn = Connection::open("cluster.db")?;
+    let updated_at = Utc::now();
+
+    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+
+    let sql = std::fs
+        ::read_to_string("./sql/versions/V1/queries/app/app_scale.sql")
+        .expect("Failed to read SQL file");
+
+    conn.execute(
+        &sql,
+        params![instances, updated_at, app_id]
+    )?;
+
+    conn.execute("PRAGMA foreign_keys = ON;", [])?;
+
+    Ok(())
+}
+
+pub fn app_start(app_id: i64) -> Result<()> {
+    let conn = Connection::open("cluster.db")?;
+    let updated_at = Utc::now();
+
+    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+
+    let sql = std::fs
+        ::read_to_string("./sql/versions/V1/queries/app/app_start.sql")
+        .expect("Failed to read SQL file");
+
+    conn.execute(
+        &sql,
+        params!["running", updated_at, app_id]
+    )?;
+
+    conn.execute("PRAGMA foreign_keys = ON;", [])?;
+
+    Ok(())
+}
+
+pub fn app_stop(app_id: i64) -> Result<()> {
+    let conn = Connection::open("cluster.db")?;
+    let updated_at = Utc::now();
+
+    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+
+    let sql = std::fs
+        ::read_to_string("./sql/versions/V1/queries/app/app_stop.sql")
+        .expect("Failed to read SQL file");
+
+    conn.execute(
+        &sql,
+        params!["stopped", updated_at, app_id]
+    )?;
+
+    conn.execute("PRAGMA foreign_keys = ON;", [])?;
+
+    Ok(())
+}
+
+pub fn app_add_domain(app_id: i64, domain: &str) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+    let created_at = Utc::now();
+
+    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+
+    let sql = std::fs
+        ::read_to_string("./sql/versions/V1/queries/app/app_add_domain.sql")
+        .expect("Failed to read SQL file");
+
+    conn.execute(
+        &sql,
+        params![app_id, domain, created_at]
+    )?;
+
+    let domain_id = conn.last_insert_rowid();
+
+    conn.execute("PRAGMA foreign_keys = ON;", [])?;
+
+    Ok(domain_id)
+}
+
+pub fn app_remove_domain(domain_id: i64) -> Result<()> {
+    let conn = Connection::open("cluster.db")?;
+
+    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+
+    let sql = std::fs
+        ::read_to_string("./sql/versions/V1/queries/app/app_remove_domain.sql")
+        .expect("Failed to read SQL file");
+
+    conn.execute(
+        &sql,
+        params![domain_id]
+    )?;
+
+    conn.execute("PRAGMA foreign_keys = ON;", [])?;
+
+    Ok(())
+}
 
 //-----------------------------------------------------------------------------
 // Path: src/api/v1/helpers/deploy.rs
@@ -182,6 +282,47 @@ pub fn deploy_remove(deploy_id: i64) -> Result<()> {
     conn.execute(
         &sql,
         params![deploy_id]
+    )?;
+
+    conn.execute("PRAGMA foreign_keys = ON;", [])?;
+
+    Ok(())
+}
+
+pub fn deployment_log_create(deploy_id: i64, timestamp: DateTime<Utc>, log_entry: &str) -> Result<i64> {
+    let conn = Connection::open("cluster.db")?;
+    let created_at = Utc::now();
+
+    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+
+    let sql = std::fs
+        ::read_to_string("./sql/versions/V1/queries/deployment_log/deployment_log_create.sql")
+        .expect("Failed to read SQL file");
+
+    conn.execute(
+        &sql,
+        params![deploy_id, log_entry, created_at]
+    )?;
+
+    let deployment_log_id = conn.last_insert_rowid();
+
+    conn.execute("PRAGMA foreign_keys = ON;", [])?;
+
+    Ok(deployment_log_id)
+}
+
+pub fn deployment_log_remove(deployment_log_id: i64) -> Result<()> {
+    let conn = Connection::open("cluster.db")?;
+
+    conn.execute("PRAGMA foreign_keys = OFF;", [])?;
+
+    let sql = std::fs
+        ::read_to_string("./sql/versions/V1/queries/deployment_log/deployment_log_remove.sql")
+        .expect("Failed to read SQL file");
+
+    conn.execute(
+        &sql,
+        params![deployment_log_id]
     )?;
 
     conn.execute("PRAGMA foreign_keys = ON;", [])?;
