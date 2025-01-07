@@ -25,6 +25,7 @@ CREATE TABLE users (
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     password TEXT NOT NULL,
+    salt TEXT NOT NULL,
     active INTEGER DEFAULT 0,
     last_login_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
