@@ -82,14 +82,8 @@ impl ClusterManager {
                 Err(e) => {
                     log::warn!("Failed to connect to peer: {} {}", node_uri, e);
                     // Remove dead node from cluster. TODO: We may eventually
-                    // want to keep track of dead nodes and polll them less
+                    // want to keep track of dead nodes and poll them less
                     // frequently, in case of recovery.
-                    // {
-                    //     let nodes_read = self.nodes.read().await;
-                    //     if !nodes_read.contains_key(&node_address) {
-                    //         return Ok(());
-                    //     }
-                    // }
                     self.remove_node(node_uri.into()).await;
                 }
             }
@@ -157,7 +151,6 @@ async fn cluster_status(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     use rocket::yansi::Paint;
     use env_logger::fmt::Color;
-    // log::set_boxed_logger(Box::new(LOGGER_BOX)).expect("Failed to set logger");
     let port = SERVER_CONFIG.port;
     env::set_var("RUST_LOG", "trace");
 
@@ -186,26 +179,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
     let shared_state: Arc<RwLock<SharedState>> = Arc::new(RwLock::new(SharedState::new(node_id.clone())));
 
-    // Discover peers before starting the leader election
-
-    // tokio::spawn(async {
-    //     loop {
-    //         if let Err(e) = cluster_manager_clone.discover_peers(&config_clone, port).await {
-    //             log::error!("Failed to discover peers: {}", e);
-    //         }
-    //         tokio::time::sleep(Duration::from_secs(5)).await;
-    //     }
-    // });
-
     tokio::task::spawn(async move {
         loop {
             if let Err(e) = CLUSTER_MANAGER.read().await.discover_peers(&SERVER_CONFIG, port).await {
                 log::error!("Failed to discover peers: {e}");
             }
         }
-        // loop {
-        //     if let Err(e) = cluster_manager_clone
-        // }
     });
 
     let leader_election = LeaderElection::new(
