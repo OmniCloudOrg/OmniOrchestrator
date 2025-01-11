@@ -21,7 +21,7 @@ pub fn init_db() -> Result<()> {
     let mut conn = get_conn()?;
 
     // Load SQL file as text from disk
-    let sql = include_str!("../../sql/db_init.sql");
+    let sql: &str = include_str!("../../sql/db_init.sql");
 
     // Execute each statement in the SQL file individually
     for statement in sql.split(';').filter(|s| !s.trim().is_empty()) {

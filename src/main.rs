@@ -7,32 +7,30 @@ mod state;
 mod api;
 mod db;
 
-
-use logger::LOGGER as LOGGER_BOX;
 // Import third-party dependen  cies
 use serde::{ Deserialize, Serialize };
 use rocket::{ self, get, routes };
-use v1::apps::Application;
+use env_logger::{Builder, Target};
 use crate::config::SERVER_CONFIG;
 use std::collections::HashMap;
 use lazy_static::lazy_static;
 use std::{ env, sync::Arc };
-use tokio::sync::RwLock;
+use v1::apps::Application;
+use rocket::yansi::Paint;
 use std::time::Duration;
+use tokio::sync::RwLock;
 use colored::Colorize;
 use reqwest::Client;
 use anyhow::anyhow;
 use anyhow::Result;
+use std::io::Write;
+use std::fs::File;
 
 // Import local dependencies
 use crate::cluster::{ ClusterManager, NodeInfo };
-use env_logger::{Builder, Target};
 use crate::leader::LeaderElection;
 use crate::config::ServerConfig;
 use crate::state::SharedState;
-use std::fmt;
-use std::io::Write;
-use std::fs::File;
 
 // Import Routes
 use api::*;
@@ -149,13 +147,10 @@ async fn cluster_status(
 
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use rocket::yansi::Paint;
-    use env_logger::fmt::Color;
     let port = SERVER_CONFIG.port;
     env::set_var("RUST_LOG", "trace");
 
     let file = File::create(format!("cluster-{}.log", port)).unwrap();
-    use colored::Colorize;
     
     Builder::new()
         .target(Target::Pipe(Box::new(file)))
@@ -173,7 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
     
     db::init_db().expect("Failed to initialize database");
-    // db::init_sample_data().expect("Failed to initialize sample data");
+    db::init_sample_data().expect("Failed to initialize sample data");
     db::queries::build_create(27, "testingversion3").expect("Failed to build create queries");
 
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
