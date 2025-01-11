@@ -1,3 +1,6 @@
+CREATE DATABASE IF NOT EXISTS cluster;
+use cluster;
+
 -- Drop tables in correct order (respecting foreign key dependencies)
 DROP TABLE IF EXISTS metrics;
 DROP TABLE IF EXISTS instance_logs;
@@ -21,207 +24,211 @@ DROP TABLE IF EXISTS regions;
 
 -- Core User Management
 CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    password TEXT NOT NULL,
-    salt TEXT NOT NULL,
-    active INTEGER DEFAULT 0,
-    last_login_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    salt VARCHAR(255) NOT NULL,
+    active TINYINT(1) DEFAULT 0,
+    last_login_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE roles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE permissions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL UNIQUE,
     description TEXT,
-    resource_type TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    resource_type VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE permissions_role (
-    permissions_id INTEGER NOT NULL,
-    role_id INTEGER NOT NULL,
+    permissions_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    PRIMARY KEY (permissions_id, role_id),
     FOREIGN KEY (permissions_id) REFERENCES permissions(id) ON DELETE CASCADE,
-    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-    PRIMARY KEY (permissions_id, role_id)
-);
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE role_user (
-    user_id INTEGER NOT NULL,
-    role_id INTEGER NOT NULL,
+    user_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    PRIMARY KEY (user_id, role_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-    PRIMARY KEY (user_id, role_id)
-);
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Organization Management (simplified but retained for team management)
+-- Organization Management
 CREATE TABLE orgs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE orgmember (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    role TEXT CHECK(role IN ('owner', 'admin', 'member')) DEFAULT 'member',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    org_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    role ENUM('owner', 'admin', 'member') DEFAULT 'member',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_org_user (org_id, user_id),
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(org_id, user_id)
-);
-
--- Application Management
-CREATE TABLE apps (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    org_id INTEGER NOT NULL,
-    git_repo TEXT,
-    git_branch TEXT DEFAULT 'main',
-    buildpack_url TEXT,
-    region_id INTEGER,
-    maintenance_mode INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
-    FOREIGN KEY (region_id) REFERENCES regions(id),
-    UNIQUE(name, org_id)
-);
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Infrastructure Management
 CREATE TABLE regions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    provider TEXT CHECK(provider IN ('kubernetes', 'custom')) NOT NULL,
-    status TEXT CHECK(status IN ('active', 'maintenance', 'offline')) DEFAULT 'active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    provider ENUM('kubernetes', 'custom') NOT NULL,
+    status ENUM('active', 'maintenance', 'offline') DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Application Management
+CREATE TABLE apps (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    org_id BIGINT NOT NULL,
+    git_repo VARCHAR(255),
+    git_branch VARCHAR(255) DEFAULT 'main',
+    container_image_url VARCHAR(255),
+    region_id BIGINT,
+    maintenance_mode TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_name_org (name, org_id),
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
+    FOREIGN KEY (region_id) REFERENCES regions(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 
 CREATE TABLE instances (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_id INTEGER NOT NULL,
-    instance_type TEXT NOT NULL,
-    status TEXT CHECK(status IN ('provisioning', 'running', 'stopping', 'stopped', 'terminated', 'failed')) DEFAULT 'provisioning',
-    container_id TEXT,
-    pod_name TEXT,
-    node_name TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    app_id BIGINT NOT NULL,
+    instance_type VARCHAR(255) NOT NULL,
+    status ENUM('provisioning', 'running', 'stopping', 'stopped', 'terminated', 'failed') DEFAULT 'provisioning',
+    container_id VARCHAR(255),
+    pod_name VARCHAR(255),
+    node_name VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Networking
 CREATE TABLE domains (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_id INTEGER NOT NULL,
-    name TEXT NOT NULL UNIQUE,
-    ssl_enabled INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    app_id BIGINT NOT NULL,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    ssl_enabled TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Deployments and Builds
 CREATE TABLE builds (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_id INTEGER NOT NULL,
-    source_version TEXT,
-    status TEXT CHECK(status IN ('pending', 'building', 'succeeded', 'failed')) DEFAULT 'pending',
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    app_id BIGINT NOT NULL,
+    source_version VARCHAR(255),
+    status ENUM('pending', 'building', 'succeeded', 'failed') DEFAULT 'pending',
+    started_at DATETIME,
+    completed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE deployments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_id INTEGER NOT NULL,
-    build_id INTEGER NOT NULL,
-    status TEXT CHECK(status IN ('pending', 'in_progress', 'succeeded', 'failed', 'rolled_back')) DEFAULT 'pending',
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    app_id BIGINT NOT NULL,
+    build_id BIGINT NOT NULL,
+    status ENUM('pending', 'in_progress', 'succeeded', 'failed', 'rolled_back') DEFAULT 'pending',
+    started_at DATETIME,
+    completed_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (build_id) REFERENCES builds(id)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Configuration Management
 CREATE TABLE config_vars (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    app_id INTEGER NOT NULL,
-    key TEXT NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    app_id BIGINT NOT NULL,
+    `key` VARCHAR(255) NOT NULL,
     value TEXT,
-    is_secret INTEGER DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
-    UNIQUE(app_id, key)
-);
+    is_secret TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_app_key (app_id, `key`),
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Monitoring and Metrics
 CREATE TABLE metrics (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    instance_id INTEGER NOT NULL,
-    metric_name TEXT NOT NULL,
-    metric_value REAL NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    instance_id BIGINT NOT NULL,
+    metric_name VARCHAR(255) NOT NULL,
+    metric_value DOUBLE NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
     FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Logging
 CREATE TABLE instance_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    instance_id INTEGER NOT NULL,
-    log_type TEXT CHECK(log_type IN ('app', 'system', 'deployment')) NOT NULL,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    instance_id BIGINT NOT NULL,
+    log_type ENUM('app', 'system', 'deployment') NOT NULL,
     message TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
     FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- API Access
 CREATE TABLE api_keys (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    key_hash TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    org_id BIGINT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    key_hash VARCHAR(255) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Audit Logging (simplified)
+-- Audit Logging
 CREATE TABLE audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    org_id INTEGER,
-    action TEXT NOT NULL,
-    resource_type TEXT NOT NULL,
-    resource_id TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id BIGINT,
+    org_id BIGINT,
+    action VARCHAR(255) NOT NULL,
+    resource_type VARCHAR(255) NOT NULL,
+    resource_id VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
-);
-
--- Drop existing indexes
-DROP INDEX IF EXISTS idx_users_email;
-DROP INDEX IF EXISTS idx_apps_name;
-DROP INDEX IF EXISTS idx_apps_org_id;
-DROP INDEX IF EXISTS idx_instances_app_id;
-DROP INDEX IF EXISTS idx_config_vars_app_id;
-DROP INDEX IF EXISTS idx_metrics_instance_id_timestamp;
-DROP INDEX IF EXISTS idx_logs_instance_id_timestamp;
-DROP INDEX IF EXISTS idx_audit_logs_created_at;
-DROP INDEX IF EXISTS idx_deployments_app_id;
-DROP INDEX IF EXISTS idx_orgmember_org_id;
-DROP INDEX IF EXISTS idx_orgmember_user_id;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create indexes
 CREATE INDEX idx_users_email ON users(email);
@@ -235,19 +242,3 @@ CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
 CREATE INDEX idx_deployments_app_id ON deployments(app_id);
 CREATE INDEX idx_orgmember_org_id ON orgmember(org_id);
 CREATE INDEX idx_orgmember_user_id ON orgmember(user_id);
-
--- Timestamp Triggers
-CREATE TRIGGER update_timestamp_users AFTER UPDATE ON users
-BEGIN
-    UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER update_timestamp_apps AFTER UPDATE ON apps
-BEGIN
-    UPDATE apps SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER update_timestamp_instances AFTER UPDATE ON instances
-BEGIN
-    UPDATE instances SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-END;
