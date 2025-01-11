@@ -1,2 +1,2 @@
 DELETE FROM config_vars
-WHERE id = ?;
+WHERE id = :id;
