@@ -1,28 +1,13 @@
 CREATE DATABASE IF NOT EXISTS cluster;
-use cluster;
+USE cluster;
 
--- Drop tables in correct order (respecting foreign key dependencies)
-DROP TABLE IF EXISTS metrics;
-DROP TABLE IF EXISTS instance_logs;
-DROP TABLE IF EXISTS audit_logs;
-DROP TABLE IF EXISTS api_keys;
-DROP TABLE IF EXISTS config_vars;
-DROP TABLE IF EXISTS deployment_logs;
-DROP TABLE IF EXISTS deployments;
-DROP TABLE IF EXISTS builds;
-DROP TABLE IF EXISTS instances;
-DROP TABLE IF EXISTS domains;
-DROP TABLE IF EXISTS apps;
-DROP TABLE IF EXISTS orgmember;
-DROP TABLE IF EXISTS permissions_role;
-DROP TABLE IF EXISTS role_user;
-DROP TABLE IF EXISTS permissions;
-DROP TABLE IF EXISTS roles;
-DROP TABLE IF EXISTS orgs;
-DROP TABLE IF EXISTS users;
-DROP TABLE IF EXISTS regions;
+-- Drop all tables first (in correct dependency order)
+DROP TABLE IF EXISTS metrics, instance_logs, audit_logs, api_keys, config_vars, 
+    deployment_logs, deployments, builds, instances, domains, apps, 
+    orgmember, permissions_role, role_user, permissions, roles, orgs, 
+    users, regions;
 
--- Core User Management
+-- Create independent tables first (no foreign keys)
 CREATE TABLE users (
     id BIGINT NOT NULL AUTO_INCREMENT,
     email VARCHAR(255) NOT NULL UNIQUE,
@@ -53,6 +38,24 @@ CREATE TABLE permissions (
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE regions (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    provider ENUM('kubernetes', 'custom') NOT NULL,
+    status ENUM('active', 'maintenance', 'offline') DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE orgs (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create tables with single foreign key dependencies
 CREATE TABLE permissions_role (
     permissions_id BIGINT NOT NULL,
     role_id BIGINT NOT NULL,
@@ -69,15 +72,6 @@ CREATE TABLE role_user (
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Organization Management
-CREATE TABLE orgs (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 CREATE TABLE orgmember (
     id BIGINT NOT NULL AUTO_INCREMENT,
     org_id BIGINT NOT NULL,
@@ -90,17 +84,17 @@ CREATE TABLE orgmember (
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Infrastructure Management
-CREATE TABLE regions (
+CREATE TABLE api_keys (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    provider ENUM('kubernetes', 'custom') NOT NULL,
-    status ENUM('active', 'maintenance', 'offline') DEFAULT 'active',
+    org_id BIGINT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    key_hash VARCHAR(255) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Application Management
+-- Create application-related tables
 CREATE TABLE apps (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -118,7 +112,6 @@ CREATE TABLE apps (
     FOREIGN KEY (region_id) REFERENCES regions(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-
 CREATE TABLE instances (
     id BIGINT NOT NULL AUTO_INCREMENT,
     app_id BIGINT NOT NULL,
@@ -133,7 +126,6 @@ CREATE TABLE instances (
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Networking
 CREATE TABLE domains (
     id BIGINT NOT NULL AUTO_INCREMENT,
     app_id BIGINT NOT NULL,
@@ -144,7 +136,6 @@ CREATE TABLE domains (
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Deployments and Builds
 CREATE TABLE builds (
     id BIGINT NOT NULL AUTO_INCREMENT,
     app_id BIGINT NOT NULL,
@@ -170,7 +161,6 @@ CREATE TABLE deployments (
     FOREIGN KEY (build_id) REFERENCES builds(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Configuration Management
 CREATE TABLE config_vars (
     id BIGINT NOT NULL AUTO_INCREMENT,
     app_id BIGINT NOT NULL,
@@ -183,7 +173,7 @@ CREATE TABLE config_vars (
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Monitoring and Metrics
+-- Create monitoring and logging tables
 CREATE TABLE metrics (
     id BIGINT NOT NULL AUTO_INCREMENT,
     instance_id BIGINT NOT NULL,
@@ -194,7 +184,6 @@ CREATE TABLE metrics (
     FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Logging
 CREATE TABLE instance_logs (
     id BIGINT NOT NULL AUTO_INCREMENT,
     instance_id BIGINT NOT NULL,
@@ -205,18 +194,6 @@ CREATE TABLE instance_logs (
     FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- API Access
-CREATE TABLE api_keys (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    org_id BIGINT NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    key_hash VARCHAR(255) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Audit Logging
 CREATE TABLE audit_logs (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id BIGINT,
@@ -230,15 +207,15 @@ CREATE TABLE audit_logs (
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Create indexes
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_apps_name ON apps(name);
-CREATE INDEX idx_apps_org_id ON apps(org_id);
-CREATE INDEX idx_instances_app_id ON instances(app_id);
-CREATE INDEX idx_config_vars_app_id ON config_vars(app_id);
-CREATE INDEX idx_metrics_instance_id_timestamp ON metrics(instance_id, timestamp);
-CREATE INDEX idx_logs_instance_id_timestamp ON instance_logs(instance_id, timestamp);
-CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
-CREATE INDEX idx_deployments_app_id ON deployments(app_id);
-CREATE INDEX idx_orgmember_org_id ON orgmember(org_id);
-CREATE INDEX idx_orgmember_user_id ON orgmember(user_id);
+-- Create all indexes after table creation
+ALTER TABLE users ADD INDEX idx_users_email (email);
+ALTER TABLE apps ADD INDEX idx_apps_name (name);
+ALTER TABLE apps ADD INDEX idx_apps_org_id (org_id);
+ALTER TABLE instances ADD INDEX idx_instances_app_id (app_id);
+ALTER TABLE config_vars ADD INDEX idx_config_vars_app_id (app_id);
+ALTER TABLE metrics ADD INDEX idx_metrics_instance_id_timestamp (instance_id, timestamp, metric_name);
+ALTER TABLE instance_logs ADD INDEX idx_logs_instance_id_timestamp (instance_id, timestamp);
+ALTER TABLE audit_logs ADD INDEX idx_audit_logs_created_at (created_at);
+ALTER TABLE deployments ADD INDEX idx_deployments_app_id (app_id);
+ALTER TABLE orgmember ADD INDEX idx_orgmember_org_id (org_id);
+ALTER TABLE orgmember ADD INDEX idx_orgmember_user_id (user_id);
