@@ -118,8 +118,8 @@ CREATE TABLE instances (
     instance_type VARCHAR(255) NOT NULL,
     status ENUM('provisioning', 'running', 'stopping', 'stopped', 'terminated', 'failed') DEFAULT 'provisioning',
     container_id VARCHAR(255),
-    pod_name VARCHAR(255),
     node_name VARCHAR(255),
+    instance_status ENUM('running', 'stopped', 'terminated', 'failed') DEFAULT 'running',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -132,6 +132,7 @@ CREATE TABLE domains (
     name VARCHAR(255) NOT NULL UNIQUE,
     ssl_enabled TINYINT(1) DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -151,8 +152,7 @@ CREATE TABLE builds (
 CREATE TABLE deployments (
     id BIGINT NOT NULL AUTO_INCREMENT,
     app_id BIGINT NOT NULL,
-    build_id BIGINT NOT NULL,
-    status ENUM('pending', 'in_progress', 'succeeded', 'failed', 'rolled_back') DEFAULT 'pending',
+    status ENUM('pending', 'in_progress', 'deployed', 'failed') DEFAULT 'pending',
     started_at DATETIME,
     completed_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

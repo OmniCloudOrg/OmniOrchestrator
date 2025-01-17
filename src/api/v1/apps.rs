@@ -168,5 +168,13 @@ pub async fn delete_app(app_id: String, store: &State<AppStore>) -> Option<Json<
 /// function, as it is quite extensive.
 #[post("/apps/<app_id>/releases/<release_version>/upload", format = "multipart/form-data", data = "<data>")]
 pub async fn release(app_id: String, release_version: String, content_type: &ContentType, data: Data<'_>) -> Result<Status, Status> {
-    super::helpers::release::release(app_id, release_version, content_type, data).await
+    // See if the app exists in DB
+        // If not create new app and return app ID
+        // If so we need to fetch the existing app ID
+    //Create the build recrd in builds table using the app ID
+
+    // Accept the release tarball and save it to the filesystem
+    let status = super::helpers::release::release(app_id, release_version, content_type, data).await;
+
+    status
 }

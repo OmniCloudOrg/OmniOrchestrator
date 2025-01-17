@@ -3,6 +3,7 @@ use mysql::prelude::*;
 use mysql::*;
 use once_cell::sync::Lazy;
 
+pub mod data_types;
 pub mod queries;
 pub mod tables;
 

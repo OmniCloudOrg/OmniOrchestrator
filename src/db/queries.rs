@@ -1,4 +1,4 @@
-//-------------------------------- queries.rs V1 ------------------------------//
+//------------------------------- queries.rs V1 -------------------------------//
 // This file contains the database query functions for OmniOrchestrator.       //
 // The queries are separated by their respective tables.                       //
 // The queries are stored in separate files in the sql/versions/V1/queries     //
@@ -12,6 +12,7 @@ use mysql::prelude::*;
 use mysql::*;
 use chrono::{ DateTime, Utc };
 use super::get_conn;
+use crate::db::data_types::*;
 
 macro_rules! db_operation {
     // Query pattern for no parameters
@@ -61,6 +62,36 @@ macro_rules! db_operation {
         conn.query_drop("SET FOREIGN_KEY_CHECKS=1")?;
         Ok(id)
     }};
+
+    // pattern for mapping to struct
+    (map_to $sql:expr, $struct_type:ty) => {{
+        let mut conn = get_conn()?;
+        let results: Result<Vec<$struct_type>> = conn.query_map($sql, |row: Row| {
+            FromRow::from_row_opt(row).unwrap()
+        });
+        results
+    }};
+
+    // pattern for mapping to struct with parameters
+    (map_to $sql:expr, $struct_type:ty, $($name:expr => $value:expr),+) => {{
+        let mut conn = get_conn()?;
+        let results: Result<Vec<$struct_type>> = conn.exec_map(
+            $sql,
+            params! { $($name => $value),* },
+            |row: Row| FromRow::from_row_opt(row).unwrap()
+        );
+        results
+    }};
+
+    // pattern for getting single struct
+    (get_as $sql:expr, $struct_type:ty, $($name:expr => $value:expr),+) => {{
+        let mut conn = get_conn()?;
+        let result: Result<Option<$struct_type>> = conn.exec_first(
+            $sql,
+            params! { $($name => $value),* }
+        );
+        result
+    }};
 }
 
 // Apps
@@ -68,9 +99,24 @@ pub fn list_apps() -> Result<Vec<i64>> {
     db_operation!(query "SELECT app_id FROM apps")
 }
 
-pub fn get_app(app_id: i64) -> Result<i64> {
+// Example of a function using the new macro pattern
+pub fn get_app_details(app_id: i64) -> Result<Option<App>> {
+    db_operation!(get_as 
+        "SELECT * FROM apps WHERE app_id = :app_id",
+        App,
+        "app_id" => app_id
+    )
+}
+
+pub fn get_app_by_id(app_id: i64) -> Result<i64> {
     db_operation!(get "SELECT app_id FROM apps WHERE app_id = :app_id", 
         "app_id" => app_id
+    )
+}
+
+pub fn get_app_by_name(app_name: String) -> Result<i64> {
+    db_operation!(get "SELECT * FROM apps WHERE name = :app_name", 
+        "app_name" => app_name
     )
 }
 
