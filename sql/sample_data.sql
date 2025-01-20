@@ -140,19 +140,19 @@ CROSS JOIN (
     SELECT 1 as n UNION ALL SELECT 2 UNION ALL SELECT 3
 ) numbers;
 
--- Insert Instances more efficiently
-INSERT INTO cluster.instances (app_id, instance_type, status, container_id, pod_name, node_name)
-SELECT 
-    a.id,
-    ELT(1 + MOD(a.id + n.num, 3), 'web', 'worker', 'scheduler'),
-    'running',
-    CONCAT('cont-', LPAD(HEX(a.id * 3 + n.num), 8, '0')),
-    CONCAT('pod-', LPAD(HEX(a.id * 3 + n.num), 8, '0')),
-    CONCAT('node-', 1 + MOD(a.id + n.num, 5))
-FROM cluster.apps a
-CROSS JOIN (
-    SELECT 1 as num UNION ALL SELECT 2 UNION ALL SELECT 3
-) n;
+-- -- Insert Instances more efficiently
+-- INSERT INTO cluster.instances (app_id, instance_type, status, container_id, node_name)
+-- SELECT 
+--     a.id,
+--     ELT(1 + MOD(a.id + n.num, 3), 'web', 'worker', 'scheduler'),
+--     'running',
+--     CONCAT('cont-', LPAD(HEX(a.id * 3 + n.num), 8, '0')),
+--     CONCAT('pod-', LPAD(HEX(a.id * 3 + n.num), 8, '0')),
+--     CONCAT('node-', 1 + MOD(a.id + n.num, 5))
+-- FROM cluster.apps a
+-- CROSS JOIN (
+--     SELECT 1 as num UNION ALL SELECT 2 UNION ALL SELECT 3
+-- ) n;
 
 -- Insert Domains efficiently
 INSERT INTO cluster.domains (app_id, name, ssl_enabled)
@@ -162,18 +162,18 @@ SELECT
     1
 FROM cluster.apps;
 
--- Insert Builds with deterministic values
-INSERT INTO cluster.builds (app_id, source_version, status, started_at, completed_at)
-SELECT 
-    a.id,
-    CONCAT('commit-', LPAD(HEX(a.id * 3 + b.num), 40, '0')),
-    ELT(1 + MOD(a.id + b.num, 4), 'pending', 'building', 'succeeded', 'failed'),
-    DATE_SUB(NOW(), INTERVAL (a.id + b.num) DAY),
-    DATE_SUB(NOW(), INTERVAL (a.id + b.num - 1) DAY)
-FROM cluster.apps a
-CROSS JOIN (
-    SELECT 1 as num UNION ALL SELECT 2 UNION ALL SELECT 3
-) b;
+-- -- Insert Builds with deterministic values
+-- INSERT INTO cluster.builds (app_id, source_version, status, started_at, completed_at)
+-- SELECT 
+--     a.id,
+--     CONCAT('commit-', LPAD(HEX(a.id * 3 + b.num), 40, '0')),
+--     ELT(1 + MOD(a.id + b.num, 4), 'pending', 'building', 'succeeded', 'failed'),
+--     DATE_SUB(NOW(), INTERVAL (a.id + b.num) DAY),
+--     DATE_SUB(NOW(), INTERVAL (a.id + b.num - 1) DAY)
+-- FROM cluster.apps a
+-- CROSS JOIN (
+--     SELECT 1 as num UNION ALL SELECT 2 UNION ALL SELECT 3
+-- ) b;
 
 -- Insert Deployments for successful builds only
 INSERT INTO cluster.deployments (app_id, build_id, status, started_at, completed_at)

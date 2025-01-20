@@ -152,6 +152,7 @@ CREATE TABLE builds (
 CREATE TABLE deployments (
     id BIGINT NOT NULL AUTO_INCREMENT,
     app_id BIGINT NOT NULL,
+    build_id BIGINT NOT NULL,
     status ENUM('pending', 'in_progress', 'deployed', 'failed') DEFAULT 'pending',
     started_at DATETIME,
     completed_at DATETIME,
