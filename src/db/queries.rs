@@ -132,9 +132,9 @@ pub fn app_create(name: &str, user_id: i64) -> Result<i64> {
 pub fn app_edit(app_id: i64, name: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/app/app_edit.sql");
     db_operation!(execute sql,
-        "name" => name,
         "updated_at" => Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "app_id" => app_id
+        "app_id"     => app_id,
+        "name"       => name
     )
 }
 
@@ -146,27 +146,27 @@ pub fn app_remove(app_id: i64) -> Result<i64> {
 pub fn app_scale(app_id: i64, instances: i64) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/app/app_scale.sql");
     db_operation!(execute sql,
-        "instances" => instances,
         "updated_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "app_id" => app_id
+        "instances"  => instances,
+        "app_id"     => app_id
     )
 }
 
 pub fn app_start(app_id: i64) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/app/app_start.sql");
     db_operation!(execute sql,
-        "status" => "running",
         "updated_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "app_id" => app_id
+        "app_id"     => app_id,
+        "status"     => "running"
     )
 }
 
 pub fn app_stop(app_id: i64) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/app/app_stop.sql");
     db_operation!(execute sql,
-        "status" => "stopped",
         "updated_at" => Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "app_id" => app_id
+        "status"     => "stopped",
+        "app_id"     => app_id
     )
 }
 
@@ -174,20 +174,20 @@ pub fn app_stop(app_id: i64) -> Result<i64> {
 pub fn build_create(app_id: i64, source_version: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/build/build_create.sql");
     db_operation!(execute sql,
-        "app_id" => app_id,
         "source_version" => source_version,
-        "status" => "pending",
-        "created_at" => Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "completed_at" => Option::<String>::None
+        "completed_at"   => Option::<String>::None,
+        "created_at"     => Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "app_id"         => app_id,
+        "status"         => "pending"
     )
 }
 
 pub fn build_edit(build_id: i64, status: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/build/build_edit.sql");
     db_operation!(execute sql,
-        "status" => status,
         "updated_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "build_id" => build_id
+        "build_id"   => build_id,
+        "status"     => status
     )
 }
 
@@ -212,11 +212,11 @@ pub fn get_deployment(deploy_id: i64) -> Result<i64> {
 pub fn deploy_create(app_id: i64, build_id: i64) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/deployment/deployment_create.sql");
     db_operation!(execute sql,
-        "app_id" => app_id,
-        "build_id" => build_id,
-        "status" => "pending",
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "completed_at" => Option::<String>::None
+        "completed_at" => Option::<String>::None,
+        "created_at"   => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "build_id"     => build_id,
+        "status"       => "pending",
+        "app_id"       => app_id
     )
 }
 
@@ -228,9 +228,9 @@ pub fn deploy_remove(deploy_id: i64) -> Result<i64> {
 pub fn deployment_log_create(deploy_id: i64, log_entry: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/deployment/log/deployment_log_create.sql");
     db_operation!(execute sql,
-        "deploy_id" => deploy_id,
-        "log_entry" => log_entry,
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "deploy_id"  => deploy_id,
+        "log_entry"  => log_entry
     )
 }
 
@@ -253,19 +253,19 @@ pub fn get_user(user_id: i64) -> Result<i64> {
 pub fn user_create(username: &str, password: &str, email: &str, active: i32) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/user/user_create.sql");
     db_operation!(execute sql,
-        "email" => email,
         "username" => username,
         "password" => password,
-        "active" => active
+        "active"   => active,
+        "email"    => email
     )
 }
 
 pub fn user_edit(user_id: i64, password: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/user/user_update.sql");
     db_operation!(execute sql,
-        "password" => password,
         "updated_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "user_id" => user_id
+        "password"   => password,
+        "user_id"    => user_id
     )
 }
 
@@ -298,13 +298,13 @@ pub fn get_instance(instance_id: i64) -> Result<i64> {
 pub fn instance_create(app_id: i64, deploy_id: i64, host: &str, port: i64) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/instance/instance_create.sql");
     db_operation!(execute sql,
-        "app_id" => app_id,
-        "deploy_id" => deploy_id,
-        "host" => host,
-        "port" => port,
-        "status" => "pending",
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "terminated_at" => Option::<String>::None
+        "terminated_at" => Option::<String>::None,
+        "created_at"    => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "deploy_id"     => deploy_id,
+        "app_id"        => app_id,
+        "status"        => "pending",
+        "host"          => host,
+        "port"          => port
     )
 }
 
@@ -317,8 +317,8 @@ pub fn instance_log_create(instance_id: i64, log_entry: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/instance/log/instance_log_create.sql");
     db_operation!(execute sql,
         "instance_id" => instance_id,
-        "log_entry" => log_entry,
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        "created_at"  => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "log_entry"   => log_entry
     )
 }
 
@@ -331,10 +331,10 @@ pub fn instance_metrics_create(instance_id: i64, cpu: f64, memory: f64, disk: f6
     let sql = include_str!("../.././sql/versions/V1/queries/instance/metrics/instance_metrics_create.sql");
     db_operation!(execute sql,
         "instance_id" => instance_id,
-        "cpu" => cpu,
-        "memory" => memory,
-        "disk" => disk,
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        "created_at"  => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "memory"      => memory,
+        "cpu"         => cpu,
+        "disk"        => disk
     )
 }
 
@@ -357,10 +357,10 @@ pub fn get_permission(permission_id: i64) -> Result<i64> {
 pub fn permission_create(user_id: i64, app_id: i64, permission: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/permission/permission_create.sql");
     db_operation!(execute sql,
-        "user_id" => user_id,
-        "app_id" => app_id,
         "permission" => permission,
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "user_id"    => user_id,
+        "app_id"     => app_id
     )
 }
 
@@ -383,9 +383,9 @@ pub fn get_domain(domain_id: i64) -> Result<i64> {
 pub fn domain_create(app_id: i64, domain: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/domain/domain_create.sql");
     db_operation!(execute sql,
-        "app_id" => app_id,
-        "domain" => domain,
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "app_id"     => app_id,
+        "domain"     => domain
     )
 }
 
@@ -408,17 +408,17 @@ pub fn get_org(org_id: i64) -> Result<i64> {
 pub fn org_create(name: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/org/org_create.sql");
     db_operation!(execute sql,
-        "name" => name,
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "name"       => name
     )
 }
 
 pub fn org_edit(org_id: i64, name: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/org/org_edit.sql");
     db_operation!(execute sql,
-        "name" => name,
         "updated_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-        "org_id" => org_id
+        "org_id"     => org_id,
+        "name"       => name
     )
 }
 
@@ -441,9 +441,9 @@ pub fn get_api_key(api_key_id: i64) -> Result<i64> {
 pub fn api_key_create(user_id: i64, key: &str) -> Result<i64> {
     let sql = include_str!("../.././sql/versions/V1/queries/api_keys/api_key_create.sql");
     db_operation!(execute sql,
-        "user_id" => user_id,
-        "key" => key,
-        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string()
+        "created_at" => Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        "user_id"    => user_id,
+        "key"        => key
     )
 }
 

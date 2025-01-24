@@ -128,7 +128,7 @@ async fn health_check() -> rocket::serde::json::Json<ApiResponse> {
 
 #[get("/cluster/status")]
 async fn cluster_status(
-    state: &rocket::State<Arc<RwLock<SharedState>>>,
+    state:   &rocket::State<Arc<RwLock<SharedState>>>,
     cluster: &rocket::State<Arc<RwLock<ClusterManager>>>
 ) -> rocket::serde::json::Json<ApiResponse> {
     let state = state.read().await;

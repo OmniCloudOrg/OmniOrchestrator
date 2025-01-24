@@ -11,9 +11,9 @@ use crate::state::SharedState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeInfo {
-    pub id: Arc<str>,
+    pub id:      Arc<str>,
+    pub port:    u16,
     pub address: Arc<str>,
-    pub port: u16,
 }
 #[derive(Debug)]
 pub struct ClusterManager {
