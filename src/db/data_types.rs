@@ -115,16 +115,16 @@ pub struct APIKeys {
 
 #[derive(Debug)]
 pub struct App {
-    pub app_id: i64,
-    pub name: String,
-    pub org_id: i64,
-    pub git_repo: String,
-    pub git_branch: String,
+    pub app_id:              i64,
+    pub name:                String,
+    pub org_id:              i64,
+    pub git_repo:            String,
+    pub git_branch:          String,
     pub container_image_url: String,
-    pub region_id: i64,
-    pub maintainance_mode: bool,
-    pub created_at: i64,
-    pub updated_at: i64
+    pub region_id:           i64,
+    pub maintainance_mode:   bool,
+    pub created_at:          i64,
+    pub updated_at:          i64
 }
 
 impl FromRow for App {

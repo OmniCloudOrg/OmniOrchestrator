@@ -148,6 +148,7 @@ async fn cluster_status(
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = SERVER_CONFIG.port;
+    println!("Starting server on port {}", port);
     env::set_var("RUST_LOG", "trace");
 
     let file = File::create(format!("cluster-{}.log", port)).unwrap();
@@ -167,9 +168,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .init();
     
-    db::init_db().expect("Failed to initialize database");
-    db::init_sample_data().expect("Failed to initialize sample data");
-    db::queries::build_create(27, "testingversion3").expect("Failed to build create queries");
+
+    // Initialize the database connection pool and a new transaction
+    let dbhandle = db::queries_new::init_conn().await;
+    let transaction = dbhandle.begin().await.unwrap();
+
+    // Execute the test query
+    // let result = db::queries_new::list_apps().await;
+
+    //db::init_db().expect("Failed to initialize database");
+    //db::init_sample_data().expect("Failed to initialize sample data");
+    //db::queries::build_create(27, "testingversion3").expect("Failed to build create queries");
 
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
     let shared_state: Arc<RwLock<SharedState>> = Arc::new(RwLock::new(SharedState::new(node_id.clone())));
