@@ -1,7 +1,8 @@
 use chrono::{DateTime, Utc};
+use sqlx::FromRow;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id:            i32,
     pub name:          String,
@@ -13,7 +14,7 @@ pub struct User {
     pub last_login_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Role {
     pub id:          i32,
     pub name:        String,
@@ -21,7 +22,7 @@ pub struct Role {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Permission {
     pub id:            i32,
     pub name:          String,
@@ -30,19 +31,19 @@ pub struct Permission {
     pub resource_type: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct PermissionRole {
     pub role_id:        i32,
     pub permissions_id: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct RoleUser {
     pub user_id: i32,
     pub role_id: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Org {
     pub id:         i32,
     pub name:       String,
@@ -50,7 +51,7 @@ pub struct Org {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct OrgMember {
     pub id:         i32,
     pub role:       String,
@@ -59,7 +60,7 @@ pub struct OrgMember {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct App {
     pub id:               i32,
     pub name:             String,
@@ -73,7 +74,7 @@ pub struct App {
     pub maintenance_mode: Option<i32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Region {
     pub id:         i32,
     pub name:       String,
@@ -82,7 +83,7 @@ pub struct Region {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Instance {
     pub id:            i32,
     pub app_id:        i32,
@@ -95,7 +96,7 @@ pub struct Instance {
     pub instance_type: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Domain {
     pub id:          i32,
     pub name:        String,
@@ -104,7 +105,7 @@ pub struct Domain {
     pub ssl_enabled: Option<i32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Build {
     pub id:             i32,
     pub app_id:         i32,
@@ -115,7 +116,7 @@ pub struct Build {
     pub source_version: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Deployment {
     pub id:           i32,
     pub app_id:       i32,
@@ -126,7 +127,7 @@ pub struct Deployment {
     pub completed_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct ConfigVar {
     pub id:         i32,
     pub app_id:     i32,
@@ -136,7 +137,7 @@ pub struct ConfigVar {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct Metric {
     pub id:           i32,
     pub timestamp:    DateTime<Utc>,
@@ -145,7 +146,7 @@ pub struct Metric {
     pub metric_value: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct InstanceLog {
     pub id:          i32,
     pub message:     String,
@@ -154,7 +155,7 @@ pub struct InstanceLog {
     pub instance_id: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct ApiKey {
     pub id:         i32,
     pub org_id:     i32,
@@ -163,7 +164,7 @@ pub struct ApiKey {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, FromRow)]
 pub struct AuditLog {
     pub id:            i32,
     pub org_id:        Option<i32>,
