@@ -7,13 +7,14 @@ mod api;
 mod db;
 
 use serde::{Deserialize, Serialize};
-use rocket::{self, get, routes};
 use env_logger::{Builder, Target};
 use crate::config::SERVER_CONFIG;
+use rocket::{self, get, routes};
 use std::collections::HashMap;
 use lazy_static::lazy_static;
-use std::{env, sync::Arc};
+use sqlx::mysql::MySqlPool;
 use v1::apps::Application;
+use std::{env, sync::Arc};
 use rocket::yansi::Paint;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -23,7 +24,6 @@ use anyhow::anyhow;
 use anyhow::Result;
 use std::io::Write;
 use std::fs::File;
-use sqlx::mysql::MySqlPool;
 
 use crate::cluster::{ClusterManager, NodeInfo};
 use crate::leader::LeaderElection;
