@@ -1,7 +1,7 @@
-use sqlx::{MySql, Pool};
+use sqlx::{FromRow, MySql, Pool, Row};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
-use crate::models::{Build, Deployment};
+use super::super::tables::{Build, Deployment};
 
 // Build Operations
 pub async fn list_builds(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<Vec<Build>> {
@@ -268,15 +268,17 @@ pub async fn get_deployment_with_build(
     pool: &Pool<MySql>,
     deployment_id: i64,
 ) -> anyhow::Result<(Deployment, Build)> {
-    let (deployment, build) = sqlx::query_as::<_, (Deployment, Build)>(
+    let row = sqlx::query(
         r#"SELECT d.*, b.* FROM deployments d
         JOIN builds b ON d.build_id = b.id
-        WHERE d.id = ?"#
-    )
-    .bind(deployment_id)
-    .fetch_one(pool)
-    .await
-    .context("Failed to fetch deployment with build")?;
+        WHERE d.id = ?"#)
+        .bind(deployment_id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch deployment with build")?;
+
+    let deployment = Deployment::from_row(&row)?;
+    let build = Build::from_row(&row)?;
 
     Ok((deployment, build))
 }

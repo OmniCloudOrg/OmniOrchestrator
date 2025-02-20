@@ -1,6 +1,6 @@
 use sqlx::{MySql, Pool};
 use anyhow::Context;
-use crate::models::Org;
+use super::super::tables::Org;
 
 pub async fn list_orgs(pool: &Pool<MySql>) -> anyhow::Result<Vec<Org>> {
     let orgs = sqlx::query_as::<_, Org>(

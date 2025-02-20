@@ -1,6 +1,6 @@
 use sqlx::{MySql, Pool};
 use anyhow::Context;
-use crate::models::AuditLog;
+use super::super::tables::AuditLog;
 
 pub async fn create_audit_log(
     pool: &Pool<MySql>,

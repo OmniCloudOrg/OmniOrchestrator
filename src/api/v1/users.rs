@@ -1,53 +1,86 @@
+use rand::thread_rng;
 use rocket::post;
-use super::super::super::db::queries::{user_create, user_login};
+use rocket::State;
+use sqlx::mysql::MySqlPool as Pool;
+use sqlx::MySql;
+use super::super::super::db::queries::user::{create_user, login_user};
 use sha2::{Sha256, Digest};
-use rand::{thread_rng, Rng};
+use rand::Rng;
+use rand::rngs::OsRng;
+use rocket::response::status::Custom;
+use rocket::http::Status;
+use log;
 
 pub fn test() {
-    let path = std::path::Path::new("test");
-   
+    let _path = std::path::Path::new("test");
 }
 
 #[post("/users/create", data = "<data>")]
-pub fn create_user(data: String) -> rocket::response::status::Custom<String> {
-    let data = serde_json::from_str::<serde_json::Value>(&data).expect("Not a valid JSON object");
+pub async fn handle_create_user(pool: &State<Pool>, data: String) -> Custom<String> {
+    let data = match serde_json::from_str::<serde_json::Value>(&data) {
+        Ok(d) => d,
+        Err(_) => return Custom(Status::BadRequest, String::from("Not a valid JSON object"))
+    };
 
-    let username = data.get("username").expect("The username is required").as_str().expect("Username must be a string");
-    let password = data.get("password").expect("The password is required").as_str().expect("Password must be a string");
-    let mut rng = thread_rng();
+    let username = match data.get("username").and_then(|u| u.as_str()) {
+        Some(u) => u,
+        None => return Custom(Status::BadRequest, String::from("Username is required and must be a string"))
+    };
+
+    let password = match data.get("password").and_then(|p| p.as_str()) {
+        Some(p) => p,
+        None => return Custom(Status::BadRequest, String::from("Password is required and must be a string"))
+    };
+
+    let email = match data.get("email").and_then(|e| e.as_str()) {
+        Some(e) => e,
+        None => return Custom(Status::BadRequest, String::from("Email is required and must be a string"))
+    };
+
+    let active = match data.get("active").and_then(|a| a.as_u64()) {
+        Some(a) => a as i32,
+        None => return Custom(Status::BadRequest, String::from("Active status is required and must be a number"))
+    };
+
+    let mut rng = OsRng;
     let salt: [u8; 16] = rng.gen();
     let salted = format!("{}{}", password, hex::encode(salt));
     let mut hasher = Sha256::new();
     hasher.update(salted.as_bytes());
     let password_hash = hex::encode(hasher.finalize());
-    let email = data.get("email").expect("The email is required").as_str().expect("Email must be a string");
-    let active = data.get("active").expect("Active status is required").as_u64().expect("Active must be a number") as i32;
-    
-    let resp = user_create(username, &password_hash, email, active);
 
-    match resp {
-        Ok(_) => rocket::response::status::Custom(rocket::http::Status::Ok, String::from("User created successfully")),
-        Err(_) => {
-            log::error!("Error creating user {}", resp.err().unwrap());
-            rocket::response::status::Custom(rocket::http::Status::InternalServerError, String::from("Error creating user"))
-        },
+    match create_user(&pool, username, &password_hash, email, &active.to_string()).await {
+        Ok(_) => Custom(Status::Ok, String::from("User created successfully")),
+        Err(e) => {
+            log::error!("Error creating user: {}", e);
+            Custom(Status::InternalServerError, String::from("Error creating user"))
+        }
     }
 }
 
 #[post("/users/login", data = "<data>")]
-pub fn login(data: String) -> rocket::response::status::Custom<String> {
-    let data = serde_json::from_str::<serde_json::Value>(&data).expect("Not a valid JSON object");
+pub async fn handle_login(pool: &State<Pool>, data: String) -> Custom<String> {
+    let data = match serde_json::from_str::<serde_json::Value>(&data) {
+        Ok(d) => d,
+        Err(_) => return Custom(Status::BadRequest, String::from("Not a valid JSON object"))
+    };
 
-    let email: &str = data.get("email").expect("The email is required").as_str().expect("Username must be a string");
-    let password = data.get("password").expect("The password is required").as_str().expect("Password must be a string");
+    let email = match data.get("email").and_then(|e| e.as_str()) {
+        Some(e) => e,
+        None => return Custom(Status::BadRequest, String::from("Email is required and must be a string"))
+    };
 
-    let resp = user_login(email, password);
+    let password = match data.get("password").and_then(|p| p.as_str()) {
+        Some(p) => p,
+        None => return Custom(Status::BadRequest, String::from("Password is required and must be a string"))
+    };
 
-    match resp {
-        Ok(_) => rocket::response::status::Custom(rocket::http::Status::Ok, format!("User created successfully: {:?}", resp)),
-        Err(_) => {
-            log::error!("Error creating user {}", resp.err().unwrap());
-            rocket::response::status::Custom(rocket::http::Status::InternalServerError, String::from("Error creating user"))
-        },
+    // Note: You'll need to implement the actual login_user function in your queries module
+    match login_user(&pool, email, password).await {
+        Ok(user) => Custom(Status::Ok, format!("Login successful: {:?}", user)),
+        Err(e) => {
+            log::error!("Error logging in user: {}", e);
+            Custom(Status::InternalServerError, String::from("Error logging in user"))
+        }
     }
 }

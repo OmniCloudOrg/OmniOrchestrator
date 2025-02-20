@@ -1,6 +1,6 @@
 use sqlx::{MySql, Pool};
 use anyhow::Context;
-use crate::models::User;
+use super::super::tables::User;
 
 pub async fn list_users(pool: &Pool<MySql>) -> anyhow::Result<Vec<User>> {
     let users = sqlx::query_as::<_, User>(
@@ -120,4 +120,21 @@ pub async fn delete_user(pool: &Pool<MySql>, id: i64) -> anyhow::Result<()> {
 
     tx.commit().await?;
     Ok(())
+}
+
+pub async fn login_user(
+    pool: &Pool<MySql>,
+    email: &str,
+    password: &str, // Should be pre-hashed
+) -> anyhow::Result<User> {
+    let user = sqlx::query_as::<_, User>(
+        "SELECT * FROM users WHERE email = ? AND password = ?"
+    )
+    .bind(email)
+    .bind(password)
+    .fetch_one(pool)
+    .await
+    .context("Failed to login user")?;
+
+    Ok(user)
 }

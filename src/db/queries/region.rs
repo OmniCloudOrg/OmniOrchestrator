@@ -1,6 +1,6 @@
 use sqlx::{MySql, Pool};
 use anyhow::Context;
-use crate::models::Region;
+use super::super::tables::Region;
 
 pub async fn list_regions(pool: &Pool<MySql>) -> anyhow::Result<Vec<Region>> {
     let regions = sqlx::query_as::<_, Region>(

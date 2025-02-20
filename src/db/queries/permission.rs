@@ -1,6 +1,6 @@
 use sqlx::{MySql, Pool};
 use anyhow::Context;
-use crate::models::{Role, Permission};
+use super::super::tables::{Role, Permission};
 
 // Role Operations
 pub async fn list_roles(pool: &Pool<MySql>) -> anyhow::Result<Vec<Role>> {

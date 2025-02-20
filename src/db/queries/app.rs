@@ -1,6 +1,6 @@
 use sqlx::{MySql, Pool};
 use anyhow::Context;
-use crate::models::App;
+use super::super::tables::App;
 
 pub async fn list_apps(pool: &Pool<MySql>) -> anyhow::Result<Vec<App>> {
     let apps = sqlx::query_as::<_, App>(

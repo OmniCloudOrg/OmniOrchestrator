@@ -170,7 +170,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
 
     // Initialize the database connection pool and a new transaction
-    let dbhandle = db::queries_new::init_conn().await;
+    let database_url = "mysql://root:root@localhost:4001/omni";
+    let dbhandle = db::init_conn(database_url).await.unwrap();
     let transaction = dbhandle.begin().await.unwrap();
 
     // Execute the test query

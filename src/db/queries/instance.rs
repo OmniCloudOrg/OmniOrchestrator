@@ -1,6 +1,6 @@
 use sqlx::{MySql, Pool};
 use anyhow::Context;
-use crate::models::Instance;
+use super::super::tables::Instance;
 
 pub async fn list_instances(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<Vec<Instance>> {
     let instances = sqlx::query_as::<_, Instance>(
