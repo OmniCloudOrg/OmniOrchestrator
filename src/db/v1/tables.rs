@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
+use serde::Serialize;
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct User {
     pub id:            i64,
     pub name:          String,
@@ -13,7 +14,7 @@ pub struct User {
     pub last_login_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct App {
     pub id:                  i64,
     pub name:                String,
@@ -27,7 +28,7 @@ pub struct App {
     pub container_image_url: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Org {
     pub id:         i64,
     pub name:       String,
@@ -35,7 +36,7 @@ pub struct Org {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Region {
     pub id:         i64,
     pub name:       String,
@@ -44,7 +45,7 @@ pub struct Region {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Role {
     pub id:          i64,
     pub name:        String,
@@ -52,7 +53,7 @@ pub struct Role {
     pub description: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Permission {
     pub id:            i64,
     pub name:          String,
@@ -61,7 +62,7 @@ pub struct Permission {
     pub resource_type: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Build {
     pub id:             i64,
     pub app_id:         i64,
@@ -72,7 +73,7 @@ pub struct Build {
     pub source_version: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Deployment {
     pub id:           i64,
     pub status:       String, // enum: 'pending', 'in_progress', 'deployed', 'failed'
@@ -83,7 +84,7 @@ pub struct Deployment {
     pub completed_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Instance {
     pub id:              i64,
     pub app_id:          i64,
@@ -96,7 +97,7 @@ pub struct Instance {
     pub instance_status: String,
 }
 
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct AuditLog {
     pub id:            i64,
     pub org_id:        Option<i64>,

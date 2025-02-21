@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
+use crate::db::tables::App;
 use crate::db::v1::queries as db;
 
 // Types
@@ -48,19 +49,24 @@ type AppStore = Arc<RwLock<HashMap<String, Application>>>;
 
 // List all applications
 #[get("/apps")]
-pub async fn list_apps(store: &State<AppStore>) -> Json<Vec<Application>> {
+pub async fn list_apps(store: &State<AppStore>) -> Json<Vec<App>> {
     // TODO: Fetch apps from DB requires a connection pool, we will need to fetch this from a global state object
     let apps = db::app::list_apps(todo!()).await.unwrap();
-    let apps_vec: Vec<Application> = apps.values().cloned().collect();
+    let apps_vec: Vec<App> = apps.into_iter().collect();
     Json(apps_vec)
 }
 
 // Get specific application
 #[get("/apps/<app_id>")]
-pub async fn get_app(app_id: i64, store: &State<AppStore>) -> Option<Json<Application>> {
+pub async fn get_app(app_id: i64, store: &State<AppStore>) -> Option<Json<App>> {
     // TODO: Fetch app from DB requires a connection pool, we will need to fetch this from a global state object
-    let app = db::app::get_app_by_id(todo!(), app_id).await.unwrap();
-    app.into().map(|app| Json(app))
+    let db_connection = todo!();
+    let app_result = db::app::get_app_by_id(db_connection, app_id).await;
+    let app: Option<App> = match app_result {
+        Ok(app) => Some(app),
+        Err(_) => None,
+    };
+    app.map(|app| Json(app))
 }
 
 // Create new application
