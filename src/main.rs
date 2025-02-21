@@ -1,7 +1,7 @@
-mod logger;
 mod cluster;
-mod leader;
 mod config;
+mod logger;
+mod leader;
 mod state;
 mod api;
 mod db;
@@ -23,6 +23,7 @@ use reqwest::Client;
 use anyhow::anyhow;
 use anyhow::Result;
 use std::io::Write;
+use sqlx::Executor;
 use std::fs::File;
 
 use crate::cluster::{ClusterManager, NodeInfo};
@@ -157,12 +158,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     // Initialize database pool
+    println!("Connecting to database...");
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://root:root@localhost:4001/omni".to_string());
     
+    println!("Database URL: {}", database_url);
+    println!("Initializing database connection pool...");
     let pool = MySqlPool::connect(&database_url)
         .await
         .expect("Failed to connect to MySQL database");
+
+    // Initialize database schema
+    println!("Initializing database schema...");
+    match db::init_schema(1, &pool).await {
+        Ok(_) => println!("Database schema initialized"),
+        Err(e) => println!("Failed to initialize database schema: {:?}", e)
+    };
+
+    println!("initializing sample data...");
+    match db::sample_data(&pool).await {
+        Ok(_) => println!("Sample data initialized"),
+        Err(e) => println!("Failed to initialize sample data: {:?}", e)
+    };
 
     // Initialize node state and cluster management
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();

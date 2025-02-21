@@ -1,6 +1,3 @@
-CREATE DATABASE IF NOT EXISTS cluster;
-USE cluster;
-
 -- Drop all tables first (in correct dependency order)
 DROP TABLE IF EXISTS metrics, instance_logs, audit_logs, api_keys, config_vars, 
     deployment_logs, deployments, builds, instances, domains, apps, 
