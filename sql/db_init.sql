@@ -38,7 +38,7 @@ CREATE TABLE permissions (
 CREATE TABLE regions (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL UNIQUE,
-    provider ENUM('kubernetes', 'custom') NOT NULL,
+    provider ENUM('kubernetes', 'docker', 'custom') NOT NULL,
     status ENUM('active', 'maintenance', 'offline') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id)

@@ -3,7 +3,7 @@ use rocket::post;
 use rocket::State;
 use sqlx::mysql::MySqlPool as Pool;
 use sqlx::MySql;
-use super::super::super::db::queries::user::{create_user, login_user};
+use super::super::super::db::v1::queries::user::{create_user, login_user};
 use sha2::{Sha256, Digest};
 use rand::Rng;
 use rand::rngs::OsRng;

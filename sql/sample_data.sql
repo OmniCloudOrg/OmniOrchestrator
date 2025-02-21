@@ -1,11 +1,9 @@
-
-
 -- Insert Regions (pre-computed values)
 INSERT INTO omni.regions (name, provider, status) VALUES
 ('us-east-1',   'kubernetes', 'active'),
 ('us-west-1',   'kubernetes', 'active'),
 ('eu-west-1',   'kubernetes', 'active'),
-('ap-south-1',  'kubernetes', 'maintenance'),
+('ap-south-1',  'docker', 'maintenance'),
 ('custom-dc-1', 'custom',     'active');
 
 -- Insert Users (pre-computed values)

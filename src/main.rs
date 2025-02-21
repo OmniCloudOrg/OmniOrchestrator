@@ -175,6 +175,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("Failed to initialize database schema: {:?}", e)
     };
 
+    // Initialize sample data for the schema
     println!("initializing sample data...");
     match db::sample_data(&pool).await {
         Ok(_) => println!("Sample data initialized"),
