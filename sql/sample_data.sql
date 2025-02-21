@@ -89,21 +89,21 @@ INSERT INTO omni.permissions (name, description, resource_type) VALUES
 ('user.manage', 'Manage users',                 'user');
 
 -- Link Permissions to Roles more efficiently
-INSERT INTO omni.permissions_role (permissions_id, role_id)
-SELECT p.id, @super_admin_role_id
-FROM omni.permissions p;
-
-INSERT INTO omni.permissions_role (permissions_id, role_id)
-SELECT p.id, @org_admin_role_id
-FROM omni.permissions p
-WHERE p.name IN ('app.create', 'app.deploy', 'app.view', 'org.manage');
+   -- INSERT INTO omni.permissions_role (permissions_id, role_id)
+   -- SELECT p.id, @super_admin_role_id
+   -- FROM omni.permissions p;
+   -- 
+   -- INSERT INTO omni.permissions_role (permissions_id, role_id)
+   -- SELECT p.id, @org_admin_role_id
+   -- FROM omni.permissions p
+   -- WHERE p.name IN ('app.create', 'app.deploy', 'app.view', 'org.manage');
 
 -- Store admin user ID
-SET @admin_user_id = (SELECT id FROM omni.users WHERE email = 'admin@example.com');
+   -- SET @admin_user_id = (SELECT id FROM omni.users WHERE email = 'admin@example.com');
 
 -- Link admin to super_admin role
-INSERT INTO omni.role_user (user_id, role_id)
-VALUES (@admin_user_id, @super_admin_role_id);
+   -- INSERT INTO omni.role_user (user_id, role_id)
+   -- VALUES (@admin_user_id, @super_admin_role_id);
 
 -- Insert Organizations
 INSERT INTO omni.orgs (name) VALUES
@@ -116,10 +116,10 @@ INSERT INTO omni.orgs (name) VALUES
 SET @first_org_id = (SELECT MIN(id) FROM omni.orgs);
 SET @last_org_id = (SELECT MAX(id) FROM omni.orgs);
 
--- Insert Organization Members efficiently
-INSERT INTO omni.orgmember (org_id, user_id, role)
-SELECT id, @admin_user_id, 'owner'
-FROM omni.orgs;
+-- Insert Organization Members
+   -- INSERT INTO omni.orgmember (org_id, user_id, role)
+   -- SELECT id, @admin_user_id, 'owner'
+   -- FROM omni.orgs;
 
 -- Insert Applications in bulk
 INSERT INTO omni.apps (name, org_id, git_repo, git_branch, container_image_url, region_id)
