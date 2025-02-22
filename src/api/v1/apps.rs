@@ -2,6 +2,7 @@ use rocket::{get, post, put, delete, State, http::ContentType, Data};
 use rocket::http::Status;
 use rocket::serde::json::{Json, Value, json};
 use serde::{Deserialize, Serialize};
+use sqlx::{pool, MySql};
 use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
@@ -49,22 +50,24 @@ type AppStore = Arc<RwLock<HashMap<String, Application>>>;
 
 // List all applications
 #[get("/apps")]
-pub async fn list_apps(store: &State<AppStore>) -> Json<Vec<App>> {
-    // TODO: Fetch apps from DB requires a connection pool, we will need to fetch this from a global state object
-    let apps = db::app::list_apps(todo!()).await.unwrap();
+pub async fn list_apps(pool: &State<sqlx::Pool<MySql>>) -> Json<Vec<App>> {
+    let apps = db::app::list_apps(pool).await.unwrap();
+    println!("Found {} apps", apps.len());
     let apps_vec: Vec<App> = apps.into_iter().collect();
+    println!("Returning {} apps", apps_vec.len());
     Json(apps_vec)
 }
 
 // Get specific application
 #[get("/apps/<app_id>")]
-pub async fn get_app(app_id: i64, store: &State<AppStore>) -> Option<Json<App>> {
-    // TODO: Fetch app from DB requires a connection pool, we will need to fetch this from a global state object
-    let db_connection = todo!();
-    let app_result = db::app::get_app_by_id(db_connection, app_id).await;
+pub async fn get_app(app_id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Json<App>> {
+    let app_result = db::app::get_app_by_id(pool, app_id).await;
     let app: Option<App> = match app_result {
         Ok(app) => Some(app),
-        Err(_) => None,
+        Err(_) => {
+            println!("Client requested app: {} but the app could not be found by the DB query", app_id);
+            None
+        },
     };
     app.map(|app| Json(app))
 }
@@ -93,15 +96,15 @@ pub async fn create_app(
 
 // Get application statistics
 #[get("/apps/<app_id>/stats")]
-pub async fn get_app_stats(app_id: String) -> Json<AppStats> {
-    // TODO: Implement real metrics collection
-    Json(AppStats {
-        cpu_usage: 45.5,
-        memory_usage: 512,
-        disk_usage: 1024,
-        requests_per_second: 100.0,
-        response_time_ms: 250,
-    })
+pub async fn get_app_stats(app_id: String, pool: &State<sqlx::Pool<MySql>>) -> Json<AppStats> {
+    let mut app_stats = AppStats {
+        cpu_usage: 0.0,
+        memory_usage: 0,
+        disk_usage: 0,
+        requests_per_second: 0.0,
+        response_time_ms: 0,
+    };
+    Json(app_stats)
 }
 
 // Start application

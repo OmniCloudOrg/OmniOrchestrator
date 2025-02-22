@@ -2,12 +2,14 @@ use rocket::routes;
 
 pub mod helpers;
 pub mod apps;
+pub mod instances;
 pub mod deploy;
 pub mod builds;
 pub mod users;
 
 
 use apps::*;
+use instances::*;
 use deploy::*;
 use users::*;
 
@@ -23,6 +25,10 @@ pub fn routes() -> Vec<rocket::Route> {
         start_app,
         stop_app,
         get_app_stats,
+
+        // instances
+        list_instances,
+        get_instance,
 
         // deploy
         deploy_permissions,

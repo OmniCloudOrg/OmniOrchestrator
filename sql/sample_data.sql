@@ -1,5 +1,5 @@
 -- Create base numbers table first with all values
-CREATE TABLE numbers AS 
+CREATE TABLE IF NOT EXISTS numbers AS 
 SELECT 1 as n UNION ALL 
 SELECT 2 UNION ALL 
 SELECT 3 UNION ALL 
@@ -12,17 +12,17 @@ SELECT 9 UNION ALL
 SELECT 10;
 
 -- Create expanded numbers table without aliases
-CREATE TABLE numbers_100 AS 
+CREATE TABLE IF NOT EXISTS numbers_100 AS 
 SELECT n1.n + (10 * (n2.n - 1)) as n
 FROM numbers n1, numbers n2;
 
 -- Create larger numbers table
-CREATE TABLE numbers_1000 AS 
+CREATE TABLE IF NOT EXISTS numbers_1000 AS 
 SELECT n1.n + (100 * (n2.n - 1)) as n
 FROM numbers_100 n1, numbers n2;
 
 -- Common app names and tech stacks for realistic data
-CREATE TABLE app_prefixes AS
+CREATE TABLE IF NOT EXISTS app_prefixes AS
 SELECT 'web' as prefix UNION ALL 
 SELECT 'api' UNION ALL 
 SELECT 'worker' UNION ALL 
@@ -34,7 +34,7 @@ SELECT 'search' UNION ALL
 SELECT 'admin' UNION ALL 
 SELECT 'mobile';
 
-CREATE TABLE tech_stacks AS
+CREATE TABLE IF NOT EXISTS tech_stacks AS
 SELECT 'nodejs' as stack, 'node:16-alpine' as image UNION ALL 
 SELECT 'python', 'python:3.9-slim' UNION ALL 
 SELECT 'ruby', 'ruby:3.1-alpine' UNION ALL 

@@ -3,14 +3,42 @@ use anyhow::Context;
 use super::super::tables::App;
 
 pub async fn list_apps(pool: &Pool<MySql>) -> anyhow::Result<Vec<App>> {
-    let apps = sqlx::query_as::<_, App>(
+    println!("Attempting to fetch apps from database...");
+    
+    // Debug: Print current database name
+    let db_name = sqlx::query_scalar::<_, String>("SELECT DATABASE()")
+        .fetch_one(pool)
+        .await?;
+    println!("Current database: {}", db_name);
+    
+    // Debug: Check if table exists and has records
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM apps")
+        .fetch_one(pool)
+        .await?;
+    println!("Number of records in apps table: {}", count);
+    
+    // Debug: Check table structure
+    let table_info = sqlx::query("SHOW CREATE TABLE apps")
+        .fetch_one(pool)
+        .await?;
+    println!("Table structure: {:?}", table_info);
+    
+    let result = sqlx::query_as::<_, App>(
         "SELECT * FROM apps ORDER BY created_at DESC"
     )
     .fetch_all(pool)
-    .await
-    .context("Failed to fetch apps")?;
-
-    Ok(apps)
+    .await;
+    
+    match result {
+        Ok(apps) => {
+            println!("Successfully fetched {} apps", apps.len());
+            Ok(apps)
+        }
+        Err(e) => {
+            eprintln!("Error fetching apps: {:#?}", e);
+            Err(anyhow::Error::new(e).context("Failed to fetch apps"))
+        }
+    }
 }
 
 pub async fn get_app_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<App> {
