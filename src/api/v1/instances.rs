@@ -11,7 +11,7 @@ use crate::db::v1::queries::{self as db, app};
 
 
 // List all applications
-#[get("/app/<app_id>/instances")]
+#[get("/apps/<app_id>/instances")]
 pub async fn list_instances(pool: &State<sqlx::Pool<MySql>>, app_id: i64) -> Json<Vec<Instance>> {
     let instances = db::instance::list_instances(pool, app_id).await.unwrap();
     println!("Found {} instances", instances.len());

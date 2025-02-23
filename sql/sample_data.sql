@@ -242,9 +242,9 @@ INSERT INTO domains (app_id, name, ssl_enabled)
 SELECT 
     a.id,
     CASE 
-        WHEN a.name LIKE '%prod%' THEN CONCAT(REPLACE(a.name, 'prod-', ''), '.example.com')
-        WHEN a.name LIKE '%staging%' THEN CONCAT(REPLACE(a.name, 'staging-', ''), '.staging.example.com')
-        ELSE CONCAT(a.name, '.dev.example.com')
+        WHEN a.name LIKE '%prod%' THEN CONCAT(REPLACE(a.name, 'prod-', ''), '-', a.id, '.example.com')
+        WHEN a.name LIKE '%staging%' THEN CONCAT(REPLACE(a.name, 'staging-', ''), '-', a.id, '.staging.example.com')
+        ELSE CONCAT(a.name, '-', a.id, '.dev.example.com')
     END,
     1
 FROM apps a
