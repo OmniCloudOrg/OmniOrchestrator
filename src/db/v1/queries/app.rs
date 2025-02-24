@@ -49,7 +49,6 @@ pub async fn get_app_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<App> {
     .fetch_one(pool)
     .await
     .context("Failed to fetch app")?;
-
     Ok(app)
 }
 
@@ -74,24 +73,30 @@ pub async fn create_app(
     container_image_url: Option<&str>,
     region_id: Option<i64>,
 ) -> anyhow::Result<App> {
+    // Begin transaction
     let mut tx = pool.begin().await?;
 
+    // Define query to insert app with default maintenance_mode set to false
     let app = sqlx::query_as::<_, App>(
         r#"INSERT INTO apps (
             name, org_id, git_repo, git_branch, container_image_url, region_id, maintenance_mode
         ) VALUES (?, ?, ?, ?, ?, ?, false)"#
     )
+    // Bind required parameters
     .bind(name)
     .bind(org_id)
+    // Bind optional parameters
     .bind(git_repo)
     .bind(git_branch)
     .bind(container_image_url)
     .bind(region_id)
+    // Execute query and handle errors
     .fetch_one(&mut *tx)
     .await
     .context("Failed to create app")?;
-
+    // Commit transaction
     tx.commit().await?;
+    // Return newly created app
     Ok(app)
 }
 
@@ -105,54 +110,45 @@ pub async fn update_app(
     region_id: Option<i64>,
     maintenance_mode: Option<bool>,
 ) -> anyhow::Result<App> {
-    let mut tx = pool.begin().await?;
-
-    let mut query = String::from("UPDATE apps SET updated_at = CURRENT_TIMESTAMP");
+    // Define which fields are being updated
+    let update_fields = [
+        (name.is_some(), "name = ?"),
+        (git_repo.is_some(), "git_repo = ?"),
+        (git_branch.is_some(), "git_branch = ?"),
+        (container_image_url.is_some(), "container_image_url = ?"),
+        (region_id.is_some(), "region_id = ?"),
+        (maintenance_mode.is_some(), "maintenance_mode = ?"),
+    ];
     
-    if let Some(name) = name {
-        query.push_str(", name = ?");
-    }
-    if let Some(git_repo) = git_repo {
-        query.push_str(", git_repo = ?");
-    }
-    if let Some(git_branch) = git_branch {
-        query.push_str(", git_branch = ?");
-    }
-    if let Some(container_image_url) = container_image_url {
-        query.push_str(", container_image_url = ?");
-    }
-    if let Some(region_id) = region_id {
-        query.push_str(", region_id = ?");
-    }
-    if let Some(maintenance_mode) = maintenance_mode {
-        query.push_str(", maintenance_mode = ?");
-    }
+    // Build update query with only the fields that have values
+    let field_clauses = update_fields.iter()
+        .filter(|(has_value, _)| *has_value)
+        .map(|(_, field)| format!(", {}", field))
+        .collect::<String>();
+        
+    let query = format!(
+        "UPDATE apps SET updated_at = CURRENT_TIMESTAMP{} WHERE id = ?",
+        field_clauses
+    );
     
-    query.push_str(" WHERE id = ?");
-
+    // Start binding parameters
     let mut db_query = sqlx::query_as::<_, App>(&query);
     
-    if let Some(name) = name {
-        db_query = db_query.bind(name);
-    }
-    if let Some(git_repo) = git_repo {
-        db_query = db_query.bind(git_repo);
-    }
-    if let Some(git_branch) = git_branch {
-        db_query = db_query.bind(git_branch);
-    }
-    if let Some(container_image_url) = container_image_url {
-        db_query = db_query.bind(container_image_url);
-    }
-    if let Some(region_id) = region_id {
-        db_query = db_query.bind(region_id);
-    }
-    if let Some(maintenance_mode) = maintenance_mode {
-        db_query = db_query.bind(maintenance_mode);
-    }
+    // Bind string parameters
+    if let Some(val) = name { db_query = db_query.bind(val); }
+    if let Some(val) = git_repo { db_query = db_query.bind(val); }
+    if let Some(val) = git_branch { db_query = db_query.bind(val); }
+    if let Some(val) = container_image_url { db_query = db_query.bind(val); }
     
+    // Bind numeric/boolean parameters
+    if let Some(val) = region_id { db_query = db_query.bind(val); }
+    if let Some(val) = maintenance_mode { db_query = db_query.bind(val); }
+    
+    // Bind the ID parameter
     db_query = db_query.bind(id);
 
+    // Execute the query in a transaction
+    let mut tx = pool.begin().await?;
     let app = db_query
         .fetch_one(&mut *tx)
         .await
@@ -189,7 +185,7 @@ pub async fn set_maintenance_mode(
     .bind(id)
     .fetch_one(&mut *tx)
     .await
-    .context("Failed to update app maintenance mode")?;
+    .context(format!("Failed to update app {} maintenance mode", id))?;
 
     tx.commit().await?;
     Ok(app)

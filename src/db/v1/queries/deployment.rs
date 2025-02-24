@@ -1,4 +1,4 @@
-use sqlx::{FromRow, MySql, Pool, Row};
+use sqlx::{FromRow, MySql, Pool};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use super::super::tables::{Build, Deployment};

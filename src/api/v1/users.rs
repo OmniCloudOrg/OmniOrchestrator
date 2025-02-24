@@ -1,8 +1,6 @@
-use rand::thread_rng;
 use rocket::post;
 use rocket::State;
 use sqlx::mysql::MySqlPool as Pool;
-use sqlx::MySql;
 use super::super::super::db::v1::queries::user::{create_user, login_user};
 use sha2::{Sha256, Digest};
 use rand::Rng;
@@ -49,7 +47,7 @@ pub async fn handle_create_user(pool: &State<Pool>, data: String) -> Custom<Stri
     hasher.update(salted.as_bytes());
     let password_hash = hex::encode(hasher.finalize());
 
-    match create_user(&pool, username, &password_hash, email, &active.to_string()).await {
+    match create_user(pool, username, &password_hash, email, &active.to_string()).await {
         Ok(_) => Custom(Status::Ok, String::from("User created successfully")),
         Err(e) => {
             log::error!("Error creating user: {}", e);
@@ -76,7 +74,7 @@ pub async fn handle_login(pool: &State<Pool>, data: String) -> Custom<String> {
     };
 
     // Note: You'll need to implement the actual login_user function in your queries module
-    match login_user(&pool, email, password).await {
+    match login_user(pool, email, password).await {
         Ok(user) => Custom(Status::Ok, format!("Login successful: {:?}", user)),
         Err(e) => {
             log::error!("Error logging in user: {}", e);

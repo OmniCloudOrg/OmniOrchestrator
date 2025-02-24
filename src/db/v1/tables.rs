@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Serialize,Deserialize};
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct User {
@@ -53,7 +53,7 @@ pub struct Role {
     pub description: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize,Deserialize)]
 pub struct Permission {
     pub id:            i64,
     pub name:          String,

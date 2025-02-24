@@ -23,7 +23,6 @@ use reqwest::Client;
 use anyhow::anyhow;
 use anyhow::Result;
 use std::io::Write;
-use sqlx::Executor;
 use std::fs::File;
 
 use crate::cluster::{ClusterManager, NodeInfo};
@@ -88,7 +87,7 @@ impl ClusterManager {
         let response = client.get(&health_url).timeout(Duration::from_secs(5)).send().await?;
 
         if response.status().is_success() {
-            let port = node_address.split(':').last().unwrap_or("80").parse::<u16>().unwrap_or(80);
+            let port = node_address.split(':').next_back().unwrap_or("80").parse::<u16>().unwrap_or(80);
 
             let node_info = NodeInfo {
                 id: node_address.into(),
@@ -167,20 +166,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pool = MySqlPool::connect(&database_url)
         .await
         .expect("Failed to connect to MySQL database");
+    
+    let meta_exists = db::v1::queries::metadata::meta_table_exists(&pool).await;
+    let target_version = "1";
 
-    // Initialize database schema
-    println!("Initializing database schema...");
-    match db::init_schema(1, &pool).await {
-        Ok(_) => println!("Database schema initialized"),
-        Err(e) => println!("Failed to initialize database schema: {:?}", e)
-    };
 
-    // Initialize sample data for the schema
-    println!("initializing sample data...");
-    match db::sample_data(&pool).await {
-        Ok(_) => println!("Sample data initialized"),
-        Err(e) => println!("Failed to initialize sample data: {:?}", e)
-    };
+    if !meta_exists {
+        db::v1::queries::metadata::create_meta_table(&pool).await;
+    }
+
+    let current_version = db::v1::queries::metadata::get_meta_value(&pool, "omni_schema_version").await.unwrap_or_else(|_| "0".to_string());
+    
+    if current_version != target_version {
+        println!("Current schema version: {}", current_version);
+        println!("Target schema version: {}", target_version);
+        println!("Type 'confirm' to update schema version:");
+        
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        
+        if input.trim() == "confirm" {
+            // Initialize database schema
+            println!("Initializing database schema...");
+            match db::init_schema(1, &pool).await {
+                Ok(_) => {
+                    println!("Database schema initialized");
+                    db::v1::queries::metadata::set_meta_value(&pool, "omni_schema_version", target_version).await.expect("Failed to set meta value")
+                }
+                Err(e) => println!("Failed to initialize database schema: {:?}", e)
+            };
+
+            // Initialize sample data for the schema
+            println!("initializing sample data...");
+            match db::sample_data(&pool).await {
+                Ok(_) => println!("Sample data initialized"),
+                Err(e) => println!("Failed to initialize sample data: {:?}", e)
+            };
+        } else {
+            println!("Schema update cancelled");
+            return Ok(());
+        }
+    }
+
+
+
 
     // Initialize node state and cluster management
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
@@ -202,7 +231,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize and start leader election
     let leader_election = LeaderElection::new(
-        node_id.into(),
+        node_id,
         shared_state.clone(),
     );
 
@@ -219,7 +248,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             port,
             address: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
             ..Default::default()
-        })
+        })  
         .manage(pool)  // Add database pool to Rocket's state
         .manage(shared_state)
         .manage(CLUSTER_MANAGER.clone())
@@ -228,6 +257,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .mount("/api/v1", api::v1::routes())
         .launch()
         .await?;
-
     Ok(())
 }

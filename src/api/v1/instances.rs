@@ -1,13 +1,10 @@
-use rocket::{get, post, put, delete, State, http::ContentType, Data};
-use rocket::http::Status;
-use rocket::serde::json::{Json, Value, json};
-use serde::{Deserialize, Serialize};
-use sqlx::{pool, MySql};
-use std::sync::Arc;
-use std::collections::HashMap;
-use tokio::sync::RwLock;
-use crate::db::tables::{Instance};
-use crate::db::v1::queries::{self as db, app};
+use rocket::get;
+use rocket::State;
+use rocket::serde::json::Json;
+use sqlx::MySql;
+use crate::db::v1::tables::Instance;
+
+use crate::db::v1::queries::{self as db};
 
 
 // List all applications

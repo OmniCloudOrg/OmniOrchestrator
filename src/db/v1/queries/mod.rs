@@ -6,3 +6,4 @@ pub mod deployment;
 pub mod instance;
 pub mod audit_log;
 pub mod permission;
+pub mod metadata;

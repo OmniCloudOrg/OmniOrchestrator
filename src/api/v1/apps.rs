@@ -2,7 +2,7 @@ use rocket::{get, post, put, delete, State, http::ContentType, Data};
 use rocket::http::Status;
 use rocket::serde::json::{Json, Value, json};
 use serde::{Deserialize, Serialize};
-use sqlx::{pool, MySql};
+use sqlx::MySql;
 use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
@@ -15,8 +15,8 @@ pub struct Application {
     id: String,
     name: String,
     owner: String,
-    instances: i32,
-    memory: i32,  // in MB
+    instances: i64,
+    memory: i64,  // in MB
     status: String,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
@@ -31,17 +31,26 @@ pub struct ScaleRequest {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppStats {
     cpu_usage: f64,
-    memory_usage: i32,
-    disk_usage: i32,
+    memory_usage: i64,
+    disk_usage: i64,
     requests_per_second: f64,
-    response_time_ms: i32,
+    response_time_ms: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateAppRequest {
     name: String,
-    memory: i32,
-    instances: i32,
+    memory: i64,
+    instances: i64,
+    org_id: i64
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateAppRequest {
+    name: String,
+    memory: i64,
+    instances: i64,
+    org_id: i64
 }
 
 // State management
@@ -69,35 +78,45 @@ pub async fn get_app(app_id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Jso
             None
         },
     };
-    app.map(|app| Json(app))
+    app.map(Json)
 }
 
 // Create new application
 #[post("/apps", format = "json", data = "<app_request>")]
 pub async fn create_app(
     app_request: Json<CreateAppRequest>,
-    store: &State<AppStore>
-) -> Json<Application> {
-    let mut apps = store.write().await;
-    let app = Application {
-        id: uuid::Uuid::new_v4().to_string(),
-        name: app_request.name.clone(),
-        owner: "current_user".to_string(), // TODO: Add auth
-        instances: app_request.instances,
-        memory: app_request.memory,
-        status: "STOPPED".to_string(),
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-    };
-    
-    apps.insert(app.id.clone(), app.clone());
+    store: &State<AppStore>,
+    pool: &State<sqlx::Pool<MySql>>
+) -> Json<App> {
+    // let mut apps = store.write().await;
+
+    let app = db::app::create_app(
+        pool,
+        &app_request.name,
+        app_request.org_id,
+        None,
+        None,
+        None,
+        None
+    ).await.unwrap();
+    Json(app)
+}
+
+#[post("/apps/<app_id>",format = "json", data = "<app_request>")]
+pub async fn update_app(
+    app_request: Json<UpdateAppRequest>,
+    pool: &State<sqlx::Pool<MySql>>,
+    app_id: i64) -> Json<App> {
+    let app = db::app::update_app(pool,app_id,Some(&app_request.name),None,None,None,None,None).await.unwrap();
+
+
     Json(app)
 }
 
 // Get application statistics
 #[get("/apps/<app_id>/stats")]
 pub async fn get_app_stats(app_id: String, pool: &State<sqlx::Pool<MySql>>) -> Json<AppStats> {
-    let mut app_stats = AppStats {
+    let app_stats = AppStats {
         cpu_usage: 0.0,
         memory_usage: 0,
         disk_usage: 0,
@@ -142,8 +161,8 @@ pub async fn scale_app(
 ) -> Option<Json<Application>> {
     let mut apps = store.write().await;
     if let Some(app) = apps.get_mut(&app_id) {
-        app.instances = scale.instances;
-        app.memory = scale.memory;
+        // app.instances = scale.instances;
+        // app.memory = scale.memory;
         app.updated_at = chrono::Utc::now();
         Some(Json(app.clone()))
     } else {
@@ -186,7 +205,7 @@ pub async fn release(app_id: String, release_version: String, content_type: &Con
     //Create the build recrd in builds table using the app ID
 
     // Accept the release tarball and save it to the filesystem
-    let status = super::helpers::release::release(app_id, release_version, content_type, data).await;
+    
 
-    status
+    super::helpers::release::release(app_id, release_version, content_type, data).await
 }

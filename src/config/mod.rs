@@ -61,8 +61,8 @@ impl ServerConfig {
             Err(_) => return Err(ConfigError::ParseError),
         };
         match std::fs::write(config_path, config_content) {
-            Ok(_) => return Ok(()),
-            Err(_) => return Err(ConfigError::FailedToWrite),
+            Ok(_) => Ok(()),
+            Err(_) => Err(ConfigError::FailedToWrite),
         }
     }
     pub fn write_default() -> Result<(), ConfigError> {

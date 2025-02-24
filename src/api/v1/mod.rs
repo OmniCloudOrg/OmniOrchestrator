@@ -6,12 +6,13 @@ pub mod instances;
 pub mod deploy;
 pub mod builds;
 pub mod users;
-
+pub mod permissions;
 
 use apps::*;
 use instances::*;
 use deploy::*;
 use users::*;
+use permissions::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -25,6 +26,7 @@ pub fn routes() -> Vec<rocket::Route> {
         start_app,
         stop_app,
         get_app_stats,
+        update_app,
 
         // instances
         list_instances,
@@ -35,6 +37,16 @@ pub fn routes() -> Vec<rocket::Route> {
 
         // users
         handle_create_user,
-        handle_login
+        handle_login,
+
+        // permissions
+
+        list_permission,
+        get_permission_by_id,
+        // create_permission,
+        // delete_permission
+
+
+        // update_permission,
     ]
 }

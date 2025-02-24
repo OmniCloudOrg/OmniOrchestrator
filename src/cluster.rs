@@ -1,11 +1,9 @@
-use async_trait::async_trait;
 use colored::Colorize;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use uuid::Uuid;
 
 use crate::state::SharedState;
 

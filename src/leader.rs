@@ -3,13 +3,13 @@ use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio::time;
 
-use crate::cluster::NodeInfo;
 use crate::state::SharedState;
 use crate::CLUSTER_MANAGER;
 
 pub struct LeaderElection {
     node_id: Arc<str>,
     state: Arc<RwLock<SharedState>>,
+    #[allow(unused)]
     last_heartbeat: Arc<RwLock<std::time::Instant>>,
 }
 

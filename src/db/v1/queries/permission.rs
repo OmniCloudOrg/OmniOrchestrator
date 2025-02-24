@@ -125,8 +125,8 @@ pub async fn get_permission_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result
 pub async fn create_permission(
     pool: &Pool<MySql>,
     name: &str,
-    description: Option<&str>,
-    resource_type: Option<&str>,
+    description: Option<String>,
+    resource_type: String,
 ) -> anyhow::Result<Permission> {
     let mut tx = pool.begin().await?;
 
@@ -151,36 +151,38 @@ pub async fn update_permission(
     description: Option<&str>,
     resource_type: Option<&str>,
 ) -> anyhow::Result<Permission> {
-    let mut tx = pool.begin().await?;
-
-    let mut query = String::from("UPDATE permissions SET id = id");
+    // Define which fields are being updated
+    let update_fields = [
+        (name.is_some(), "name = ?"),
+        (description.is_some(), "description = ?"),
+        (resource_type.is_some(), "resource_type = ?"),
+    ];
     
-    if let Some(name) = name {
-        query.push_str(", name = ?");
-    }
-    if let Some(description) = description {
-        query.push_str(", description = ?");
-    }
-    if let Some(resource_type) = resource_type {
-        query.push_str(", resource_type = ?");
-    }
+    // Build update query with only the fields that have values
+    let field_clauses = update_fields.iter()
+        .filter(|(has_value, _)| *has_value)
+        .enumerate()
+        .map(|(i, (_, field))| if i == 0 { format!(" SET {}", field) } else { format!(", {}", field) })
+        .collect::<String>();
+        
+    let query = format!(
+        "UPDATE permissions{} WHERE id = ?",
+        field_clauses
+    );
     
-    query.push_str(" WHERE id = ?");
-
+    // Start binding parameters
     let mut db_query = sqlx::query_as::<_, Permission>(&query);
     
-    if let Some(name) = name {
-        db_query = db_query.bind(name);
-    }
-    if let Some(description) = description {
-        db_query = db_query.bind(description);
-    }
-    if let Some(resource_type) = resource_type {
-        db_query = db_query.bind(resource_type);
-    }
+    // Bind parameters
+    if let Some(val) = name { db_query = db_query.bind(val); }
+    if let Some(val) = description { db_query = db_query.bind(val); }
+    if let Some(val) = resource_type { db_query = db_query.bind(val); }
     
+    // Bind the ID parameter
     db_query = db_query.bind(id);
 
+    // Execute the query in a transaction
+    let mut tx = pool.begin().await?;
     let permission = db_query
         .fetch_one(&mut *tx)
         .await

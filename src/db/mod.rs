@@ -2,10 +2,8 @@ pub mod utils;
 pub mod v1;
 
 pub use v1::tables;
-use anyhow::Context;
-use sqlx::mysql::MySqlPool;
 use utils::split_sql_statements;
-use sqlx::{pool, Acquire, MySql, Pool};
+use sqlx::{Acquire, MySql};
 
 pub async fn init_schema(version: i64, pool: &sqlx::Pool<MySql>) -> Result<(), sqlx::Error> {
     println!("Initializing schema version {}", version);
@@ -37,7 +35,7 @@ pub async fn init_schema(version: i64, pool: &sqlx::Pool<MySql>) -> Result<(), s
 
 pub async fn sample_data(pool: &sqlx::Pool<MySql>) -> Result<(), sqlx::Error> {
     let mut conn = pool.acquire().await?;
-    let mut trans = conn.begin().await?;
+    let trans = conn.begin().await?;
     let statements = split_sql_statements(include_str!("../../sql/sample_data.sql"));
 
     // Execute each statement separately

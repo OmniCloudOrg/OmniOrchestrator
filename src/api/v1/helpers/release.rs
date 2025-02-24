@@ -1,4 +1,4 @@
-use rocket::{get, http::Status, post};
+use rocket::http::Status;
 use rocket::data::Data;
 use rocket::http::ContentType;
 use rocket_multipart_form_data::{MultipartFormData, MultipartFormDataField, MultipartFormDataOptions};
@@ -59,7 +59,7 @@ pub async fn release<'a>(app_id: String, release_version: String, content_type: 
                 let mut release_version = release_version.clone();
 
                 // Create App directory
-                if release_version == "" {
+                if release_version.is_empty() {
                     release_version = uuid::Uuid::new_v4().to_string();
                 }
 
@@ -78,7 +78,7 @@ pub async fn release<'a>(app_id: String, release_version: String, content_type: 
             
                 // Copy file with size verification
                 let source_size = fs::metadata(&file.path)
-                    .map_err(|_| return Err::<Status,Status>(Status::new(500))).unwrap()
+                    .map_err(|_| Err::<Status,Status>(Status::new(500))).unwrap()
                     .len();
 
                 println!("Source file size: {} bytes", source_size);
@@ -103,5 +103,5 @@ pub async fn release<'a>(app_id: String, release_version: String, content_type: 
             }
         }
     }
-    return Ok::<Status,Status>(Status::new(200));
+    Ok::<Status,Status>(Status::new(200))
 }
