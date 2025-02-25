@@ -85,7 +85,6 @@ pub async fn get_app(app_id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Jso
 #[post("/apps", format = "json", data = "<app_request>")]
 pub async fn create_app(
     app_request: Json<CreateAppRequest>,
-    store: &State<AppStore>,
     pool: &State<sqlx::Pool<MySql>>
 ) -> Json<App> {
     // let mut apps = store.write().await;

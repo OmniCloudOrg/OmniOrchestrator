@@ -222,7 +222,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(e) = cluster_manager.read().await.discover_peers(&server_config, port).await {
                     log::error!("Failed to discover peers: {e}");
                 }
-                tokio::time::sleep(Duration::from_secs(30)).await;
+                tokio::time::sleep(Duration::from_millis(200)).await;
             }
         }
     });

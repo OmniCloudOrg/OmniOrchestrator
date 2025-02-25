@@ -10,7 +10,7 @@ pub async fn get_meta_value(
     let result = db::metadata::get_meta_value(pool,&key).await;
     match result {
         Ok(value) => (rocket::http::Status::Ok,value),
-        Err(e) => (rocket::http::Status::InternalServerError,format!("{e:#}")),
+        Err(e) => (rocket::http::Status::NotFound,format!("{e:#}")),
     }
 }
 
