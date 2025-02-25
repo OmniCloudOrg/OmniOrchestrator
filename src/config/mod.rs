@@ -6,7 +6,8 @@ use lazy_static::lazy_static;
 pub struct ServerConfig {
     pub port: u16,
     pub address: String,
-    pub instances: Vec<Instance>,
+    pub highlight_sql: bool,
+    pub instances: Vec<Instance>
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Instance {
@@ -19,6 +20,7 @@ impl Default for ServerConfig {
         Self {
             port: 8000,
             address: "127.0.0.1".to_string(),
+            highlight_sql: true,
             instances: vec![Instance {
                 port: 8000,
                 address: "example.com".to_string(),

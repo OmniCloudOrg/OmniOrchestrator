@@ -1,4 +1,4 @@
-use rocket::{post,get,State,serde::json::Json};
+use rocket::{post,get,delete,State,serde::json::Json};
 use sqlx::MySql;
 use crate::db::v1::queries as db;
 use crate::db::v1::tables as tables;
@@ -35,4 +35,16 @@ pub async fn create_permission(
     let permission = db::permission::create_permission(pool, &permission.name, permission.description.clone(), permission.resource_type.clone().unwrap()).await.unwrap();
     Json(permission)
 
+}
+
+#[delete("/permissions/<id>")]
+pub async fn delete_permission(
+    pool: &State<sqlx::Pool<MySql>>,
+    id: i64
+) -> (rocket::http::Status,String) {
+    let result = db::permission::delete_permission(pool,id);
+    match result.await {
+        Ok(_) => (rocket::http::Status::Ok,"Permission has been successfully deleted".to_string()),
+        Err(e) => (rocket::http::Status::InternalServerError,format!("{e:#}")),
+    }
 }

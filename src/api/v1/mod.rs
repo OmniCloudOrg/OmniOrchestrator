@@ -7,12 +7,16 @@ pub mod deploy;
 pub mod builds;
 pub mod users;
 pub mod permissions;
+pub mod metadata;
+pub mod audit_log;
 
 use apps::*;
 use instances::*;
 use deploy::*;
 use users::*;
 use permissions::*;
+use metadata::*;
+use audit_log::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -43,10 +47,18 @@ pub fn routes() -> Vec<rocket::Route> {
 
         list_permission,
         get_permission_by_id,
-        // create_permission,
-        // delete_permission
-
-
+        create_permission,
+        delete_permission,
         // update_permission,
+
+        // metadata
+
+        get_meta_value,
+        set_meta_value,
+
+        // audit log
+
+        create_audit_log,
+        list_audit_logs,
     ]
 }

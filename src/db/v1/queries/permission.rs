@@ -101,7 +101,7 @@ pub async fn delete_role(pool: &Pool<MySql>, id: i64) -> anyhow::Result<()> {
 // Permission Operations
 pub async fn list_permissions(pool: &Pool<MySql>) -> anyhow::Result<Vec<Permission>> {
     let permissions = sqlx::query_as::<_, Permission>(
-        "SELECT * FROM permissions ORDER BY created_at DESC"
+        "SELECT * FROM permissions ORDER BY id ASC"
     )
     .fetch_all(pool)
     .await

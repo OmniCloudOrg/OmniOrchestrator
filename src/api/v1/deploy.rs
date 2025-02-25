@@ -11,8 +11,10 @@ impl Default for DeployPermissions {
         Self { max_file_count: 45000000 }
     }
 }
+//TODO: replace with proxy
 #[get("/deploy/permissions")]
 pub fn deploy_permissions() -> Result<rocket::serde::json::Json<DeployPermissions>,Status> {
 
     Ok(rocket::serde::json::Json(DeployPermissions::default()))
 }
+ 

@@ -97,7 +97,7 @@ pub struct Instance {
     pub instance_status: String,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize,Deserialize)]
 pub struct AuditLog {
     pub id:            i64,
     pub org_id:        Option<i64>,

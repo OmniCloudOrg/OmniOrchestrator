@@ -9,9 +9,6 @@ use rocket::response::status::Custom;
 use rocket::http::Status;
 use log;
 
-pub fn test() {
-    let _path = std::path::Path::new("test");
-}
 
 #[post("/users/create", data = "<data>")]
 pub async fn handle_create_user(pool: &State<Pool>, data: String) -> Custom<String> {
