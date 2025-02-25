@@ -99,6 +99,7 @@ CREATE TABLE apps (
     git_repo VARCHAR(255),
     git_branch VARCHAR(255) DEFAULT 'main',
     container_image_url VARCHAR(255),
+    default_allocation_id BIGINT,
     region_id BIGINT,
     maintenance_mode TINYINT(1) DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -106,6 +107,7 @@ CREATE TABLE apps (
     PRIMARY KEY (id),
     UNIQUE KEY unique_name_org (name, org_id),
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
+    FOREIGN KEY (default_allocation_id) REFERENCES allocations(id),
     FOREIGN KEY (region_id) REFERENCES regions(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -115,13 +117,26 @@ CREATE TABLE instances (
     instance_type VARCHAR(255) NOT NULL,
     status ENUM('provisioning', 'running', 'stopping', 'stopped', 'terminated', 'failed') DEFAULT 'provisioning',
     container_id VARCHAR(255),
+    allocation_id BIGINT,
     node_name VARCHAR(255),
     instance_status ENUM('running', 'stopped', 'terminated', 'failed') DEFAULT 'running',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
+    FOREIGN KEY (allocation_id) REFERENCES allocations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE allocations (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    cpu DOUBLE NOT NULL,
+    memory DOUBLE NOT NULL,
+    uplink DOUBLE NOT NULL,
+    downlink DOUBLE NOT NULL,
+    disk DOUBLE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+)
 
 CREATE TABLE domains (
     id BIGINT NOT NULL AUTO_INCREMENT,
