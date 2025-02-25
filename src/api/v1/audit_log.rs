@@ -16,7 +16,7 @@ pub async fn create_audit_log(
         audit_log.org_id,
         &audit_log.action,
         &audit_log.resource_type,
-        //TODO: Dont.
+        //TODO: We should look into not cloning this in the future if possible
         audit_log.resource_id.clone(),
     ).await.unwrap();
 

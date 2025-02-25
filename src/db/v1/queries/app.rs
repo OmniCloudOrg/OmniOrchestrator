@@ -49,6 +49,7 @@ pub async fn get_app_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<App> {
     .fetch_one(pool)
     .await
     .context("Failed to fetch app")?;
+
     Ok(app)
 }
 
@@ -82,20 +83,25 @@ pub async fn create_app(
             name, org_id, git_repo, git_branch, container_image_url, region_id, maintenance_mode
         ) VALUES (?, ?, ?, ?, ?, ?, false)"#
     )
+
     // Bind required parameters
     .bind(name)
     .bind(org_id)
+
     // Bind optional parameters
     .bind(git_repo)
     .bind(git_branch)
     .bind(container_image_url)
     .bind(region_id)
+
     // Execute query and handle errors
     .fetch_one(&mut *tx)
     .await
     .context("Failed to create app")?;
+
     // Commit transaction
     tx.commit().await?;
+
     // Return newly created app
     Ok(app)
 }

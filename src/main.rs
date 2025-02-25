@@ -167,15 +167,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await
         .expect("Failed to connect to MySQL database");
     
-    let meta_exists = db::v1::queries::metadata::meta_table_exists(&pool).await;
+    // Initialize metadata system properly with mutex protection
+    println!("Initializing metadata system...");
+    db::v1::queries::metadata::initialize_metadata_system(&pool).await?;
+    
     let target_version = "1";
-
-
-    if !meta_exists {
-        db::v1::queries::metadata::create_meta_table(&pool).await;
-    }
-
-    let current_version = db::v1::queries::metadata::get_meta_value(&pool, "omni_schema_version").await.unwrap_or_else(|_| "0".to_string());
+    let current_version = db::v1::queries::metadata::get_meta_value(&pool, "omni_schema_version")
+        .await
+        .unwrap_or_else(|_| "0".to_string());
     
     if current_version != target_version {
         println!("Current schema version: {}", current_version);
@@ -191,7 +190,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match db::init_schema(1, &pool).await {
                 Ok(_) => {
                     println!("Database schema initialized");
-                    db::v1::queries::metadata::set_meta_value(&pool, "omni_schema_version", target_version).await.expect("Failed to set meta value")
+                    db::v1::queries::metadata::set_meta_value(&pool, "omni_schema_version", target_version)
+                        .await
+                        .expect("Failed to set meta value")
                 }
                 Err(e) => println!("Failed to initialize database schema: {:?}", e)
             };
@@ -207,9 +208,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }
     }
-
-
-
 
     // Initialize node state and cluster management
     let node_id: Arc<str> = format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
