@@ -115,6 +115,8 @@ pub async fn update_app(
 // Get application statistics
 #[get("/apps/<app_id>/stats")]
 pub async fn get_app_stats(app_id: String, pool: &State<sqlx::Pool<MySql>>) -> Json<AppStats> {
+
+    
     let app_stats = AppStats {
         cpu_usage: 0.0,
         memory_usage: 0,
@@ -171,9 +173,17 @@ pub async fn scale_app(
 
 // Delete application
 #[delete("/apps/<app_id>")]
-pub async fn delete_app(app_id: String, store: &State<AppStore>) -> Option<Json<Value>> {
-    let mut apps = store.write().await;
-    apps.remove(&app_id).map(|_| Json(json!({ "status": "deleted" })))
+pub async fn delete_app(app_id: String,pool: &State<sqlx::Pool<MySql>>) -> Result<Json<Value>,(rocket::http::Status,String)> {
+    match app_id.parse::<i64>() {
+        Ok(id) => {
+            db::app::delete_app(pool,id).await.unwrap();
+            Ok(Json(json!({ "status": "deleted" })))
+        },
+        Err(e) => {
+            let code = rocket::http::Status::Ok;
+            Err((code,format!("{e}")))
+        },
+    }
 }
 
 /// Releases a new version of the target application by uploading an artifact.
