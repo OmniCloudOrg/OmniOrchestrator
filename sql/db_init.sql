@@ -1,5 +1,5 @@
 -- Drop all tables first (in correct dependency order)
-DROP TABLE IF EXISTS metrics, instance_logs, audit_logs, api_keys, config_vars, 
+DROP TABLE IF EXISTS metrics, allocations, instance_logs, audit_logs, api_keys, config_vars, 
     deployment_logs, deployments, builds, instances, domains, apps, 
     orgmember, permissions_role, role_user, permissions, roles, orgs, 
     users, regions;
@@ -91,6 +91,17 @@ CREATE TABLE api_keys (
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE allocations (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    cpu DOUBLE NOT NULL,
+    memory DOUBLE NOT NULL,
+    uplink DOUBLE NOT NULL,
+    downlink DOUBLE NOT NULL,
+    disk DOUBLE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Create application-related tables
 CREATE TABLE apps (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -123,20 +134,9 @@ CREATE TABLE instances (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (allocation_id) REFERENCES allocations(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE allocations (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    cpu DOUBLE NOT NULL,
-    memory DOUBLE NOT NULL,
-    uplink DOUBLE NOT NULL,
-    downlink DOUBLE NOT NULL,
-    disk DOUBLE NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
-)
 
 CREATE TABLE domains (
     id BIGINT NOT NULL AUTO_INCREMENT,
