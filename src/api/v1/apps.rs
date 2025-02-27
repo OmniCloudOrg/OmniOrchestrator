@@ -58,9 +58,9 @@ type AppStore = Arc<RwLock<HashMap<String, Application>>>;
 
 
 // List all applications
-#[get("/apps")]
-pub async fn list_apps(pool: &State<sqlx::Pool<MySql>>) -> Json<Vec<App>> {
-    let apps = db::app::list_apps(pool).await.unwrap();
+#[get("/apps?<page>&<per_page>")]
+pub async fn list_apps(page: i64, per_page: i64, pool: &State<sqlx::Pool<MySql>>) -> Json<Vec<App>> {
+    let apps = db::app::list_apps(pool, page, per_page).await.unwrap();
     println!("Found {} apps", apps.len());
     let apps_vec: Vec<App> = apps.into_iter().collect();
     println!("Returning {} apps", apps_vec.len());
