@@ -1,5 +1,5 @@
 {
-    "port":  8003,
+    "port":  8002,
     "address":  "http://localhost",
     "highlight_sql": true,
     "instances":  [
