@@ -11,6 +11,7 @@ pub mod metadata;
 pub mod audit_log;
 
 use apps::*;
+use builds::*;
 use instances::*;
 use deploy::*;
 use users::*;

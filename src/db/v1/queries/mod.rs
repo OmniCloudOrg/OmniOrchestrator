@@ -7,3 +7,4 @@ pub mod instance;
 pub mod audit_log;
 pub mod permission;
 pub mod metadata;
+pub mod build;
