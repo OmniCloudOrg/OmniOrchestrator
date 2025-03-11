@@ -61,5 +61,10 @@ pub fn routes() -> Vec<rocket::Route> {
 
         create_audit_log,
         list_audit_logs,
+
+        //Builds
+        list_builds,
+        list_builds_for_app,
+        get_build
     ]
 }
