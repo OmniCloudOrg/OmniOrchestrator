@@ -1,6 +1,6 @@
 [package]
 name = "omni-orchestrator"
-version = "0.1.0-3757c06b354c3645228cabcadfd2a948b6b5da5d"
+version = "0.1.0-in-dev-57696b7d5193518045c0654f20cd0c61f6e27ccc"
 edition = "2021"
 
 [dependencies]
