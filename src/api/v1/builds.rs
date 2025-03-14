@@ -14,9 +14,8 @@ pub async fn list_builds(
 ) -> Json<Vec<Build>> {
     let page: i64 = page.unwrap_or(1).into();
     let per_page: i64 = per_page.unwrap_or(10).into();
-    let offset = (page - 1) * per_page;
     
-    let builds = db::build::list_builds_paginated(pool, per_page, offset)
+    let builds = db::build::list_builds_paginated(pool, per_page, page)
         .await
         .unwrap();
 

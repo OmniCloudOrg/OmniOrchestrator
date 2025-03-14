@@ -3,12 +3,12 @@ use anyhow::Context;
 use super::super::tables::Build;
 
 // List builds (Paginated)
-pub async fn list_builds_paginated(pool: &Pool<MySql>, per_page: i64, offset: i64) -> anyhow::Result<Vec<Build>> {
+pub async fn list_builds_paginated(pool: &Pool<MySql>, per_page: i64, page: i64) -> anyhow::Result<Vec<Build>> {
     let builds = sqlx::query_as::<_, Build>(
         "SELECT * FROM builds ORDER BY id ASC LIMIT ? OFFSET ?"
     )
     .bind(per_page)
-    .bind(offset)
+    .bind(page)
     .fetch_all(pool)
     .await
     .context("Failed to fetch builds")?;
