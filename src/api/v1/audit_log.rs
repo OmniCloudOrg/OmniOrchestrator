@@ -32,9 +32,8 @@ pub async fn list_audit_logs(
 ) -> Json<Vec<crate::db::v1::tables::AuditLog>> {
     let page: i64 = page.unwrap_or(1).into();
     let per_page: i64 = per_page.unwrap_or(10).into();
-    let offset = (page - 1) * per_page;
     
-    let audit_logs = db::audit_log::list_audit_logs_paginated(pool, per_page, offset)
+    let audit_logs = db::audit_log::list_audit_logs_paginated(pool, per_page, page)
         .await
         .unwrap();
 

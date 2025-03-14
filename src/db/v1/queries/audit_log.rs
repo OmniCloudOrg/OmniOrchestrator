@@ -32,7 +32,7 @@ pub async fn create_audit_log(
 pub async fn list_audit_logs_paginated(
     pool: &Pool<MySql>,
     limit: i64,
-    offset: i64,
+    page: i64,
 ) -> anyhow::Result<Vec<AuditLog>> {
     let audit_logs = sqlx::query_as::<_, AuditLog>(
         r#"
@@ -42,7 +42,7 @@ pub async fn list_audit_logs_paginated(
         "#
     )
     .bind(limit)
-    .bind(offset)
+    .bind(page)
     .fetch_all(pool)
     .await
     .context("Failed to fetch audit logs")?;

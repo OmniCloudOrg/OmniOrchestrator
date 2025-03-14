@@ -129,28 +129,14 @@ pub async fn get_app_stats(app_id: String, pool: &State<sqlx::Pool<MySql>>) -> J
 
 // Start application
 #[put("/apps/<app_id>/start")]
-pub async fn start_app(app_id: String, store: &State<AppStore>) -> Option<Json<Application>> {
-    let mut apps = store.write().await;
-    if let Some(app) = apps.get_mut(&app_id) {
-        app.status = "RUNNING".to_string();
-        app.updated_at = chrono::Utc::now();
-        Some(Json(app.clone()))
-    } else {
-        None
-    }
+pub async fn start_app(app_id: String) -> Option<Json<Application>> {
+    todo!()
 }
 
 // Stop application
 #[put("/apps/<app_id>/stop")]
-pub async fn stop_app(app_id: String, store: &State<AppStore>) -> Option<Json<Application>> {
-    let mut apps = store.write().await;
-    if let Some(app) = apps.get_mut(&app_id) {
-        app.status = "STOPPED".to_string();
-        app.updated_at = chrono::Utc::now();
-        Some(Json(app.clone()))
-    } else {
-        None
-    }
+pub async fn stop_app(app_id: String) -> Option<Json<Application>> {
+    todo!()
 }
 
 // Scale application
@@ -158,17 +144,8 @@ pub async fn stop_app(app_id: String, store: &State<AppStore>) -> Option<Json<Ap
 pub async fn scale_app(
     app_id: String,
     scale: Json<ScaleRequest>,
-    store: &State<AppStore>
 ) -> Option<Json<Application>> {
-    let mut apps = store.write().await;
-    if let Some(app) = apps.get_mut(&app_id) {
-        // app.instances = scale.instances;
-        // app.memory = scale.memory;
-        app.updated_at = chrono::Utc::now();
-        Some(Json(app.clone()))
-    } else {
-        None
-    }
+    todo!()
 }
 
 // Delete application

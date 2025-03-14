@@ -5,18 +5,36 @@ mod leader;
 mod state;
 mod api;
 mod db;
+#[macro_use] extern crate rocket;
 
+// Extension trait for mounting multiple routes
+trait RocketExt {
+    fn mount_routes(self, routes: Vec<(&'static str, Vec<rocket::Route>)>) -> Self;
+}
+
+impl RocketExt for Rocket<Build> {
+    fn mount_routes(self, routes: Vec<(&'static str, Vec<rocket::Route>)>) -> Self {
+        let mut rocket = self;
+        for (path, routes) in routes {
+            println!("Mounting routes at {}", path);
+            rocket = rocket.mount(path, routes);
+        }
+        rocket
+    }
+}
+
+use chrono;
+use std::time::Duration;
+use rocket::Build;
 use serde::{Deserialize, Serialize};
 use env_logger::{Builder, Target};
 use crate::config::SERVER_CONFIG;
-use rocket::{self, get, routes};
 use std::collections::HashMap;
 use lazy_static::lazy_static;
 use sqlx::mysql::MySqlPool;
 use v1::apps::Application;
 use std::{env, sync::Arc};
-use rocket::yansi::Paint;
-use std::time::Duration;
+use rocket::Rocket;
 use tokio::sync::RwLock;
 use colored::Colorize;
 use reqwest::Client;
@@ -83,7 +101,7 @@ impl ClusterManager {
     }
 
     async fn connect_to_peer(&self, client: &Client, node_address: &str) -> Result<()> {
-        let health_url = format!("{}/health", node_address);
+        let health_url = format!("http://{}/health", node_address);
         let response = client.get(&health_url).timeout(Duration::from_secs(5)).send().await?;
 
         if response.status().is_success() {
@@ -146,7 +164,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| {
             let style = buf.style();
-            style.resetting();
+            // Get default style
+            let style = buf.default_level_style(record.level());
             writeln!(
                 buf,
                 "{}: {}",
@@ -222,7 +241,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(e) = cluster_manager.read().await.discover_peers(&server_config, port).await {
                     log::error!("Failed to discover peers: {e}");
                 }
-                tokio::time::sleep(Duration::from_millis(200)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
             }
         }
     });
@@ -232,15 +251,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         node_id,
         shared_state.clone(),
     );
-
-    tokio::spawn(async move {
-        leader_election.start().await;
-    });
-
-    // Initialize application state
-    let applications_state: Arc<RwLock<HashMap<String, Application>>> = Arc::new(RwLock::new(HashMap::new()));
-
-    // Build and launch Rocket
+    
+    // Define routes to mount
+    let routes = vec![
+        ("/", routes![health_check]),
+        ("/api/v1", api::v1::routes())
+    ];
+    
     let _rocket = rocket::build()
         .configure(rocket::Config {
             port,
@@ -250,9 +267,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .manage(pool)  // Add database pool to Rocket's state
         .manage(shared_state)
         .manage(CLUSTER_MANAGER.clone())
-        .manage(applications_state)
-        .mount("/", routes![health_check, cluster_status])
-        .mount("/api/v1", api::v1::routes())
+        .mount_routes(routes)
         .launch()
         .await?;
     Ok(())
