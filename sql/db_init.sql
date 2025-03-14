@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS metrics, allocations, instance_logs, audit_logs, api_keys,
 
 -- Create independent tables first (no foreign keys)
 
--- Split users table into three tables: users, user_meta, and user_pii
+-- Users split into three tables: users, user_meta, and user_pii
 CREATE TABLE users (
     id BIGINT NOT NULL AUTO_INCREMENT,
     email VARCHAR(255) NOT NULL,

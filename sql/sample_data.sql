@@ -8,45 +8,6 @@ SET UNIQUE_CHECKS = 0;
 SET @OLD_SQL_MODE = @@SQL_MODE;
 SET SQL_MODE = '';
 
--- Clear existing data
--- Commented out by default - uncomment if you need to clear existing data
-/*
-TRUNCATE TABLE metrics;
-TRUNCATE TABLE instance_logs;
-TRUNCATE TABLE audit_logs;
-TRUNCATE TABLE network_policies;
-TRUNCATE TABLE autoscaling_rules;
-TRUNCATE TABLE health_checks;
-TRUNCATE TABLE tasks;
-TRUNCATE TABLE config_vars;
-TRUNCATE TABLE deployment_logs;
-TRUNCATE TABLE rollbacks;
-TRUNCATE TABLE deployments;
-TRUNCATE TABLE builds;
-TRUNCATE TABLE service_bindings;
-TRUNCATE TABLE routes;
-TRUNCATE TABLE domains;
-TRUNCATE TABLE instances;
-TRUNCATE TABLE apps;
-TRUNCATE TABLE spaces;
-TRUNCATE TABLE quotas;
-TRUNCATE TABLE api_keys;
-TRUNCATE TABLE orgmember;
-TRUNCATE TABLE role_user;
-TRUNCATE TABLE permissions_role;
-TRUNCATE TABLE data_services;
-TRUNCATE TABLE nodes;
-TRUNCATE TABLE user_sessions;
-TRUNCATE TABLE user_pii;
-TRUNCATE TABLE user_meta;
-TRUNCATE TABLE users;
-TRUNCATE TABLE regions;
-TRUNCATE TABLE roles;
-TRUNCATE TABLE permissions;
-TRUNCATE TABLE orgs;
-TRUNCATE TABLE allocations;
-*/
-
 -- Set variables for scale (adjust as needed)
 SET @USER_COUNT = 25;
 SET @ORG_COUNT = 10;

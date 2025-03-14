@@ -1,2 +1,0 @@
-DELETE FROM builds
-WHERE id = ? AND EXISTS (SELECT 1 FROM builds WHERE id = ?);
