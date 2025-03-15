@@ -9,6 +9,7 @@ pub mod users;
 pub mod permissions;
 pub mod metadata;
 pub mod audit_log;
+pub mod regions;
 
 use apps::*;
 use builds::*;
@@ -18,6 +19,7 @@ use users::*;
 use permissions::*;
 use metadata::*;
 use audit_log::*;
+use regions::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -66,5 +68,12 @@ pub fn routes() -> Vec<rocket::Route> {
         list_builds,
         list_builds_for_app,
         get_build
+
+        // regions
+        get_region,
+        list_regions,
+        delete_region,
+        create_region,
+        update_region
     ]
 }

@@ -2,13 +2,31 @@ use sqlx::{MySql, Pool};
 use anyhow::Context;
 use super::super::tables::Region;
 
-pub async fn list_regions(pool: &Pool<MySql>) -> anyhow::Result<Vec<Region>> {
-    let regions = sqlx::query_as::<_, Region>(
+pub async fn list_regions(
+    pool: &Pool<MySql>, 
+    limit: Option<i64>,
+    offset: Option<i64>
+) -> anyhow::Result<Vec<Region>> {
+    let mut query_builder = sqlx::QueryBuilder::new(
         "SELECT * FROM regions ORDER BY created_at DESC"
-    )
-    .fetch_all(pool)
-    .await
-    .context("Failed to fetch regions")?;
+    );
+
+    if limit.is_some() || offset.is_some() {
+        query_builder.push(" LIMIT ");
+        query_builder.push_bind(limit.unwrap_or(100));
+        
+        if offset.is_some() {
+            query_builder.push(" OFFSET ");
+            query_builder.push_bind(offset.unwrap());
+        }
+    }
+
+    let query = query_builder.build_query_as::<Region>();
+    
+    let regions = query
+        .fetch_all(pool)
+        .await
+        .context("Failed to fetch regions")?;
 
     Ok(regions)
 }

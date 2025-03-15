@@ -125,7 +125,7 @@ CREATE TABLE regions (
     coordinates POINT,
     status ENUM('active', 'maintenance', 'offline', 'deprecated') DEFAULT 'active',
     is_public TINYINT(1) DEFAULT 1,
-    tier ENUM('free', 'standard', 'premium', 'enterprise') DEFAULT 'standard',
+    class VARCHAR(50) DEFAULT 'primary',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
