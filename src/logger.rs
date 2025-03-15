@@ -3,15 +3,14 @@ use std::io::{self, Write};
 use std::sync::Arc;
 
 use colored::Colorize;
-use log::{Level, Log, Metadata, Record};
 use lazy_static::lazy_static;
+use log::{Level, Log, Metadata, Record};
 // use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
 lazy_static! {
     pub static ref LOGGER: DynamicLogger = DynamicLogger::new();
 }
-
 
 // A logger that dynamically switches between file and stdout
 pub struct DynamicLogger {

@@ -1,13 +1,13 @@
-use rocket::{get, post, put, delete, State, http::ContentType, Data};
-use rocket::http::Status;
-use rocket::serde::json::{Json, Value, json};
-use serde::{Deserialize, Serialize};
-use sqlx::MySql;
-use std::sync::Arc;
-use std::collections::HashMap;
-use tokio::sync::RwLock;
 use crate::db::tables::Region;
 use crate::db::v1::queries as db;
+use rocket::http::Status;
+use rocket::serde::json::{json, Json, Value};
+use rocket::{delete, get, http::ContentType, post, put, Data, State};
+use serde::{Deserialize, Serialize};
+use sqlx::MySql;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateRegionRequest {
@@ -22,9 +22,9 @@ pub struct CreateRegionRequest {
     /// Country / State / province / City in which the data center is located
     location: Option<String>,
     /// Coordinates for the region, can be used for geolocation or mapping
-    coordinates: Option<String>,  // Will need conversion to POINT in DB layer
+    coordinates: Option<String>, // Will need conversion to POINT in DB layer
     /// The status of the region, can be used to indicate if the region is usable or not
-    status: Option<String>,  // ENUM('active', 'maintenance', 'offline', 'deprecated')
+    status: Option<String>, // ENUM('active', 'maintenance', 'offline', 'deprecated')
     /// Can be used to indicate if the region is visible and usable to all orgs
     is_public: Option<bool>,
     /// If you have multiple types of regions, for certain kinds of compute optimization
@@ -36,13 +36,19 @@ pub struct UpdateRegionRequest {
     name: String,
     description: String,
     url: String,
-    org_id: i64
+    org_id: i64,
 }
 
 // List all regions paginated
 #[get("/regions?<page>&<per_page>")]
-pub async fn list_regions(pool: &State<sqlx::Pool<MySql>>, page: Option<i64>, per_page: Option<i64>) -> Json<Vec<Region>> {
-    let regions = db::region::list_regions(pool, page, per_page).await.unwrap();
+pub async fn list_regions(
+    pool: &State<sqlx::Pool<MySql>>,
+    page: Option<i64>,
+    per_page: Option<i64>,
+) -> Json<Vec<Region>> {
+    let regions = db::region::list_regions(pool, page, per_page)
+        .await
+        .unwrap();
     println!("Found {} regions", regions.len());
     let regions_vec: Vec<Region> = regions.into_iter().collect();
     println!("Returning {} regions", regions_vec.len());
@@ -61,7 +67,7 @@ pub async fn list_regions(pool: &State<sqlx::Pool<MySql>>, page: Option<i64>, pe
 //         None => Err(Status::NotFound),
 //     }
 // }
-// 
+//
 // // Create a new region
 // #[post("/regions", format = "json", data = "<region_request>")]
 // pub async fn create_region(
@@ -80,7 +86,7 @@ pub async fn list_regions(pool: &State<sqlx::Pool<MySql>>, page: Option<i64>, pe
 //         Err(_) => Err(Status::InternalServerError),
 //     }
 // }
-// 
+//
 // // Update an existing region
 // #[put("/regions/<id>", format = "json", data = "<region_request>")]
 // pub async fn update_region(
@@ -101,7 +107,7 @@ pub async fn list_regions(pool: &State<sqlx::Pool<MySql>>, page: Option<i64>, pe
 //         Err(_) => Err(Status::InternalServerError),
 //     }
 // }
-// 
+//
 // // Delete a region
 // #[delete("/regions/<id>")]
 // pub async fn delete_region(id: String, pool: &State<sqlx::

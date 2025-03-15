@@ -1,13 +1,13 @@
-use rocket::{get, post, put, delete, State, http::ContentType, Data};
-use rocket::http::Status;
-use rocket::serde::json::{Json, Value, json};
-use serde::{Deserialize, Serialize};
-use sqlx::MySql;
-use std::sync::Arc;
-use std::collections::HashMap;
-use tokio::sync::RwLock;
 use crate::db::tables::App;
 use crate::db::v1::queries as db;
+use rocket::http::Status;
+use rocket::serde::json::{json, Json, Value};
+use rocket::{delete, get, http::ContentType, post, put, Data, State};
+use serde::{Deserialize, Serialize};
+use sqlx::MySql;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 // Types
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -16,7 +16,7 @@ pub struct Application {
     name: String,
     owner: String,
     instances: i64,
-    memory: i64,  // in MB
+    memory: i64, // in MB
     status: String,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
@@ -42,7 +42,7 @@ pub struct CreateAppRequest {
     name: String,
     memory: i64,
     instances: i64,
-    org_id: i64
+    org_id: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,16 +50,19 @@ pub struct UpdateAppRequest {
     name: String,
     memory: i64,
     instances: i64,
-    org_id: i64
+    org_id: i64,
 }
 
 // State management
 type AppStore = Arc<RwLock<HashMap<String, Application>>>;
 
-
 // List all applications
 #[get("/apps?<page>&<per_page>")]
-pub async fn list_apps(page: i64, per_page: i64, pool: &State<sqlx::Pool<MySql>>) -> Json<Vec<App>> {
+pub async fn list_apps(
+    page: i64,
+    per_page: i64,
+    pool: &State<sqlx::Pool<MySql>>,
+) -> Json<Vec<App>> {
     let apps = db::app::list_apps(pool, page, per_page).await.unwrap();
     println!("Found {} apps", apps.len());
     let apps_vec: Vec<App> = apps.into_iter().collect();
@@ -74,9 +77,12 @@ pub async fn get_app(app_id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Jso
     let app: Option<App> = match app_result {
         Ok(app) => Some(app),
         Err(_) => {
-            println!("Client requested app: {} but the app could not be found by the DB query", app_id);
+            println!(
+                "Client requested app: {} but the app could not be found by the DB query",
+                app_id
+            );
             None
-        },
+        }
     };
     app.map(Json)
 }
@@ -85,7 +91,7 @@ pub async fn get_app(app_id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Jso
 #[post("/apps", format = "json", data = "<app_request>")]
 pub async fn create_app(
     app_request: Json<CreateAppRequest>,
-    pool: &State<sqlx::Pool<MySql>>
+    pool: &State<sqlx::Pool<MySql>>,
 ) -> Json<App> {
     // let mut apps = store.write().await;
 
@@ -94,20 +100,33 @@ pub async fn create_app(
         &app_request.name,
         app_request.org_id,
         None,
-        None,   
         None,
-        None
-    ).await.unwrap();
+        None,
+        None,
+    )
+    .await
+    .unwrap();
     Json(app)
 }
 
-#[post("/apps/<app_id>",format = "json", data = "<app_request>")]
+#[post("/apps/<app_id>", format = "json", data = "<app_request>")]
 pub async fn update_app(
     app_request: Json<UpdateAppRequest>,
     pool: &State<sqlx::Pool<MySql>>,
-    app_id: i64) -> Json<App> {
-    let app = db::app::update_app(pool,app_id,Some(&app_request.name),None,None,None,None,None).await.unwrap();
-
+    app_id: i64,
+) -> Json<App> {
+    let app = db::app::update_app(
+        pool,
+        app_id,
+        Some(&app_request.name),
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
 
     Json(app)
 }
@@ -115,8 +134,6 @@ pub async fn update_app(
 // Get application statistics
 #[get("/apps/<app_id>/stats")]
 pub async fn get_app_stats(app_id: String, pool: &State<sqlx::Pool<MySql>>) -> Json<AppStats> {
-
-    
     let app_stats = AppStats {
         cpu_usage: 0.0,
         memory_usage: 0,
@@ -141,25 +158,25 @@ pub async fn stop_app(app_id: String) -> Option<Json<Application>> {
 
 // Scale application
 #[put("/apps/<app_id>/scale", format = "json", data = "<scale>")]
-pub async fn scale_app(
-    app_id: String,
-    scale: Json<ScaleRequest>,
-) -> Option<Json<Application>> {
+pub async fn scale_app(app_id: String, scale: Json<ScaleRequest>) -> Option<Json<Application>> {
     todo!()
 }
 
 // Delete application
 #[delete("/apps/<app_id>")]
-pub async fn delete_app(app_id: String,pool: &State<sqlx::Pool<MySql>>) -> Result<Json<Value>,(rocket::http::Status,String)> {
+pub async fn delete_app(
+    app_id: String,
+    pool: &State<sqlx::Pool<MySql>>,
+) -> Result<Json<Value>, (rocket::http::Status, String)> {
     match app_id.parse::<i64>() {
         Ok(id) => {
-            db::app::delete_app(pool,id).await.unwrap();
+            db::app::delete_app(pool, id).await.unwrap();
             Ok(Json(json!({ "status": "deleted" })))
-        },
+        }
         Err(e) => {
             let code = rocket::http::Status::Ok;
-            Err((code,format!("{e}")))
-        },
+            Err((code, format!("{e}")))
+        }
     }
 }
 
@@ -183,15 +200,23 @@ pub async fn delete_app(app_id: String,pool: &State<sqlx::Pool<MySql>>) -> Resul
 ///
 /// The actual implementation of the release process is delegated to the `helpers::release::release`
 /// function, as it is quite extensive.
-#[post("/apps/<app_id>/releases/<release_version>/upload", format = "multipart/form-data", data = "<data>")]
-pub async fn release(app_id: String, release_version: String, content_type: &ContentType, data: Data<'_>) -> Result<Status, Status> {
+#[post(
+    "/apps/<app_id>/releases/<release_version>/upload",
+    format = "multipart/form-data",
+    data = "<data>"
+)]
+pub async fn release(
+    app_id: String,
+    release_version: String,
+    content_type: &ContentType,
+    data: Data<'_>,
+) -> Result<Status, Status> {
     // See if the app exists in DB
-        // If not create new app and return app ID
-        // If so we need to fetch the existing app ID
+    // If not create new app and return app ID
+    // If so we need to fetch the existing app ID
     //Create the build recrd in builds table using the app ID
 
     // Accept the release tarball and save it to the filesystem
-    
 
     super::helpers::release::release(app_id, release_version, content_type, data).await
 }

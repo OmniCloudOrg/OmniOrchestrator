@@ -1,8 +1,8 @@
-use rocket::{get, post, put, delete, State, http::ContentType, Data};
 use crate::db::tables::Build;
 use crate::db::v1::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::Json;
+use rocket::{delete, get, http::ContentType, post, put, Data, State};
 use sqlx::MySql;
 
 // List all builds (Paginated)
@@ -14,7 +14,7 @@ pub async fn list_builds(
 ) -> Json<Vec<Build>> {
     let page: i64 = page.unwrap_or(1).into();
     let per_page: i64 = per_page.unwrap_or(10).into();
-    
+
     let builds = db::build::list_builds_paginated(pool, per_page, page)
         .await
         .unwrap();
@@ -33,7 +33,7 @@ pub async fn list_builds_for_app(
     let page: i64 = page.unwrap_or(1).into();
     let per_page: i64 = per_page.unwrap_or(10).into();
     let offset = (page - 1) * per_page;
-    
+
     let builds = db::build::list_builds_for_app_paginated(pool, app_id, per_page, offset)
         .await
         .unwrap();
@@ -43,13 +43,8 @@ pub async fn list_builds_for_app(
 
 // Get a build by ID
 #[get("/builds/<build_id>")]
-pub async fn get_build(
-    pool: &State<sqlx::Pool<MySql>>,
-    build_id: i64,
-) -> Json<Build> {
-    let build = db::build::get_build_by_id(pool, build_id)
-        .await
-        .unwrap();
+pub async fn get_build(pool: &State<sqlx::Pool<MySql>>, build_id: i64) -> Json<Build> {
+    let build = db::build::get_build_by_id(pool, build_id).await.unwrap();
 
     Json(build)
 }

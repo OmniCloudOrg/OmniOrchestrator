@@ -1,38 +1,32 @@
-use sqlx::{MySql, Pool};
-use anyhow::Context;
 use super::super::tables::User;
+use anyhow::Context;
+use sqlx::{MySql, Pool};
 
 pub async fn list_users(pool: &Pool<MySql>) -> anyhow::Result<Vec<User>> {
-    let users = sqlx::query_as::<_, User>(
-        "SELECT * FROM users ORDER BY created_at DESC"
-    )
-    .fetch_all(pool)
-    .await
-    .context("Failed to fetch users")?;
+    let users = sqlx::query_as::<_, User>("SELECT * FROM users ORDER BY created_at DESC")
+        .fetch_all(pool)
+        .await
+        .context("Failed to fetch users")?;
 
     Ok(users)
 }
 
 pub async fn get_user_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<User> {
-    let user = sqlx::query_as::<_, User>(
-        "SELECT * FROM users WHERE id = ?"
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .context("Failed to fetch user")?;
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch user")?;
 
     Ok(user)
 }
 
 pub async fn get_user_by_email(pool: &Pool<MySql>, email: &str) -> anyhow::Result<User> {
-    let user = sqlx::query_as::<_, User>(
-        "SELECT * FROM users WHERE email = ?"
-    )
-    .bind(email)
-    .fetch_one(pool)
-    .await
-    .context("Failed to fetch user by email")?;
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
+        .bind(email)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch user by email")?;
 
     Ok(user)
 }
@@ -49,7 +43,7 @@ pub async fn create_user(
     let user = sqlx::query_as::<_, User>(
         r#"INSERT INTO users (
             email, name, password, salt, active
-        ) VALUES (?, ?, ?, ?, true)"#
+        ) VALUES (?, ?, ?, ?, true)"#,
     )
     .bind(email)
     .bind(name)
@@ -73,7 +67,7 @@ pub async fn update_user(
     let mut tx = pool.begin().await?;
 
     let mut query = String::from("UPDATE users SET updated_at = CURRENT_TIMESTAMP");
-    
+
     if let Some(name) = name {
         query.push_str(", name = ?");
     }
@@ -83,11 +77,11 @@ pub async fn update_user(
     if let Some(active) = active {
         query.push_str(", active = ?");
     }
-    
+
     query.push_str(" WHERE id = ?");
 
     let mut db_query = sqlx::query_as::<_, User>(&query);
-    
+
     if let Some(name) = name {
         db_query = db_query.bind(name);
     }
@@ -97,7 +91,7 @@ pub async fn update_user(
     if let Some(active) = active {
         db_query = db_query.bind(active);
     }
-    
+
     db_query = db_query.bind(id);
 
     let user = db_query
@@ -127,14 +121,12 @@ pub async fn login_user(
     email: &str,
     password: &str, // Should be pre-hashed
 ) -> anyhow::Result<User> {
-    let user = sqlx::query_as::<_, User>(
-        "SELECT * FROM users WHERE email = ? AND password = ?"
-    )
-    .bind(email)
-    .bind(password)
-    .fetch_one(pool)
-    .await
-    .context("Failed to login user")?;
+    let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ? AND password = ?")
+        .bind(email)
+        .bind(password)
+        .fetch_one(pool)
+        .await
+        .context("Failed to login user")?;
 
     Ok(user)
 }

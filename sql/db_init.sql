@@ -119,7 +119,7 @@ CREATE TABLE regions (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
-    provider ENUM('kubernetes', 'docker', 'aws', 'gcp', 'azure', 'custom') NOT NULL,
+    provider VARCHAR(255) NOT NULL,
     provider_region VARCHAR(100),
     location VARCHAR(255),
     coordinates POINT,
@@ -133,7 +133,7 @@ CREATE TABLE regions (
     -- Spatial index removed
     INDEX idx_regions_status (status),
     INDEX idx_regions_provider (provider),
-    INDEX idx_regions_tier (tier)
+    INDEX idx_regions_class (class)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE orgs (
@@ -164,7 +164,6 @@ CREATE TABLE allocations (
     uplink DOUBLE NOT NULL, -- in Mbps
     downlink DOUBLE NOT NULL, -- in Mbps
     disk DOUBLE NOT NULL, -- in MB
-    tier ENUM('free', 'starter', 'standard', 'performance', 'premium') DEFAULT 'standard',
     price_per_hour DECIMAL(10,4) DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

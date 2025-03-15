@@ -1,13 +1,13 @@
-use std::sync::Arc;
-use serde::{Deserialize, Serialize};
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     pub port: u16,
     pub address: String,
     pub highlight_sql: bool,
-    pub instances: Vec<Instance>
+    pub instances: Vec<Instance>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Instance {
@@ -26,7 +26,7 @@ impl Default for ServerConfig {
                 address: "example.com".to_string(),
             }],
         }
-    }   
+    }
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConfigError {
@@ -36,7 +36,8 @@ pub enum ConfigError {
 }
 
 lazy_static! {
-    pub static ref SERVER_CONFIG: Arc<ServerConfig> = Arc::new(ServerConfig::read().expect("Failed to initalize server config"));
+    pub static ref SERVER_CONFIG: Arc<ServerConfig> =
+        Arc::new(ServerConfig::read().expect("Failed to initalize server config"));
 }
 
 impl ServerConfig {
@@ -47,14 +48,13 @@ impl ServerConfig {
             Err(_) => {
                 Self::write_default().expect("Failed to write default config");
                 return Ok(ServerConfig::default());
-            },
+            }
         };
         let config: ServerConfig = match serde_json::from_str(&config_content) {
             Ok(config) => config,
             Err(_) => return Err(ConfigError::ParseError),
         };
         Ok(config)
-       
     }
     pub fn write(&self) -> Result<(), ConfigError> {
         let config_path = "config.json";

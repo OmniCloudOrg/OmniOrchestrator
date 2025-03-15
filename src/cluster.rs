@@ -9,8 +9,8 @@ use crate::state::SharedState;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NodeInfo {
-    pub id:      Arc<str>,
-    pub port:    u16,
+    pub id: Arc<str>,
+    pub port: u16,
     pub address: Arc<str>,
 }
 #[derive(Debug)]
@@ -28,27 +28,44 @@ impl ClusterManager {
     }
 
     pub async fn register_node(&self, node: NodeInfo) {
-        let node_uid= node.address.clone();
-        println!("{}{}","CALLED REGISTER NODE FUNCTION WITH PARAMS OF:".white().on_red().bold(),node_uid.green());
+        let node_uid = node.address.clone();
+        println!(
+            "{}{}",
+            "CALLED REGISTER NODE FUNCTION WITH PARAMS OF:"
+                .white()
+                .on_red()
+                .bold(),
+            node_uid.green()
+        );
         if self.nodes.read().await.contains_key(&node_uid) {
             println!("WE ALREADY HAD THIS NODE");
             return;
         }
         let size = {
             let mut nodes = self.nodes.write().await;
-            println!("{}{}","ADDING NODE".white().on_red().bold().underline(),node_uid);
+            println!(
+                "{}{}",
+                "ADDING NODE".white().on_red().bold().underline(),
+                node_uid
+            );
             nodes.insert(node_uid, node);
             let size = nodes.len();
-            println!("Current node map: {:?}",nodes);
+            println!("Current node map: {:?}", nodes);
             size
         };
         let mut state = self.state.write().await;
         state.cluster_size = size;
     }
 
-    pub async fn remove_node(&self, node_uid: Arc<str>, ) {
-
-        debug!("{}{}","CALING REMOVE NODE FUNCTION WITH PARAMS OF:".white().on_green().bold(),node_uid.green());
+    pub async fn remove_node(&self, node_uid: Arc<str>) {
+        debug!(
+            "{}{}",
+            "CALING REMOVE NODE FUNCTION WITH PARAMS OF:"
+                .white()
+                .on_green()
+                .bold(),
+            node_uid.green()
+        );
         {
             let nodes_read = self.nodes.read().await;
             if !nodes_read.contains_key(&node_uid) {
@@ -58,9 +75,9 @@ impl ClusterManager {
             }
         }
         let mut nodes = self.nodes.write().await;
-        log::info!("Removing node: {}",node_uid.white().on_green().bold());
+        log::info!("Removing node: {}", node_uid.white().on_green().bold());
         nodes.remove(&node_uid);
-        
+
         let mut state = self.state.write().await;
         state.cluster_size = nodes.len();
     }
@@ -73,17 +90,23 @@ impl ClusterManager {
     pub async fn get_nodes_and_self(&self) -> Vec<NodeInfo> {
         let state = self.state.read().await;
         let nodes = self.nodes.read().await;
-    
+
         let mut all_nodes: Vec<NodeInfo> = nodes.values().cloned().collect();
         all_nodes.push(NodeInfo {
             id: format!("{}", state.node_id).into(),
             address: state.node_id.split(':').next().unwrap_or_default().into(),
-            port: state.node_id.split(':').nth(1).unwrap_or_default().parse().unwrap_or(0),
+            port: state
+                .node_id
+                .split(':')
+                .nth(1)
+                .unwrap_or_default()
+                .parse()
+                .unwrap_or(0),
         });
-    
+
         println!("Current node ID: {}", state.node_id);
         println!("Known nodes: {:?}", nodes);
-        
+
         all_nodes
     }
 

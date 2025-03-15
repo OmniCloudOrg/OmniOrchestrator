@@ -8,7 +8,7 @@ pub fn split_sql_statements(sql: &str) -> Vec<String> {
 
     for line in sql.lines() {
         let trimmed = line.trim();
-        
+
         // Skip empty lines
         if trimmed.is_empty() {
             continue;

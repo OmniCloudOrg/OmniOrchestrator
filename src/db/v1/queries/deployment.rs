@@ -1,12 +1,12 @@
-use sqlx::{FromRow, MySql, Pool};
+use super::super::tables::{Build, Deployment};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
-use super::super::tables::{Build, Deployment};
+use sqlx::{FromRow, MySql, Pool};
 
 // Build Operations
 pub async fn list_builds(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<Vec<Build>> {
     let builds = sqlx::query_as::<_, Build>(
-        "SELECT * FROM builds WHERE app_id = ? ORDER BY created_at DESC"
+        "SELECT * FROM builds WHERE app_id = ? ORDER BY created_at DESC",
     )
     .bind(app_id)
     .fetch_all(pool)
@@ -17,13 +17,11 @@ pub async fn list_builds(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<Vec<
 }
 
 pub async fn get_build_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<Build> {
-    let build = sqlx::query_as::<_, Build>(
-        "SELECT * FROM builds WHERE id = ?"
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .context("Failed to fetch build")?;
+    let build = sqlx::query_as::<_, Build>("SELECT * FROM builds WHERE id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch build")?;
 
     Ok(build)
 }
@@ -36,7 +34,7 @@ pub async fn create_build(
     let mut tx = pool.begin().await?;
 
     let build = sqlx::query_as::<_, Build>(
-        "INSERT INTO builds (app_id, source_version, status) VALUES (?, ?, 'pending')"
+        "INSERT INTO builds (app_id, source_version, status) VALUES (?, ?, 'pending')",
     )
     .bind(app_id)
     .bind(source_version)
@@ -60,7 +58,7 @@ pub async fn update_build_status(
     let build = sqlx::query_as::<_, Build>(
         r#"UPDATE builds 
         SET status = ?, started_at = ?, completed_at = ?
-        WHERE id = ?"#
+        WHERE id = ?"#,
     )
     .bind(status)
     .bind(started_at)
@@ -78,7 +76,7 @@ pub async fn get_latest_successful_build(pool: &Pool<MySql>, app_id: i64) -> any
     let build = sqlx::query_as::<_, Build>(
         r#"SELECT * FROM builds 
         WHERE app_id = ? AND status = 'succeeded'
-        ORDER BY created_at DESC LIMIT 1"#
+        ORDER BY created_at DESC LIMIT 1"#,
     )
     .bind(app_id)
     .fetch_one(pool)
@@ -102,16 +100,16 @@ pub async fn delete_build(pool: &Pool<MySql>, id: i64) -> anyhow::Result<()> {
 }
 
 pub async fn get_app_builds(
-    pool: &Pool<MySql>, 
+    pool: &Pool<MySql>,
     app_id: i64,
     limit: i64,
-    offset: i64
+    offset: i64,
 ) -> anyhow::Result<Vec<Build>> {
     let builds = sqlx::query_as::<_, Build>(
         r#"SELECT * FROM builds 
         WHERE app_id = ?
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?"#
+        LIMIT ? OFFSET ?"#,
     )
     .bind(app_id)
     .bind(limit)
@@ -126,7 +124,7 @@ pub async fn get_app_builds(
 // Deployment Operations
 pub async fn list_deployments(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<Vec<Deployment>> {
     let deployments = sqlx::query_as::<_, Deployment>(
-        "SELECT * FROM deployments WHERE app_id = ? ORDER BY created_at DESC"
+        "SELECT * FROM deployments WHERE app_id = ? ORDER BY created_at DESC",
     )
     .bind(app_id)
     .fetch_all(pool)
@@ -137,13 +135,11 @@ pub async fn list_deployments(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result
 }
 
 pub async fn get_deployment_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<Deployment> {
-    let deployment = sqlx::query_as::<_, Deployment>(
-        "SELECT * FROM deployments WHERE id = ?"
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .context("Failed to fetch deployment")?;
+    let deployment = sqlx::query_as::<_, Deployment>("SELECT * FROM deployments WHERE id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch deployment")?;
 
     Ok(deployment)
 }
@@ -156,7 +152,7 @@ pub async fn create_deployment(
     let mut tx = pool.begin().await?;
 
     let deployment = sqlx::query_as::<_, Deployment>(
-        "INSERT INTO deployments (app_id, build_id, status) VALUES (?, ?, 'pending')"
+        "INSERT INTO deployments (app_id, build_id, status) VALUES (?, ?, 'pending')",
     )
     .bind(app_id)
     .bind(build_id)
@@ -180,7 +176,7 @@ pub async fn update_deployment_status(
     let deployment = sqlx::query_as::<_, Deployment>(
         r#"UPDATE deployments 
         SET status = ?, started_at = ?, completed_at = ?
-        WHERE id = ?"#
+        WHERE id = ?"#,
     )
     .bind(status)
     .bind(started_at)
@@ -199,7 +195,7 @@ pub async fn get_latest_deployment(pool: &Pool<MySql>, app_id: i64) -> anyhow::R
         r#"SELECT * FROM deployments 
         WHERE app_id = ? 
         ORDER BY created_at DESC 
-        LIMIT 1"#
+        LIMIT 1"#,
     )
     .bind(app_id)
     .fetch_one(pool)
@@ -218,7 +214,7 @@ pub async fn get_successful_deployments(
         r#"SELECT * FROM deployments 
         WHERE app_id = ? AND status = 'deployed'
         ORDER BY created_at DESC 
-        LIMIT ?"#
+        LIMIT ?"#,
     )
     .bind(app_id)
     .bind(limit)
@@ -252,7 +248,7 @@ pub async fn get_app_deployments(
         r#"SELECT * FROM deployments 
         WHERE app_id = ?
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?"#
+        LIMIT ? OFFSET ?"#,
     )
     .bind(app_id)
     .bind(limit)
@@ -271,11 +267,12 @@ pub async fn get_deployment_with_build(
     let row = sqlx::query(
         r#"SELECT d.*, b.* FROM deployments d
         JOIN builds b ON d.build_id = b.id
-        WHERE d.id = ?"#)
-        .bind(deployment_id)
-        .fetch_one(pool)
-        .await
-        .context("Failed to fetch deployment with build")?;
+        WHERE d.id = ?"#,
+    )
+    .bind(deployment_id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to fetch deployment with build")?;
 
     let deployment = Deployment::from_row(&row)?;
     let build = Build::from_row(&row)?;

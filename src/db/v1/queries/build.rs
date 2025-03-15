@@ -1,25 +1,33 @@
-use sqlx::{FromRow, MySql, Pool};
-use anyhow::Context;
 use super::super::tables::Build;
+use anyhow::Context;
+use sqlx::{FromRow, MySql, Pool};
 
 // List builds (Paginated)
-pub async fn list_builds_paginated(pool: &Pool<MySql>, per_page: i64, page: i64) -> anyhow::Result<Vec<Build>> {
-    let builds = sqlx::query_as::<_, Build>(
-        "SELECT * FROM builds ORDER BY id ASC LIMIT ? OFFSET ?"
-    )
-    .bind(per_page)
-    .bind(page)
-    .fetch_all(pool)
-    .await
-    .context("Failed to fetch builds")?;
+pub async fn list_builds_paginated(
+    pool: &Pool<MySql>,
+    per_page: i64,
+    page: i64,
+) -> anyhow::Result<Vec<Build>> {
+    let builds =
+        sqlx::query_as::<_, Build>("SELECT * FROM builds ORDER BY id ASC LIMIT ? OFFSET ?")
+            .bind(per_page)
+            .bind(page)
+            .fetch_all(pool)
+            .await
+            .context("Failed to fetch builds")?;
 
     Ok(builds)
 }
 
 // List builds for a specific app (paginated)
-pub async fn list_builds_for_app_paginated(pool: &Pool<MySql>, app_id: i64, per_page: i64, offset: i64) -> anyhow::Result<Vec<Build>> {
+pub async fn list_builds_for_app_paginated(
+    pool: &Pool<MySql>,
+    app_id: i64,
+    per_page: i64,
+    offset: i64,
+) -> anyhow::Result<Vec<Build>> {
     let builds = sqlx::query_as::<_, Build>(
-        "SELECT * FROM builds WHERE app_id = ? ORDER BY id ASC LIMIT ? OFFSET ?"
+        "SELECT * FROM builds WHERE app_id = ? ORDER BY id ASC LIMIT ? OFFSET ?",
     )
     .bind(app_id)
     .bind(per_page)
@@ -33,13 +41,11 @@ pub async fn list_builds_for_app_paginated(pool: &Pool<MySql>, app_id: i64, per_
 
 // Get a build by ID
 pub async fn get_build_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<Build> {
-    let build = sqlx::query_as::<_, Build>(
-        "SELECT * FROM builds WHERE id = ?"
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .context("Failed to fetch build")?;
+    let build = sqlx::query_as::<_, Build>("SELECT * FROM builds WHERE id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch build")?;
 
     Ok(build)
 }
@@ -77,15 +83,14 @@ pub async fn update_build(
     status: &str,
     build_log: &str,
 ) -> anyhow::Result<Build> {
-    let build = sqlx::query_as::<_, Build>(
-        "UPDATE builds SET status = ?, build_log = ? WHERE id = ?"
-    )
-    .bind(status)
-    .bind(build_log)
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .context("Failed to update build")?;
+    let build =
+        sqlx::query_as::<_, Build>("UPDATE builds SET status = ?, build_log = ? WHERE id = ?")
+            .bind(status)
+            .bind(build_log)
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .context("Failed to update build")?;
 
     Ok(build)
 }
@@ -93,10 +98,10 @@ pub async fn update_build(
 // Delete a build
 pub async fn delete_build(pool: &Pool<MySql>, id: i64) -> anyhow::Result<()> {
     sqlx::query("DELETE FROM builds WHERE id = ?")
-    .bind(id)
-    .execute(pool)
-    .await
-    .context("Failed to delete build")?;
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("Failed to delete build")?;
 
     Ok(())
 }
@@ -104,10 +109,10 @@ pub async fn delete_build(pool: &Pool<MySql>, id: i64) -> anyhow::Result<()> {
 // Delete all builds for an app
 pub async fn delete_builds_for_app(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<()> {
     sqlx::query("DELETE FROM builds WHERE app_id = ?")
-    .bind(app_id)
-    .execute(pool)
-    .await
-    .context("Failed to delete builds for app")?;
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .context("Failed to delete builds for app")?;
 
     Ok(())
 }

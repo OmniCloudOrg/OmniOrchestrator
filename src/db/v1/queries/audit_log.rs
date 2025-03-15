@@ -1,6 +1,6 @@
-use sqlx::{MySql, Pool};
-use anyhow::Context;
 use super::super::tables::AuditLog;
+use anyhow::Context;
+use sqlx::{MySql, Pool};
 
 pub async fn create_audit_log(
     pool: &Pool<MySql>,
@@ -15,7 +15,7 @@ pub async fn create_audit_log(
             INSERT INTO audit_logs (
             user_id, org_id, action, resource_type, resource_id
             ) VALUES (?, ?, ?, ?, ?)
-        "#
+        "#,
     )
     .bind(user_id)
     .bind(org_id)
@@ -39,7 +39,7 @@ pub async fn list_audit_logs_paginated(
             SELECT * FROM audit_logs 
             ORDER BY created_at DESC 
             LIMIT ? OFFSET ?
-        "#
+        "#,
     )
     .bind(limit)
     .bind(page)
@@ -62,7 +62,7 @@ pub async fn get_audit_logs_by_resource(
             WHERE resource_type = ? AND resource_id = ?
             ORDER BY created_at DESC 
             LIMIT ?
-        "#
+        "#,
     )
     .bind(resource_type)
     .bind(resource_id)
@@ -85,7 +85,7 @@ pub async fn get_user_audit_logs(
             WHERE user_id = ?
             ORDER BY created_at DESC 
             LIMIT ?
-        "#
+        "#,
     )
     .bind(user_id)
     .bind(limit)
@@ -107,7 +107,7 @@ pub async fn get_org_audit_logs(
             WHERE org_id = ?
             ORDER BY created_at DESC 
             LIMIT ?
-        "#
+        "#,
     )
     .bind(org_id)
     .bind(limit)

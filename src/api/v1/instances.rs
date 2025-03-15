@@ -1,11 +1,10 @@
-use rocket::get;
-use rocket::State;
-use rocket::serde::json::Json;
-use sqlx::MySql;
 use crate::db::v1::tables::Instance;
+use rocket::get;
+use rocket::serde::json::Json;
+use rocket::State;
+use sqlx::MySql;
 
 use crate::db::v1::queries::{self as db};
-
 
 // List all applications
 #[get("/apps/<app_id>/instances")]
@@ -20,7 +19,9 @@ pub async fn list_instances(pool: &State<sqlx::Pool<MySql>>, app_id: i64) -> Jso
 // Get an instance by ID
 #[get("/instances/<instance_id>")]
 pub async fn get_instance(pool: &State<sqlx::Pool<MySql>>, instance_id: i64) -> Json<Instance> {
-    let instance = db::instance::get_instance_by_id(pool, instance_id).await.unwrap();
+    let instance = db::instance::get_instance_by_id(pool, instance_id)
+        .await
+        .unwrap();
     println!("Found instance: {:?}", instance);
     Json(instance)
 }
@@ -34,7 +35,6 @@ pub async fn get_instance(pool: &State<sqlx::Pool<MySql>>, instance_id: i64) -> 
 //       println!("Created instance: {:?}", instance);
 //       Status::Created
 //   }
-
 
 // Delete an instance
 // NOTE: While this technically works we do not enable the endpoint in the API bacause you are meant to use the scaling tools to delete instances

@@ -1,27 +1,23 @@
-use sqlx::{MySql, Pool};
+use super::super::tables::{Permission, Role};
 use anyhow::Context;
-use super::super::tables::{Role, Permission};
+use sqlx::{MySql, Pool};
 
 // Role Operations
 pub async fn list_roles(pool: &Pool<MySql>) -> anyhow::Result<Vec<Role>> {
-    let roles = sqlx::query_as::<_, Role>(
-        "SELECT * FROM roles ORDER BY created_at DESC"
-    )
-    .fetch_all(pool)
-    .await
-    .context("Failed to fetch roles")?;
+    let roles = sqlx::query_as::<_, Role>("SELECT * FROM roles ORDER BY created_at DESC")
+        .fetch_all(pool)
+        .await
+        .context("Failed to fetch roles")?;
 
     Ok(roles)
 }
 
 pub async fn get_role_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<Role> {
-    let role = sqlx::query_as::<_, Role>(
-        "SELECT * FROM roles WHERE id = ?"
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .context("Failed to fetch role")?;
+    let role = sqlx::query_as::<_, Role>("SELECT * FROM roles WHERE id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch role")?;
 
     Ok(role)
 }
@@ -33,14 +29,12 @@ pub async fn create_role(
 ) -> anyhow::Result<Role> {
     let mut tx = pool.begin().await?;
 
-    let role = sqlx::query_as::<_, Role>(
-        "INSERT INTO roles (name, description) VALUES (?, ?)"
-    )
-    .bind(name)
-    .bind(description)
-    .fetch_one(&mut *tx)
-    .await
-    .context("Failed to create role")?;
+    let role = sqlx::query_as::<_, Role>("INSERT INTO roles (name, description) VALUES (?, ?)")
+        .bind(name)
+        .bind(description)
+        .fetch_one(&mut *tx)
+        .await
+        .context("Failed to create role")?;
 
     tx.commit().await?;
     Ok(role)
@@ -55,25 +49,25 @@ pub async fn update_role(
     let mut tx = pool.begin().await?;
 
     let mut query = String::from("UPDATE roles SET id = id");
-    
+
     if let Some(name) = name {
         query.push_str(", name = ?");
     }
     if let Some(description) = description {
         query.push_str(", description = ?");
     }
-    
+
     query.push_str(" WHERE id = ?");
 
     let mut db_query = sqlx::query_as::<_, Role>(&query);
-    
+
     if let Some(name) = name {
         db_query = db_query.bind(name);
     }
     if let Some(description) = description {
         db_query = db_query.bind(description);
     }
-    
+
     db_query = db_query.bind(id);
 
     let role = db_query
@@ -100,24 +94,20 @@ pub async fn delete_role(pool: &Pool<MySql>, id: i64) -> anyhow::Result<()> {
 
 // Permission Operations
 pub async fn list_permissions(pool: &Pool<MySql>) -> anyhow::Result<Vec<Permission>> {
-    let permissions = sqlx::query_as::<_, Permission>(
-        "SELECT * FROM permissions ORDER BY id ASC"
-    )
-    .fetch_all(pool)
-    .await
-    .context("Failed to fetch permissions")?;
+    let permissions = sqlx::query_as::<_, Permission>("SELECT * FROM permissions ORDER BY id ASC")
+        .fetch_all(pool)
+        .await
+        .context("Failed to fetch permissions")?;
 
     Ok(permissions)
 }
 
 pub async fn get_permission_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<Permission> {
-    let permission = sqlx::query_as::<_, Permission>(
-        "SELECT * FROM permissions WHERE id = ?"
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
-    .context("Failed to fetch permission")?;
+    let permission = sqlx::query_as::<_, Permission>("SELECT * FROM permissions WHERE id = ?")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch permission")?;
 
     Ok(permission)
 }
@@ -131,7 +121,7 @@ pub async fn create_permission(
     let mut tx = pool.begin().await?;
 
     let permission = sqlx::query_as::<_, Permission>(
-        "INSERT INTO permissions (name, description, resource_type) VALUES (?, ?, ?)"
+        "INSERT INTO permissions (name, description, resource_type) VALUES (?, ?, ?)",
     )
     .bind(name)
     .bind(description)
@@ -157,27 +147,37 @@ pub async fn update_permission(
         (description.is_some(), "description = ?"),
         (resource_type.is_some(), "resource_type = ?"),
     ];
-    
+
     // Build update query with only the fields that have values
-    let field_clauses = update_fields.iter()
+    let field_clauses = update_fields
+        .iter()
         .filter(|(has_value, _)| *has_value)
         .enumerate()
-        .map(|(i, (_, field))| if i == 0 { format!(" SET {}", field) } else { format!(", {}", field) })
+        .map(|(i, (_, field))| {
+            if i == 0 {
+                format!(" SET {}", field)
+            } else {
+                format!(", {}", field)
+            }
+        })
         .collect::<String>();
-        
-    let query = format!(
-        "UPDATE permissions{} WHERE id = ?",
-        field_clauses
-    );
-    
+
+    let query = format!("UPDATE permissions{} WHERE id = ?", field_clauses);
+
     // Start binding parameters
     let mut db_query = sqlx::query_as::<_, Permission>(&query);
-    
+
     // Bind parameters
-    if let Some(val) = name { db_query = db_query.bind(val); }
-    if let Some(val) = description { db_query = db_query.bind(val); }
-    if let Some(val) = resource_type { db_query = db_query.bind(val); }
-    
+    if let Some(val) = name {
+        db_query = db_query.bind(val);
+    }
+    if let Some(val) = description {
+        db_query = db_query.bind(val);
+    }
+    if let Some(val) = resource_type {
+        db_query = db_query.bind(val);
+    }
+
     // Bind the ID parameter
     db_query = db_query.bind(id);
 
@@ -213,14 +213,12 @@ pub async fn assign_permission_to_role(
 ) -> anyhow::Result<()> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query(
-        "INSERT INTO permissions_role (permissions_id, role_id) VALUES (?, ?)"
-    )
-    .bind(permission_id)
-    .bind(role_id)
-    .execute(&mut *tx)
-    .await
-    .context("Failed to assign permission to role")?;
+    sqlx::query("INSERT INTO permissions_role (permissions_id, role_id) VALUES (?, ?)")
+        .bind(permission_id)
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await
+        .context("Failed to assign permission to role")?;
 
     tx.commit().await?;
     Ok(())
@@ -233,14 +231,12 @@ pub async fn remove_permission_from_role(
 ) -> anyhow::Result<()> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query(
-        "DELETE FROM permissions_role WHERE permissions_id = ? AND role_id = ?"
-    )
-    .bind(permission_id)
-    .bind(role_id)
-    .execute(&mut *tx)
-    .await
-    .context("Failed to remove permission from role")?;
+    sqlx::query("DELETE FROM permissions_role WHERE permissions_id = ? AND role_id = ?")
+        .bind(permission_id)
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await
+        .context("Failed to remove permission from role")?;
 
     tx.commit().await?;
     Ok(())
@@ -254,7 +250,7 @@ pub async fn get_role_permissions(
         r#"SELECT p.* FROM permissions p
         JOIN permissions_role pr ON p.id = pr.permissions_id
         WHERE pr.role_id = ?
-        ORDER BY p.created_at DESC"#
+        ORDER BY p.created_at DESC"#,
     )
     .bind(role_id)
     .fetch_all(pool)
@@ -272,14 +268,12 @@ pub async fn assign_role_to_user(
 ) -> anyhow::Result<()> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query(
-        "INSERT INTO role_user (user_id, role_id) VALUES (?, ?)"
-    )
-    .bind(user_id)
-    .bind(role_id)
-    .execute(&mut *tx)
-    .await
-    .context("Failed to assign role to user")?;
+    sqlx::query("INSERT INTO role_user (user_id, role_id) VALUES (?, ?)")
+        .bind(user_id)
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await
+        .context("Failed to assign role to user")?;
 
     tx.commit().await?;
     Ok(())
@@ -292,28 +286,23 @@ pub async fn remove_role_from_user(
 ) -> anyhow::Result<()> {
     let mut tx = pool.begin().await?;
 
-    sqlx::query(
-        "DELETE FROM role_user WHERE user_id = ? AND role_id = ?"
-    )
-    .bind(user_id)
-    .bind(role_id)
-    .execute(&mut *tx)
-    .await
-    .context("Failed to remove role from user")?;
+    sqlx::query("DELETE FROM role_user WHERE user_id = ? AND role_id = ?")
+        .bind(user_id)
+        .bind(role_id)
+        .execute(&mut *tx)
+        .await
+        .context("Failed to remove role from user")?;
 
     tx.commit().await?;
     Ok(())
 }
 
-pub async fn get_user_roles(
-    pool: &Pool<MySql>,
-    user_id: i64,
-) -> anyhow::Result<Vec<Role>> {
+pub async fn get_user_roles(pool: &Pool<MySql>, user_id: i64) -> anyhow::Result<Vec<Role>> {
     let roles = sqlx::query_as::<_, Role>(
         r#"SELECT r.* FROM roles r
         JOIN role_user ru ON r.id = ru.role_id
         WHERE ru.user_id = ?
-        ORDER BY r.created_at DESC"#
+        ORDER BY r.created_at DESC"#,
     )
     .bind(user_id)
     .fetch_all(pool)
@@ -332,7 +321,7 @@ pub async fn get_user_permissions(
         JOIN permissions_role pr ON p.id = pr.permissions_id
         JOIN role_user ru ON pr.role_id = ru.role_id
         WHERE ru.user_id = ?
-        ORDER BY p.created_at DESC"#
+        ORDER BY p.created_at DESC"#,
     )
     .bind(user_id)
     .fetch_all(pool)
