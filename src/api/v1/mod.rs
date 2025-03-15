@@ -67,13 +67,13 @@ pub fn routes() -> Vec<rocket::Route> {
         //Builds
         list_builds,
         list_builds_for_app,
-        get_build
+        get_build,
 
         // regions
-        get_region,
-        list_regions,
-        delete_region,
-        create_region,
-        update_region
+        list_regions
+        // get_region,
+        // delete_region,
+        // create_region,
+        // update_region
     ]
 }
