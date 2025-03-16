@@ -68,6 +68,27 @@ jobs:
             echo "Path: \`$file\`" >> "$output_file"
             echo "" >> "$output_file"
             
+            # Generate table of contents header
+            echo "## Table of Contents" >> "$output_file"
+            echo "" >> "$output_file"
+            
+            # Collect all public items for table of contents
+            toc_items=$(grep -n "^pub " "$file" | while read -r toc_line; do
+              line_num=$(echo "$toc_line" | cut -d: -f1)
+              item=$(echo "$toc_line" | cut -d: -f2-)
+              
+              # Get doc comments above this item
+              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
+              
+              if [ -n "$prev_lines" ]; then
+                item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
+                echo "* [$item_name](#${item_name// /-})"
+              fi
+            done)
+            
+            echo "$toc_items" >> "$output_file"
+            echo "" >> "$output_file"
+            
             # Extract module-level documentation (//! comments)
             module_docs=$(grep -A 5 "//!" "$file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
             if [ -n "$module_docs" ]; then
@@ -114,11 +135,35 @@ jobs:
                 
                 echo "### $item_name" >> "$output_file"
                 echo "" >> "$output_file"
-                echo "$prev_lines" | sed 's/\/\/\/\s*//' >> "$output_file"
-                echo "" >> "$output_file"
                 echo '```rust' >> "$output_file"
                 echo "$full_sig" >> "$output_file"
                 echo '```' >> "$output_file"
+                echo "" >> "$output_file"
+                
+                # Process doc comments with clear section formatting
+                formatted_docs=$(echo "$prev_lines" | sed 's/\/\/\/\s*//' | 
+                  # Convert "Arguments" or "Parameters" sections to h4
+                  sed 's/^Arguments$/#### Arguments/' | 
+                  sed 's/^Parameters$/#### Parameters/' |
+                  # Convert "Returns" sections to h4
+                  sed 's/^Returns$/#### Returns/' |
+                  # Convert "Examples" sections to h4
+                  sed 's/^Examples$/#### Examples/' |
+                  # Convert "Note" or "Notes" sections to h4
+                  sed 's/^Note$/#### Note/' |
+                  sed 's/^Notes$/#### Notes/' |
+                  # Convert "Error Handling" sections to h4
+                  sed 's/^Error Handling$/#### Error Handling/' |
+                  # Convert "Warning" sections to h4
+                  sed 's/^Warning$/#### Warning/' |
+                  # Convert "Use Cases" sections to h4
+                  sed 's/^Use Cases$/#### Use Cases/' |
+                  # Convert "Pagination" sections to h4
+                  sed 's/^Pagination$/#### Pagination/' |
+                  # Convert "Important" sections to h4
+                  sed 's/^Important$/#### Important/')
+                
+                echo "$formatted_docs" >> "$output_file"
                 echo "" >> "$output_file"
               fi
             done
