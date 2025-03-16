@@ -45,24 +45,20 @@ jobs:
           echo "" >> wiki-content/Home.md
           echo "This wiki contains automatically generated documentation from the Rust codebase." >> wiki-content/Home.md
           echo "" >> wiki-content/Home.md
-          echo "## Project Structure" >> wiki-content/Home.md
+          echo "## Modules" >> wiki-content/Home.md
           echo "" >> wiki-content/Home.md
           
-          # Process each source file and maintain directory structure in wiki
+          # Process each source file with guaranteed unique filenames
           find src -name "*.rs" -type f | while read -r file; do
             # Get file info
-            base_file=$(basename "$file")
-            base_name="${base_file%.rs}"
+            base_name=$(basename "$file" .rs)
             dir_path=$(dirname "$file")
             
-            # Create mirrored directory structure in wiki
-            wiki_dir="wiki-content/$dir_path"
-            mkdir -p "$wiki_dir"
+            # Convert path to a unique filename by replacing slashes with underscores
+            unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
+            output_file="wiki-content/${unique_name}.md"
             
-            # Create documentation file
-            output_file="$wiki_dir/$base_name.md"
-            
-            echo "# $base_name" > "$output_file"
+            echo "# $base_name ($dir_path)" > "$output_file"
             echo "" >> "$output_file"
             echo "Path: \`$file\`" >> "$output_file"
             echo "" >> "$output_file"
@@ -168,12 +164,7 @@ jobs:
             done
             
             # Add a link to the home page
-            dir_rel_path="${dir_path#src/}"
-            if [ ! -z "$dir_rel_path" ]; then
-              echo "* [$dir_rel_path/$base_name]($dir_path/$base_name)" >> wiki-content/Home.md
-            else
-              echo "* [$base_name]($base_name)" >> wiki-content/Home.md
-            fi
+            echo "* [$unique_name]($unique_name)" >> wiki-content/Home.md
           done
 
       - name: Setup Git for Wiki
