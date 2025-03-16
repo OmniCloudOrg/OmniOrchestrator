@@ -35,89 +35,36 @@ jobs:
           profile: minimal
           toolchain: stable
 
-      - name: Prepare file mapping
-        run: |
-          # Create directories for temp storage and wiki content
-          mkdir -p file-mapping
-          mkdir -p wiki-content
-          
-          # Create a file to store output mappings
-          > file-mapping/final-mapping.txt
-          
-          # First get all base filenames and count duplicates
-          find src -name "*.rs" -type f | while read -r file; do
-            basename=$(basename "$file" .rs)
-            echo "$basename" >> file-mapping/base-names.txt
-          done
-          
-          # Get list of duplicates
-          cat file-mapping/base-names.txt | sort | uniq -c | grep -v "^\s*1" | awk '{print $2}' > file-mapping/duplicates.txt
-          
-          # Process each source file
-          find src -name "*.rs" -type f | while read -r file; do
-            basename=$(basename "$file" .rs)
-            
-            if grep -q "^$basename$" file-mapping/duplicates.txt; then
-              # This is a duplicate, use parent directory in name
-              parent_dir=$(basename $(dirname "$file"))
-              new_name="${parent_dir}_${basename}"
-              echo "$file:$new_name" >> file-mapping/final-mapping.txt
-            else
-              # Not a duplicate, use original name
-              echo "$file:$basename" >> file-mapping/final-mapping.txt
-            fi
-          done
-          
-          # Check if we still have duplicates in the new mapping
-          cat file-mapping/final-mapping.txt | cut -d: -f2 | sort | uniq -c | grep -v "^\s*1" | awk '{print $2}' > file-mapping/remaining-duplicates.txt
-          
-          if [ -s file-mapping/remaining-duplicates.txt ]; then
-            echo "Still have duplicates after first pass, adding more directory context..."
-            
-            # Temporary file for updated mappings
-            > file-mapping/updated-mapping.txt
-            
-            while read -r line; do
-              file=$(echo "$line" | cut -d: -f1)
-              name=$(echo "$line" | cut -d: -f2)
-              
-              if grep -q "^$name$" file-mapping/remaining-duplicates.txt; then
-                # Add one more directory level
-                dir_path=$(dirname "$file")
-                parent_dir=$(basename "$dir_path")
-                grand_parent_dir=$(basename $(dirname "$dir_path"))
-                new_name="${grand_parent_dir}_${name}"
-                echo "$file:$new_name" >> file-mapping/updated-mapping.txt
-              else
-                # Keep the original mapping
-                echo "$line" >> file-mapping/updated-mapping.txt
-              fi
-            done < file-mapping/final-mapping.txt
-            
-            # Replace the mapping file
-            mv file-mapping/updated-mapping.txt file-mapping/final-mapping.txt
-          fi
-          
-          # Output final mapping for debugging
-          echo "Final file name mapping:"
-          cat file-mapping/final-mapping.txt
-
       - name: Generate documentation
         run: |
-          # For each Rust file, extract doc comments
-          cat file-mapping/final-mapping.txt | while read -r mapping; do
-            source_file=$(echo "$mapping" | cut -d: -f1)
-            wiki_name=$(echo "$mapping" | cut -d: -f2)
+          # Create directory for wiki content
+          mkdir -p wiki-content
+          
+          # Create Home.md
+          echo "# ${GITHUB_REPOSITORY#*/} Documentation" > wiki-content/Home.md
+          echo "" >> wiki-content/Home.md
+          echo "This wiki contains automatically generated documentation from the Rust codebase." >> wiki-content/Home.md
+          echo "" >> wiki-content/Home.md
+          echo "## Project Structure" >> wiki-content/Home.md
+          echo "" >> wiki-content/Home.md
+          
+          # Process each source file and maintain directory structure in wiki
+          find src -name "*.rs" -type f | while read -r file; do
+            # Get file info
+            base_file=$(basename "$file")
+            base_name="${base_file%.rs}"
+            dir_path=$(dirname "$file")
             
-            echo "Processing $source_file → $wiki_name"
+            # Create mirrored directory structure in wiki
+            wiki_dir="wiki-content/$dir_path"
+            mkdir -p "$wiki_dir"
             
-            # Create output file
-            output_file="wiki-content/${wiki_name}.md"
+            # Create documentation file
+            output_file="$wiki_dir/$base_name.md"
             
-            # Extract doc comments and convert to markdown
-            echo "# $wiki_name" > "$output_file"
+            echo "# $base_name" > "$output_file"
             echo "" >> "$output_file"
-            echo "Path: \`$source_file\`" >> "$output_file"
+            echo "Path: \`$file\`" >> "$output_file"
             echo "" >> "$output_file"
             
             # Generate table of contents header
@@ -125,12 +72,12 @@ jobs:
             echo "" >> "$output_file"
             
             # Collect all public items for table of contents
-            toc_items=$(grep -n "^pub " "$source_file" | while read -r toc_line; do
+            toc_items=$(grep -n "^pub " "$file" | while read -r toc_line; do
               line_num=$(echo "$toc_line" | cut -d: -f1)
               item=$(echo "$toc_line" | cut -d: -f2-)
               
               # Get doc comments above this item
-              prev_lines=$(head -n $((line_num-1)) "$source_file" | tac | sed -n '/\/\/\//p' | tac)
+              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
               
               if [ -n "$prev_lines" ]; then
                 item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
@@ -142,7 +89,7 @@ jobs:
             echo "" >> "$output_file"
             
             # Extract module-level documentation (//! comments)
-            module_docs=$(grep -A 5 "//!" "$source_file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
+            module_docs=$(grep -A 5 "//!" "$file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
             if [ -n "$module_docs" ]; then
               echo "## Module Documentation" >> "$output_file"
               echo "" >> "$output_file"
@@ -155,12 +102,12 @@ jobs:
             echo "" >> "$output_file"
             
             # Extract function/struct/trait names and doc comments
-            grep -n "^pub " "$source_file" | while read -r line; do
+            grep -n "^pub " "$file" | while read -r line; do
               line_num=$(echo "$line" | cut -d: -f1)
               item=$(echo "$line" | cut -d: -f2-)
               
               # Get doc comments above this item (/// style comments)
-              prev_lines=$(head -n $((line_num-1)) "$source_file" | tac | sed -n '/\/\/\//p' | tac)
+              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
               
               if [ -n "$prev_lines" ]; then
                 # Extract the full function/type signature
@@ -172,9 +119,9 @@ jobs:
                 
                 # For function signatures that span multiple lines
                 if ! echo "$item" | grep -q "{" && ! echo "$item" | grep -q ";" && ! echo "$item" | grep -q "where"; then
-                  while [ $end_line -lt $(wc -l < "$source_file") ]; do
+                  while [ $end_line -lt $(wc -l < "$file") ]; do
                     end_line=$((end_line + 1))
-                    line_content=$(sed "${end_line}q;d" "$source_file")
+                    line_content=$(sed "${end_line}q;d" "$file")
                     
                     if echo "$line_content" | grep -q "{" || echo "$line_content" | grep -q ";" || echo "$line_content" | grep -q "where"; then
                       break
@@ -183,7 +130,7 @@ jobs:
                 fi
                 
                 # Extract the full signature
-                full_sig=$(sed -n "${start_line},${end_line}p" "$source_file")
+                full_sig=$(sed -n "${start_line},${end_line}p" "$file")
                 
                 echo "## $item_name" >> "$output_file"
                 echo "" >> "$output_file"
@@ -219,20 +166,14 @@ jobs:
                 echo "" >> "$output_file"
               fi
             done
-          done
-          
-          # Create Home.md
-          echo "# ${GITHUB_REPOSITORY#*/} Documentation" > wiki-content/Home.md
-          echo "" >> wiki-content/Home.md
-          echo "This wiki contains automatically generated documentation from the Rust codebase." >> wiki-content/Home.md
-          echo "" >> wiki-content/Home.md
-          echo "## Modules" >> wiki-content/Home.md
-          
-          # Add links to modules excluding Home.md
-          find wiki-content -type f -name "*.md" ! -name "Home.md" | sort | while read -r file; do
-            rel_file=${file#wiki-content/}
-            module_name=$(basename "$file" .md)
-            echo "* [$module_name]($rel_file)" >> wiki-content/Home.md
+            
+            # Add a link to the home page
+            dir_rel_path="${dir_path#src/}"
+            if [ ! -z "$dir_rel_path" ]; then
+              echo "* [$dir_rel_path/$base_name]($dir_path/$base_name)" >> wiki-content/Home.md
+            else
+              echo "* [$base_name]($base_name)" >> wiki-content/Home.md
+            fi
           done
 
       - name: Setup Git for Wiki
