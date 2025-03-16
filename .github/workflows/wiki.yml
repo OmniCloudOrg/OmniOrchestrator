@@ -108,25 +108,20 @@ jobs:
               start_line=$end_line
               
               # Find the start of the doc comment block by going backwards until we find a non-comment line
-              while [ $start_line -gt 0 ]; do
-                line_content=$(sed "${start_line}q;d" "$file")
+              while [ $start_line -gt 1 ]; do
+                prev_line=$((start_line-1))
+                line_content=$(sed "${prev_line}q;d" "$file")
                 if ! echo "$line_content" | grep -q "^///"; then
-                  # Found a non-doc comment line, so the block starts on the next line
-                  start_line=$((start_line+1))
+                  # Found a non-doc comment line
                   break
                 fi
-                if [ $start_line -eq 1 ]; then
-                  # We've reached the beginning of the file
-                  break
-                fi
-                start_line=$((start_line-1))
+                start_line=$prev_line
               done
               
               # Extract the entire comment block
-              if [ $start_line -le $end_line ]; then
-                prev_lines=$(sed -n "${start_line},${end_line}p" "$file")
-                
-                if [ -n "$prev_lines" ]; then
+              prev_lines=$(sed -n "${start_line},${end_line}p" "$file")
+              
+              if [ -n "$prev_lines" ]; then
                 # Extract the full function/type signature
                 item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
                 
