@@ -35,6 +35,11 @@ jobs:
           profile: minimal
           toolchain: stable
           components: rustfmt
+          
+      - name: Set Rust edition for toolchain
+        run: |
+          # Force Rust 2021 edition for toolchain and rustfmt
+          echo 'edition = "2021"' > rustfmt.toml
 
       - name: Generate documentation
         run: |
@@ -72,8 +77,9 @@ jobs:
             
             # First pass: Index all public items and their doc comments
             {
-              # Use rustfmt to normalize formatting for more reliable parsing
-              rustfmt "$file" --emit=stdout | 
+              # Use rustfmt with Rust 2021 edition (will handle async functions)
+              # Fall back to cat if rustfmt still fails for any reason
+              rustfmt "$file" --edition 2021 --emit=stdout 2>/dev/null || cat "$file" | 
               # Use AWK for more powerful parsing
               awk '
               BEGIN {
@@ -139,7 +145,7 @@ jobs:
             
             # Extract module-level documentation (//! comments)
             {
-              rustfmt "$file" --emit=stdout |
+              rustfmt "$file" --edition 2021 --emit=stdout 2>/dev/null || cat "$file" |
               awk '
               BEGIN {
                 in_module_doc = 0;
@@ -185,7 +191,7 @@ jobs:
             
             # Second pass: Extract full documentation for each item
             {
-              rustfmt "$file" --emit=stdout |
+              rustfmt "$file" --edition 2021 --emit=stdout 2>/dev/null || cat "$file" |
               awk '
               BEGIN {
                 in_doc_comment = 0;
