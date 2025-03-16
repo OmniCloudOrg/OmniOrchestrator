@@ -35,10 +35,54 @@ jobs:
           profile: minimal
           toolchain: stable
 
-      - name: Generate documentation in Markdown
+      - name: Prepare file mapping
         run: |
-          # Create a directory for the wiki content
+          # Create directories for temp storage and wiki content
+          mkdir -p file-mapping
           mkdir -p wiki-content
+          
+          # First, scan all source files and check for potential filename conflicts
+          echo "Scanning source files for potential filename conflicts..."
+          
+          # Generate a list of all .rs files with their potential wiki page names
+          find src -name "*.rs" | while read -r file; do
+            base_name=$(basename "$file" .rs)
+            echo "$file:$base_name" >> file-mapping/potential-names.txt
+          done
+          
+          # Find duplicate base names
+          cat file-mapping/potential-names.txt | cut -d: -f2 | sort | uniq -d > file-mapping/duplicates.txt
+          
+          # Create a mapping file showing the complete filepath to wiki name mapping
+          > file-mapping/final-mapping.txt
+          
+          # For each source file, determine the wiki page name
+          cat file-mapping/potential-names.txt | while read -r line; do
+            source_file=$(echo "$line" | cut -d: -f1)
+            base_name=$(echo "$line" | cut -d: -f2)
+            
+            # Check if this base name is in the duplicates list
+            if grep -q "^$base_name$" file-mapping/duplicates.txt; then
+              # It's a duplicate, need to include parent directories
+              dir_path=$(dirname "$source_file")
+              
+              # Start with just the immediate parent
+              wiki_name="${dir_path##*/}_${base_name}"
+              
+              # Keep adding parent directories until unique
+              while grep -q ":$wiki_name$" file-mapping/final-mapping.txt; do
+                dir_path=$(dirname "$dir_path")
+                parent=$(basename "$dir_path")
+                wiki_name="${parent}_${wiki_name}"
+              done
+              
+              echo "$source_file:$wiki_name" >> file-mapping/final-mapping.txt
+              echo "Mapped duplicate: $source_file → $wiki_name"
+            else
+              # Not a duplicate, use base name
+              echo "$source_file:$base_name" >> file-mapping/final-mapping.txt
+            fi
+          done
           
           # Determine if this is a library or binary crate
           if grep -q "^\[lib\]" Cargo.toml; then
@@ -48,24 +92,23 @@ jobs:
             echo "Binary crate detected"
             IS_LIB=false
           fi
-          
-          # For each Rust file, extract doc comments directly
-          find src -name "*.rs" | while read -r file; do
-            # Get relative path for wiki structure
-            rel_path=${file#src/}
-            rel_path=${rel_path%.rs}
-            dir_path="wiki-content/${rel_path%/*}"
+
+      - name: Generate documentation
+        run: |
+          # For each Rust file, extract doc comments
+          cat file-mapping/final-mapping.txt | while read -r mapping; do
+            source_file=$(echo "$mapping" | cut -d: -f1)
+            wiki_name=$(echo "$mapping" | cut -d: -f2)
             
-            # Create directory if it doesn't exist
-            mkdir -p "$dir_path"
+            echo "Processing $source_file → $wiki_name"
+            
+            # Create output file
+            output_file="wiki-content/${wiki_name}.md"
             
             # Extract doc comments and convert to markdown
-            file_name=$(basename "$file" .rs)
-            output_file="wiki-content/${rel_path}.md"
-            
-            echo "# $file_name" > "$output_file"
+            echo "# $wiki_name" > "$output_file"
             echo "" >> "$output_file"
-            echo "Path: \`$file\`" >> "$output_file"
+            echo "Path: \`$source_file\`" >> "$output_file"
             echo "" >> "$output_file"
             
             # Generate table of contents header
@@ -73,12 +116,12 @@ jobs:
             echo "" >> "$output_file"
             
             # Collect all public items for table of contents
-            toc_items=$(grep -n "^pub " "$file" | while read -r toc_line; do
+            toc_items=$(grep -n "^pub " "$source_file" | while read -r toc_line; do
               line_num=$(echo "$toc_line" | cut -d: -f1)
               item=$(echo "$toc_line" | cut -d: -f2-)
               
               # Get doc comments above this item
-              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
+              prev_lines=$(head -n $((line_num-1)) "$source_file" | tac | sed -n '/\/\/\//p' | tac)
               
               if [ -n "$prev_lines" ]; then
                 item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
@@ -90,7 +133,7 @@ jobs:
             echo "" >> "$output_file"
             
             # Extract module-level documentation (//! comments)
-            module_docs=$(grep -A 5 "//!" "$file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
+            module_docs=$(grep -A 5 "//!" "$source_file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
             if [ -n "$module_docs" ]; then
               echo "## Module Documentation" >> "$output_file"
               echo "" >> "$output_file"
@@ -103,12 +146,12 @@ jobs:
             echo "" >> "$output_file"
             
             # Extract function/struct/trait names and doc comments
-            grep -n "^pub " "$file" | while read -r line; do
+            grep -n "^pub " "$source_file" | while read -r line; do
               line_num=$(echo "$line" | cut -d: -f1)
               item=$(echo "$line" | cut -d: -f2-)
               
               # Get doc comments above this item (/// style comments)
-              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
+              prev_lines=$(head -n $((line_num-1)) "$source_file" | tac | sed -n '/\/\/\//p' | tac)
               
               if [ -n "$prev_lines" ]; then
                 # Extract the full function/type signature
@@ -120,9 +163,9 @@ jobs:
                 
                 # For function signatures that span multiple lines
                 if ! echo "$item" | grep -q "{" && ! echo "$item" | grep -q ";" && ! echo "$item" | grep -q "where"; then
-                  while [ $end_line -lt $(wc -l < "$file") ]; do
+                  while [ $end_line -lt $(wc -l < "$source_file") ]; do
                     end_line=$((end_line + 1))
-                    line_content=$(sed "${end_line}q;d" "$file")
+                    line_content=$(sed "${end_line}q;d" "$source_file")
                     
                     if echo "$line_content" | grep -q "{" || echo "$line_content" | grep -q ";" || echo "$line_content" | grep -q "where"; then
                       break
@@ -131,7 +174,7 @@ jobs:
                 fi
                 
                 # Extract the full signature
-                full_sig=$(sed -n "${start_line},${end_line}p" "$file")
+                full_sig=$(sed -n "${start_line},${end_line}p" "$source_file")
                 
                 echo "## $item_name" >> "$output_file"
                 echo "" >> "$output_file"
@@ -165,9 +208,6 @@ jobs:
                 
                 echo "$formatted_docs" >> "$output_file"
                 echo "" >> "$output_file"
-                
-                echo "$formatted_docs" >> "$output_file"
-                echo "" >> "$output_file"
               fi
             done
           done
@@ -195,59 +235,6 @@ jobs:
         run: |
           # Use PAT for wiki push (needs to be set in repository secrets)
           git clone https://${{ secrets.WIKI_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
-          
-          # Before copying, check for duplicates and rename as needed
-          duplicate_check=$(find wiki-content -name "*.md" -exec basename {} \; | sort | uniq -d)
-          
-          if [ -n "$duplicate_check" ]; then
-            echo "Found duplicate file names. Resolving conflicts..."
-            
-            for duplicate in $duplicate_check; do
-              # Find all files with this name
-              files=$(find wiki-content -name "$duplicate")
-              
-              # For each duplicate, rename to include parent directories until unique
-              for file in $files; do
-                dir_path=$(dirname "$file")
-                base_name=$(basename "$file" .md)
-                
-                # Start with one directory up
-                parent_dir=$(basename "$dir_path")
-                new_name="${parent_dir}_${base_name}.md"
-                target_path="wiki-content/${new_name}"
-                
-                # If still a duplicate, keep adding parent directories
-                while [ -f "$target_path" ] && [ "$dir_path" != "wiki-content" ]; do
-                  dir_path=$(dirname "$dir_path")
-                  parent_dir=$(basename "$dir_path")
-                  new_name="${parent_dir}_${new_name}"
-                  target_path="wiki-content/${new_name}"
-                done
-                
-                # Rename the file
-                cp "$file" "$target_path"
-                rm "$file"
-                
-                # Update the title in the file
-                sed -i "1s/^# .*$/# ${new_name%.md}/" "$target_path"
-                
-                echo "Renamed $file to $target_path"
-              done
-            done
-            
-            # Regenerate Home.md with updated links
-            echo "# ${GITHUB_REPOSITORY#*/} Documentation" > wiki-content/Home.md
-            echo "" >> wiki-content/Home.md
-            echo "This wiki contains automatically generated documentation from the Rust codebase." >> wiki-content/Home.md
-            echo "" >> wiki-content/Home.md
-            echo "## Modules" >> wiki-content/Home.md
-            
-            find wiki-content -type f -name "*.md" ! -name "Home.md" | sort | while read -r file; do
-              rel_file=${file#wiki-content/}
-              module_name=$(basename "$file" .md)
-              echo "* [$module_name]($rel_file)" >> wiki-content/Home.md
-            done
-          fi
           
           # Copy new content to wiki repository
           cp -r wiki-content/* wiki-repo/
