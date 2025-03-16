@@ -68,20 +68,18 @@ jobs:
             echo "" >> "$output_file"
             
             # Collect all public items for table of contents
-            toc_items=$(grep -n "^pub " "$file" | while read -r toc_line; do
+            grep -n "^pub " "$file" | while read -r toc_line; do
               line_num=$(echo "$toc_line" | cut -d: -f1)
               item=$(echo "$toc_line" | cut -d: -f2-)
               
-              # Get doc comments above this item
-              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
-              
-              if [ -n "$prev_lines" ]; then
+              # Check if there are doc comments above
+              doc_comment_lines=$(head -n $((line_num-1)) "$file" | tac | grep -m 1 -A 100 "^///" | tac)
+              if [ -n "$doc_comment_lines" ]; then
                 item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
-                echo "* [$item_name](#${item_name// /-})"
+                echo "* [$item_name](#${item_name// /-})" >> "$output_file"
               fi
-            done)
+            done
             
-            echo "$toc_items" >> "$output_file"
             echo "" >> "$output_file"
             
             # Extract module-level documentation (//! comments)
@@ -102,48 +100,46 @@ jobs:
               line_num=$(echo "$line" | cut -d: -f1)
               item=$(echo "$line" | cut -d: -f2-)
               
-              # Get doc comments above this item (/// style comments)
-              # This extracts only the continuous block of comments immediately preceding the function
+              # Find the continuous block of doc comments above this item
+              start_line=1
               end_line=$((line_num-1))
-              start_line=$end_line
               
-              # Find the start of the doc comment block by going backwards until we find a non-comment line
-              while [ $start_line -gt 1 ]; do
-                prev_line=$((start_line-1))
-                line_content=$(sed "${prev_line}q;d" "$file")
-                if ! echo "$line_content" | grep -q "^///"; then
-                  # Found a non-doc comment line
+              # Find where the doc comments start
+              found_comments=0
+              for ((i=line_num-1; i>=1; i--)); do
+                content=$(sed -n "${i}p" "$file")
+                if echo "$content" | grep -q "^///"; then
+                  found_comments=1
+                  start_line=$i
+                elif [ $found_comments -eq 1 ]; then
+                  # We've found the first non-doc-comment line after finding comments
+                  start_line=$((i+1))
                   break
                 fi
-                start_line=$prev_line
               done
               
-              # Extract the entire comment block
-              prev_lines=$(sed -n "${start_line},${end_line}p" "$file")
-              
-              if [ -n "$prev_lines" ]; then
+              # If we found doc comments, extract and format them
+              if [ $found_comments -eq 1 ]; then
                 # Extract the full function/type signature
                 item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
                 
                 # Find the end of the signature (either { or ; or where)
-                start_line=$line_num
-                end_line=$start_line
+                sig_start_line=$line_num
+                sig_end_line=$sig_start_line
                 
                 # For function signatures that span multiple lines
-                if ! echo "$item" | grep -q "{" && ! echo "$item" | grep -q ";" && ! echo "$item" | grep -q "where"; then
-                  while [ $end_line -lt $(wc -l < "$file") ]; do
-                    end_line=$((end_line + 1))
-                    line_content=$(sed "${end_line}q;d" "$file")
-                    
-                    if echo "$line_content" | grep -q "{" || echo "$line_content" | grep -q ";" || echo "$line_content" | grep -q "where"; then
-                      break
-                    fi
-                  done
-                fi
+                for ((i=line_num; i<$(wc -l < "$file"); i++)); do
+                  content=$(sed -n "${i}p" "$file")
+                  sig_end_line=$i
+                  if echo "$content" | grep -q "{" || echo "$content" | grep -q ";" || echo "$content" | grep -q "where"; then
+                    break
+                  fi
+                done
                 
                 # Extract the full signature
-                full_sig=$(sed -n "${start_line},${end_line}p" "$file")
+                full_sig=$(sed -n "${sig_start_line},${sig_end_line}p" "$file")
                 
+                # Write the function/item name and signature
                 echo "## $item_name" >> "$output_file"
                 echo "" >> "$output_file"
                 echo '```rust' >> "$output_file"
@@ -151,15 +147,14 @@ jobs:
                 echo '```' >> "$output_file"
                 echo "" >> "$output_file"
                 
-                # Process doc comments with clear section formatting
-                # Strip the /// prefix from all lines
-                formatted_docs=$(echo -e "$prev_lines" | sed 's/^\/\/\/ //')
+                # Extract and format the doc comments
+                doc_comments=$(sed -n "${start_line},${end_line}p" "$file" | sed 's/^\/\/\/ //')
                 
                 # Convert Rust doc headings to markdown headings
-                formatted_docs=$(echo "$formatted_docs" | 
-                  # Convert "# Arguments" style Rust doc headings to markdown h3
+                processed_comments=$(echo "$doc_comments" | 
+                  # Convert "# Arguments" style headings to markdown h3
                   sed 's/^# \(.*\)$/### \1/' |
-                  # Handle special case headings without converting normal text with #
+                  # Handle other standard Rust doc headings
                   sed '/^###/!s/^#\s*Arguments$/### Arguments/' |
                   sed '/^###/!s/^#\s*Parameters$/### Parameters/' |
                   sed '/^###/!s/^#\s*Returns$/### Returns/' |
@@ -175,9 +170,8 @@ jobs:
                   sed '/^###/!s/^#\s*State Model$/### State Model/' |
                   sed '/^###/!s/^#\s*Status Model$/### Status Model/')
                 
-                echo "$formatted_docs" >> "$output_file"
+                echo "$processed_comments" >> "$output_file"
                 echo "" >> "$output_file"
-              fi
               fi
             done
             
