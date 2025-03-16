@@ -10,3 +10,5 @@ cluster.db-shm
 cluster.db-wal
 *.log
 /db_data
+.cargo/sql_formatter/target/
+.cargo/sql_formatter/Cargo.lock
