@@ -1,5 +1,19 @@
 name: Rust Docs to Wiki
 
+# This workflow extracts documentation from Rust source code and updates the GitHub wiki.
+# 
+# IMPORTANT: This workflow requires a personal access token (PAT) with 'workflow' scope
+# to push changes to the wiki repository. The default GITHUB_TOKEN doesn't have wiki permissions.
+# 
+# Setup instructions:
+# 1. Create a personal access token with 'workflow' scope at:
+#    https://github.com/settings/tokens
+# 2. Add the token as a repository secret named 'WIKI_TOKEN' at:
+#    https://github.com/YOUR_USERNAME/YOUR_REPO/settings/secrets/actions
+# 
+# If you don't want to use a PAT, you can comment out the 'Clone Wiki Repository' step
+# and uncomment the artifact upload step to manually update the wiki.
+
 on:
   push:
     branches: [ main, master ]
@@ -111,7 +125,8 @@ jobs:
 
       - name: Clone Wiki Repository
         run: |
-          git clone https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
+          # Use PAT for wiki push (needs to be set in repository secrets)
+          git clone https://${{ secrets.WIKI_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
           
           # Copy new content to wiki repository
           cp -r wiki-content/* wiki-repo/
