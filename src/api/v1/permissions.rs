@@ -25,7 +25,7 @@ pub async fn list_permission(pool: &State<sqlx::Pool<MySql>>) -> Json<Vec<tables
 
     Json(permissions)
 }
-#[post("/permissions/create", format = "json", data = "<permission>")]
+#[post("/permissions", format = "json", data = "<permission>")]
 pub async fn create_permission(
     pool: &State<sqlx::Pool<MySql>>,
     permission: Json<tables::Permission>,

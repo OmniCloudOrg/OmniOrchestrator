@@ -1,15 +1,60 @@
-mod api;
-mod cluster;
-mod config;
+//-----------------------------------------------------------------------------
+// OmniOrchestrator - A distributed system for managing and orchestrating
+//-----------------------------------------------------------------------------
+// Maintained by: Tristan J. Poland, Maxine Deandrade, Caznix, Haywood Spartian
+// and the OmniCloud community.
+//-----------------------------------------------------------------------------
+// This is the entry point for the OmniOrchestrator server application.
+// It is responsible of managing the entirity of the OmniCloud platform
+// and its various components, including the database, API, and cluster
+// management. It also handles bootstrapping when a new platform is created
+// and provides a load balanced API for interacting with the platform's
+// various components.
+//-----------------------------------------------------------------------------
+
 mod db;
-mod leader;
-mod logger;
+mod api;
 mod state;
+mod logger;
+mod leader;
+mod config;
+mod cluster;
+
+// Import Third-party crates
+use std::fs::File;
+use rocket::Build;
+use anyhow::Result;
+use rocket::Rocket;
+use std::io::Write;
+use anyhow::anyhow;
+use reqwest::Client;
+use colored::Colorize;
+use tokio::sync::RwLock;
+use std::time::Duration;
+use std::{env, sync::Arc};
+use sqlx::mysql::MySqlPool;
+use lazy_static::lazy_static;
+use env_logger::{Builder, Target};
+use serde::{Deserialize, Serialize};
+
+// Import other pieces of modules for use
+use api::*; // We import this so we can mount the various routes for different API versions
+use crate::state::SharedState;
+use crate::config::ServerConfig;
+use crate::config::SERVER_CONFIG;
+use crate::leader::LeaderElection;
+use crate::cluster::{ClusterManager, NodeInfo};
+
 #[macro_use]
 extern crate rocket;
 
-// Extension trait for mounting multiple routes
+/// Extension trait for mounting multiple routes to a Rocket instance
 trait RocketExt {
+    /// Mount multiple route groups at once to simplify route registration
+    /// 
+    /// # Arguments
+    /// 
+    /// * `routes` - A vector of path and route pairs to mount
     fn mount_routes(self, routes: Vec<(&'static str, Vec<rocket::Route>)>) -> Self;
 }
 
@@ -24,33 +69,8 @@ impl RocketExt for Rocket<Build> {
     }
 }
 
-use crate::config::SERVER_CONFIG;
-use anyhow::anyhow;
-use anyhow::Result;
-use chrono;
-use colored::Colorize;
-use env_logger::{Builder, Target};
-use lazy_static::lazy_static;
-use reqwest::Client;
-use rocket::Build;
-use rocket::Rocket;
-use serde::{Deserialize, Serialize};
-use sqlx::mysql::MySqlPool;
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::Write;
-use std::time::Duration;
-use std::{env, sync::Arc};
-use tokio::sync::RwLock;
-use v1::apps::Application;
-
-use crate::cluster::{ClusterManager, NodeInfo};
-use crate::config::ServerConfig;
-use crate::leader::LeaderElection;
-use crate::state::SharedState;
-
-use api::*;
-
+/// Global singleton instance of the cluster manager
+/// Manages node discovery and peer connections
 lazy_static! {
     static ref CLUSTER_MANAGER: Arc<RwLock<ClusterManager>> = {
         let state = format!("{}:{}", SERVER_CONFIG.address, SERVER_CONFIG.port);
@@ -63,19 +83,35 @@ lazy_static! {
     };
 }
 
+/// Message format for cluster status API responses
 #[derive(Debug, Serialize, Deserialize)]
 struct ClusterStatusMessage {
+    /// Current role of the node (leader/follower)
     node_roles: String,
+    /// List of nodes in the cluster
     cluster_nodes: Vec<NodeInfo>,
 }
 
+/// Standard API response format for cluster operations
 #[derive(Serialize, Deserialize)]
 struct ApiResponse {
+    /// Status of the operation ("ok" or "error")
     status: String,
+    /// Response message containing cluster information
     message: ClusterStatusMessage,
 }
 
 impl ClusterManager {
+    /// Discovers and connects to peer nodes in the cluster
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Server configuration containing instance information
+    /// * `my_port` - Current node's port to avoid self-connection
+    ///
+    /// # Returns
+    ///
+    /// Result indicating success or failure of the discovery process
     pub async fn discover_peers(&self, config: &ServerConfig, my_port: u16) -> Result<()> {
         let client = Client::new();
 
@@ -101,6 +137,16 @@ impl ClusterManager {
         Ok(())
     }
 
+    /// Attempts to establish a connection with a peer node
+    ///
+    /// # Arguments
+    ///
+    /// * `client` - HTTP client for making requests
+    /// * `node_address` - Address of the peer node
+    ///
+    /// # Returns
+    ///
+    /// Result indicating success or failure of the connection attempt
     async fn connect_to_peer(&self, client: &Client, node_address: &str) -> Result<()> {
         let health_url = format!("http://{}/health", node_address);
         let response = client
@@ -131,6 +177,11 @@ impl ClusterManager {
     }
 }
 
+/// Health check endpoint to verify node status
+///
+/// # Returns
+///
+/// JSON response with basic health status
 #[get("/health")]
 async fn health_check() -> rocket::serde::json::Json<ApiResponse> {
     rocket::serde::json::Json(ApiResponse {
@@ -142,6 +193,16 @@ async fn health_check() -> rocket::serde::json::Json<ApiResponse> {
     })
 }
 
+/// Cluster status endpoint providing detailed information about the cluster
+///
+/// # Arguments
+///
+/// * `state` - Shared state containing leadership information
+/// * `cluster` - Cluster manager containing node information
+///
+/// # Returns
+///
+/// JSON response with cluster status details
 #[get("/cluster/status")]
 async fn cluster_status(
     state: &rocket::State<Arc<RwLock<SharedState>>>,
@@ -165,6 +226,15 @@ async fn cluster_status(
     rocket::serde::json::Json(response)
 }
 
+/// Main entry point for the OmniOrchestrator server
+///
+/// Initializes the server components in the following order:
+/// 1. Server configuration and logging
+/// 2. Database connection
+/// 3. Schema verification and optional migration
+/// 4. Cluster management and peer discovery
+/// 5. Leader election
+/// 6. API route mounting and server start
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = SERVER_CONFIG.port;
@@ -204,6 +274,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Initializing metadata system...");
     db::v1::queries::metadata::initialize_metadata_system(&pool).await?;
 
+    // Check database schema version and update if necessary
     let target_version = "1";
     let current_version = db::v1::queries::metadata::get_meta_value(&pool, "omni_schema_version")
         .await
@@ -252,7 +323,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shared_state: Arc<RwLock<SharedState>> =
         Arc::new(RwLock::new(SharedState::new(node_id.clone())));
 
-    // Start peer discovery
+    // Start peer discovery in background task
     tokio::task::spawn({
         let cluster_manager = CLUSTER_MANAGER.clone();
         let server_config = SERVER_CONFIG.clone();
@@ -266,7 +337,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 {
                     log::error!("Failed to discover peers: {e}");
                 }
-                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
             }
         }
     });
@@ -277,6 +348,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Define routes to mount
     let routes = vec![("/", routes![health_check]), ("/api/v1", api::v1::routes())];
 
+    // Build, configure and launch the Rocket server
     let _rocket = rocket::build()
         .configure(rocket::Config {
             port,

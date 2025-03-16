@@ -10,11 +10,13 @@ pub mod metadata;
 pub mod permissions;
 pub mod regions;
 pub mod users;
+//pub mod deployments;
 
 use apps::*;
 use audit_log::*;
 use builds::*;
 use deploy::*;
+//use deployments::*;
 use instances::*;
 use metadata::*;
 use permissions::*;
@@ -60,9 +62,12 @@ pub fn routes() -> Vec<rocket::Route> {
         list_builds_for_app,
         get_build,
         // regions
-        list_regions // get_region,
+        list_regions, // get_region,
                      // delete_region,
                      // create_region,
                      // update_region
+
+        // deployments
+        //list_deployments
     ]
 }

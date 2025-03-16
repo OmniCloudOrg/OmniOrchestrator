@@ -2,6 +2,28 @@ use super::super::tables::App;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 
+/// Retrieves a paginated list of applications from the database.
+///
+/// This function fetches a subset of applications based on pagination parameters,
+/// ordering them by their ID in ascending order. Pagination helps manage large
+/// datasets by retrieving only a specific "page" of results.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool for executing the query
+/// * `page` - Zero-based page number (e.g., 0 for first page, 1 for second page)
+/// * `per_page` - Number of records to fetch per page
+///
+/// # Returns
+///
+/// * `Ok(Vec<App>)` - Successfully retrieved list of applications
+/// * `Err(anyhow::Error)` - Failed to fetch applications, with context
+///
+/// # Examples
+///
+/// ```
+/// let apps = list_apps(&pool, 0, 10).await?; // Get first 10 apps
+/// ```
 pub async fn list_apps(pool: &Pool<MySql>, page: i64, per_page: i64) -> anyhow::Result<Vec<App>> {
     println!("Attempting to fetch apps from database...");
 
@@ -23,6 +45,25 @@ pub async fn list_apps(pool: &Pool<MySql>, page: i64, per_page: i64) -> anyhow::
     }
 }
 
+/// Retrieves a specific application by its unique identifier.
+///
+/// This function fetches a single application record matching the provided ID.
+/// It's typically used for retrieving detailed information about a specific application.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool for executing the query
+/// * `id` - Unique identifier of the application to retrieve
+///
+/// # Returns
+///
+/// * `Ok(App)` - Successfully retrieved application
+/// * `Err(anyhow::Error)` - Failed to fetch application (including if not found)
+///
+/// # Error Handling
+///
+/// Returns an error if no application with the given ID exists or if a database
+/// error occurs during the query execution.
 pub async fn get_app_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<App> {
     let app = sqlx::query_as::<_, App>("SELECT * FROM apps WHERE id = ?")
         .bind(id)
@@ -33,6 +74,25 @@ pub async fn get_app_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Result<App> {
     Ok(app)
 }
 
+/// Retrieves all applications belonging to a specific organization.
+///
+/// This function fetches all applications associated with the provided organization ID,
+/// ordered by creation date in descending order (newest first). It's typically used
+/// to display all applications owned by an organization.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool for executing the query
+/// * `org_id` - Organization identifier to filter applications by
+///
+/// # Returns
+///
+/// * `Ok(Vec<App>)` - Successfully retrieved list of applications for the organization
+/// * `Err(anyhow::Error)` - Failed to fetch applications
+///
+/// # Note
+///
+/// This function will return an empty vector if the organization exists but has no applications.
 pub async fn get_apps_by_org(pool: &Pool<MySql>, org_id: i64) -> anyhow::Result<Vec<App>> {
     let apps =
         sqlx::query_as::<_, App>("SELECT * FROM apps WHERE org_id = ? ORDER BY created_at DESC")
@@ -44,6 +104,31 @@ pub async fn get_apps_by_org(pool: &Pool<MySql>, org_id: i64) -> anyhow::Result<
     Ok(apps)
 }
 
+/// Creates a new application in the database.
+///
+/// This function inserts a new application record with the provided parameters.
+/// It handles both required fields (name, organization ID) and optional fields.
+/// The application is created with maintenance mode disabled by default.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool for executing the query
+/// * `name` - Name of the application
+/// * `org_id` - Organization ID that the application belongs to
+/// * `git_repo` - Optional URL of the Git repository for the application
+/// * `git_branch` - Optional branch name in the Git repository
+/// * `container_image_url` - Optional URL for a container image
+/// * `region_id` - Optional ID of the deployment region
+///
+/// # Returns
+///
+/// * `Ok(App)` - Successfully created application, including database-assigned fields
+/// * `Err(anyhow::Error)` - Failed to create application
+///
+/// # Transaction Handling
+///
+/// This function uses a database transaction to ensure atomicity of the operation.
+/// If any part of the operation fails, the entire operation is rolled back.
 pub async fn create_app(
     pool: &Pool<MySql>,
     name: &str,
@@ -82,6 +167,39 @@ pub async fn create_app(
     Ok(app)
 }
 
+/// Updates an existing application in the database.
+///
+/// This function modifies an application record with the provided parameters.
+/// It uses a dynamic SQL query that only updates fields for which values are provided,
+/// leaving other fields unchanged. The updated_at timestamp is always updated
+/// to reflect the modification time.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool for executing the query
+/// * `id` - Unique identifier of the application to update
+/// * `name` - Optional new name for the application
+/// * `git_repo` - Optional new Git repository URL
+/// * `git_branch` - Optional new Git branch
+/// * `container_image_url` - Optional new container image URL
+/// * `region_id` - Optional new region ID
+/// * `maintenance_mode` - Optional new maintenance mode status
+///
+/// # Returns
+///
+/// * `Ok(App)` - Successfully updated application with all current values
+/// * `Err(anyhow::Error)` - Failed to update application
+///
+/// # Dynamic Query Building
+///
+/// The function dynamically constructs the UPDATE SQL statement based on which
+/// parameters have values. This ensures the query only updates the fields that
+/// need to change, improving efficiency and reducing the risk of unintended changes.
+///
+/// # Transaction Handling
+///
+/// This function uses a database transaction to ensure atomicity of the operation.
+/// If any part of the operation fails, the entire operation is rolled back.
 pub async fn update_app(
     pool: &Pool<MySql>,
     id: i64,
@@ -153,6 +271,31 @@ pub async fn update_app(
     Ok(app)
 }
 
+/// Deletes an application from the database.
+///
+/// This function permanently removes an application record with the specified ID.
+/// The operation is performed within a transaction to ensure data consistency.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool for executing the query
+/// * `id` - Unique identifier of the application to delete
+///
+/// # Returns
+///
+/// * `Ok(())` - Successfully deleted the application
+/// * `Err(anyhow::Error)` - Failed to delete the application
+///
+/// # Warning
+///
+/// This operation is irreversible. Once an application is deleted, all associated
+/// data that depends on the application's existence may become invalid.
+///
+/// # Note
+///
+/// This function does not verify if the application exists before attempting deletion.
+/// If the application does not exist, the operation will still succeed (as far as SQL is concerned),
+/// but no rows will be affected.
 pub async fn delete_app(pool: &Pool<MySql>, id: i64) -> anyhow::Result<()> {
     let mut tx = pool.begin().await?;
 
@@ -166,6 +309,28 @@ pub async fn delete_app(pool: &Pool<MySql>, id: i64) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Sets the maintenance mode status for an application.
+///
+/// This function updates only the maintenance_mode field of an application,
+/// making it a more efficient alternative to update_app when only this field 
+/// needs to change. When an application is in maintenance mode, it typically
+/// displays a maintenance page to users instead of normal operation.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool for executing the query
+/// * `id` - Unique identifier of the application to update
+/// * `maintenance_mode` - Whether maintenance mode should be enabled (true) or disabled (false)
+///
+/// # Returns
+///
+/// * `Ok(App)` - Successfully updated application with the new maintenance mode status
+/// * `Err(anyhow::Error)` - Failed to update maintenance mode
+///
+/// # Transaction Handling
+///
+/// This function uses a database transaction to ensure atomicity of the operation.
+/// If any part of the operation fails, the entire operation is rolled back.
 pub async fn set_maintenance_mode(
     pool: &Pool<MySql>,
     id: i64,
