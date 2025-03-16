@@ -23,23 +23,24 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          components: rustfmt, rustdoc
+          components: rustfmt
 
       - name: Install mdBook
         run: cargo install mdbook
 
       - name: Generate documentation
         run: |
-          # Generate standard rustdoc
+          # Generate standard docs
           cargo doc --no-deps
           
           # Create a directory for markdown docs
           mkdir -p wiki-content
           
-          # Extract crate names from Cargo.toml
-          CRATE_NAMES=$(grep -E "^name\s*=\s*" Cargo.toml | head -1 | cut -d'"' -f2 || echo ${GITHUB_REPOSITORY#*/})
+          # Extract HTML docs for later parsing
+          mkdir -p target/doc-extract
+          cp -r target/doc/* target/doc-extract/
           
-          # For each Rust file, extract doc comments
+          # For each Rust file, extract doc comments directly
           find src -name "*.rs" | while read -r file; do
             # Get relative path for wiki structure
             rel_path=${file#src/}
@@ -55,17 +56,16 @@ jobs:
             echo "Path: \`$file\`" >> "wiki-content/${rel_path}.md"
             echo "" >> "wiki-content/${rel_path}.md"
             
-            # Extract doc comments with rustdoc
-            rustdoc "$file" --document-private-items --output wiki-content/temp
-            
-            # Extract module-level documentation if available
-            grep -A 1000 "<div class='docblock'>" wiki-content/temp/*/index.html 2>/dev/null | 
-              sed -n '/<div class=/,/<\/div>/p' | 
-              sed 's/<[^>]*>//g' | 
-              sed '/^$/d' >> "wiki-content/${rel_path}.md" || true
+            # Extract module-level documentation
+            module_docs=$(grep -A 5 "//!" "$file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
+            if [ -n "$module_docs" ]; then
+              echo "## Module Documentation" >> "wiki-content/${rel_path}.md"
+              echo "" >> "wiki-content/${rel_path}.md"
+              echo "$module_docs" >> "wiki-content/${rel_path}.md"
+              echo "" >> "wiki-content/${rel_path}.md"
+            fi
             
             # Add section for public items
-            echo "" >> "wiki-content/${rel_path}.md"
             echo "## Public Items" >> "wiki-content/${rel_path}.md"
             echo "" >> "wiki-content/${rel_path}.md"
             
@@ -74,7 +74,7 @@ jobs:
               line_num=$(echo "$line" | cut -d: -f1)
               item=$(echo "$line" | cut -d: -f2-)
               
-              # Get doc comments above this item
+              # Get doc comments above this item (/// style comments)
               prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
               
               if [ -n "$prev_lines" ]; then
@@ -89,9 +89,6 @@ jobs:
               fi
             done
           done
-          
-          # Clean up temporary files
-          rm -rf wiki-content/temp
           
           # Create Home.md
           echo "# ${GITHUB_REPOSITORY#*/} Documentation" > wiki-content/Home.md
