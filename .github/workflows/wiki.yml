@@ -34,6 +34,7 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          components: rustfmt
 
       - name: Generate documentation
         run: |
@@ -58,6 +59,8 @@ jobs:
             unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
             output_file="wiki-content/${unique_name}.md"
             
+            echo "Processing $file into $output_file"
+            
             echo "# $base_name ($dir_path)" > "$output_file"
             echo "" >> "$output_file"
             echo "Path: \`$file\`" >> "$output_file"
@@ -67,130 +70,250 @@ jobs:
             echo "## Table of Contents" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Collect all public items for table of contents
-            grep -n "^pub " "$file" | while read -r toc_line; do
-              line_num=$(echo "$toc_line" | cut -d: -f1)
-              item=$(echo "$toc_line" | cut -d: -f2-)
+            # First pass: Index all public items and their doc comments
+            {
+              # Use rustfmt to normalize formatting for more reliable parsing
+              rustfmt "$file" --emit=stdout | 
+              # Use AWK for more powerful parsing
+              awk '
+              BEGIN {
+                in_doc_comment = 0;
+                doc_comments = "";
+                found_items = 0;
+              }
               
-              # Check if there are doc comments above
-              doc_comment_lines=$(head -n $((line_num-1)) "$file" | tac | grep -m 1 -A 100 "^///" | tac)
-              if [ -n "$doc_comment_lines" ]; then
-                item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
-                echo "* [$item_name](#${item_name// /-})" >> "$output_file"
-              fi
-            done
+              # Track doc comments (both inner and outer)
+              /^\s*\/\/\/|^\s*\/\/\!/ {
+                in_doc_comment = 1;
+                doc_comments = doc_comments $0 "\n";
+                next;
+              }
+              
+              # Empty lines could be part of a doc comment block
+              /^\s*$/ && in_doc_comment {
+                doc_comments = doc_comments "\n";
+                next;
+              }
+              
+              # Match public items (functions, structs, traits, enums, etc.)
+              /^\s*pub / {
+                # Extract the item name and type
+                match($0, /pub\s+(type|struct|enum|trait|fn|mod|use|const|union|impl)\s+([a-zA-Z0-9_]+)/, item_parts);
+                
+                if (item_parts[1] != "" && item_parts[2] != "") {
+                  item_type = item_parts[1];
+                  item_name = item_parts[2];
+                  
+                  # Only include if we have doc comments
+                  if (doc_comments != "") {
+                    # Remove any code indentation from the name for anchor links
+                    clean_name = item_name;
+                    gsub(/\s/, "-", clean_name);
+                    
+                    print "* [" item_type " " item_name "](#" tolower(clean_name) ")";
+                    found_items = 1;
+                  }
+                }
+                
+                # Reset for next item
+                in_doc_comment = 0;
+                doc_comments = "";
+                next;
+              }
+              
+              # Any other line resets doc comment tracking
+              {
+                in_doc_comment = 0;
+                doc_comments = "";
+              }
+              
+              END {
+                if (!found_items) {
+                  print "No documented public items found.";
+                }
+              }
+              '
+            } >> "$output_file"
             
             echo "" >> "$output_file"
             
             # Extract module-level documentation (//! comments)
-            module_docs=$(grep -A 5 "//!" "$file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
-            if [ -n "$module_docs" ]; then
-              echo "## Module Documentation" >> "$output_file"
-              echo "" >> "$output_file"
-              echo "$module_docs" >> "$output_file"
-              echo "" >> "$output_file"
-            fi
+            {
+              rustfmt "$file" --emit=stdout |
+              awk '
+              BEGIN {
+                in_module_doc = 0;
+                module_docs = "";
+              }
+              
+              /^\s*\/\/\!/ {
+                in_module_doc = 1;
+                # Remove //! prefix and trim whitespace
+                gsub(/^\s*\/\/\!\s*/, "");
+                module_docs = module_docs $0 "\n";
+                next;
+              }
+              
+              # Empty lines could be part of module docs
+              /^\s*$/ && in_module_doc {
+                module_docs = module_docs "\n";
+                next;
+              }
+              
+              # Any non-empty, non-module-doc line ends module docs
+              !/^\s*\/\/\!/ && !/^\s*$/ && in_module_doc {
+                in_module_doc = 0;
+                next;
+              }
+              
+              END {
+                if (module_docs != "") {
+                  print "## Module Documentation";
+                  print "";
+                  print module_docs;
+                  print "";
+                } else {
+                  print ""; # Just a blank line if no module docs
+                }
+              }
+              '
+            } >> "$output_file"
             
-            # Add section for public items
-            echo "# Public Items" >> "$output_file"
+            # Add section for public items with their documentation
+            echo "## Public Items" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Extract function/struct/trait names and doc comments
-            grep -n "^pub " "$file" | while read -r line; do
-              line_num=$(echo "$line" | cut -d: -f1)
-              item=$(echo "$line" | cut -d: -f2-)
+            # Second pass: Extract full documentation for each item
+            {
+              rustfmt "$file" --emit=stdout |
+              awk '
+              BEGIN {
+                in_doc_comment = 0;
+                doc_comments = "";
+                in_item_def = 0;
+                item_def = "";
+                item_name = "";
+                item_type = "";
+                brace_count = 0;
+              }
               
-              # Find the continuous block of doc comments above this item
-              start_line=1
-              end_line=$((line_num-1))
+              # Track doc comments
+              /^\s*\/\/\// {
+                in_doc_comment = 1;
+                # Remove /// prefix and trim whitespace
+                clean_line = $0;
+                gsub(/^\s*\/\/\/\s?/, "", clean_line);
+                doc_comments = doc_comments clean_line "\n";
+                next;
+              }
               
-              # Find where the doc comments start
-              found_comments=0
-              for ((i=line_num-1; i>=1; i--)); do
-                content=$(sed -n "${i}p" "$file")
-                if echo "$content" | grep -q "^///"; then
-                  found_comments=1
-                  start_line=$i
-                elif [ $found_comments -eq 1 ]; then
-                  # We've found the first non-doc-comment line after finding comments
-                  start_line=$((i+1))
-                  break
-                fi
-              done
+              # Empty lines could be part of a doc comment block
+              /^\s*$/ && in_doc_comment {
+                doc_comments = doc_comments "\n";
+                next;
+              }
               
-              # If we found doc comments, extract and format them
-              if [ $found_comments -eq 1 ]; then
-                # Extract the full function/type signature
-                item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
-                
-                # Find the end of the signature (either { or ; or where)
-                sig_start_line=$line_num
-                sig_end_line=$sig_start_line
-                
-                # For function signatures that span multiple lines
-                in_signature=true
-                for ((i=line_num; i<$(wc -l < "$file"); i++)); do
-                  content=$(sed -n "${i}p" "$file")
+              # Handle public items
+              /^\s*pub / && !in_item_def {
+                # If we have doc comments, this is a documented item
+                if (doc_comments != "") {
+                  in_item_def = 1;
+                  item_def = $0;
                   
-                  # Check if we've found the end of the signature
-                  if echo "$content" | grep -q "{"; then
-                    sig_end_line=$i
-                    break
-                  elif echo "$content" | grep -q ";"; then
-                    sig_end_line=$i
-                    break
-                  fi
-                done
+                  # Extract item type and name
+                  match($0, /pub\s+(type|struct|enum|trait|fn|mod|use|const|union|impl)\s+([a-zA-Z0-9_]+)/, item_parts);
+                  
+                  if (item_parts[1] != "" && item_parts[2] != "") {
+                    item_type = item_parts[1];
+                    item_name = item_parts[2];
+                  } else {
+                    # Fallback for items that dont match the pattern
+                    item_type = "item";
+                    match($0, /pub\s+([a-zA-Z0-9_]+)/, alt_name);
+                    item_name = alt_name[1] ? alt_name[1] : "unknown";
+                  }
+                  
+                  # Count opening braces if any
+                  brace_count = 0;
+                  count = gsub(/\{/, "{", $0);
+                  brace_count += count;
+                  
+                  # Check if definition ends on this line (with semicolon or where clause)
+                  if ($0 ~ /;$/ || $0 ~ /\bwhere\b.*$/) {
+                    # Print the item with its documentation
+                    print "### " item_type " " item_name;
+                    print "";
+                    print "```rust";
+                    print item_def;
+                    print "```";
+                    print "";
+                    print doc_comments;
+                    print "";
+                    
+                    # Reset for next item
+                    in_item_def = 0;
+                    doc_comments = "";
+                    item_def = "";
+                  }
+                } else {
+                  # No doc comments, skip this item
+                  next;
+                }
+              }
+              
+              # Continue collecting multi-line item definitions
+              in_item_def {
+                item_def = item_def "\n" $0;
                 
-                # Extract the full signature including opening brace
-                full_sig=$(sed -n "${sig_start_line},${sig_end_line}p" "$file")
+                # Count braces to track nested blocks
+                count_open = gsub(/\{/, "{", $0);
+                count_close = gsub(/\}/, "}", $0);
+                brace_count += count_open - count_close;
                 
-                # Write the function/item name and signature
-                echo "## $item_name" >> "$output_file"
-                echo "" >> "$output_file"
-                echo '```rust' >> "$output_file"
-                
-                # For multi-line function definitions, extract the complete function header
-                if echo "$full_sig" | grep -v "{"; then
-                  # This is a signature without a body opening (like a trait method or extern declaration)
-                  echo "$full_sig" >> "$output_file"
-                else
-                  # This is a normal function with a body
-                  # We'll capture everything from the signature up to the opening brace
-                  stripped_sig=$(echo "$full_sig" | sed 's/{.*//')
-                  echo "${stripped_sig} {" >> "$output_file"
-                fi
-                
-                echo '```' >> "$output_file"
-                echo "" >> "$output_file"
-                
-                # Extract and format the doc comments
-                doc_comments=$(sed -n "${start_line},${end_line}p" "$file" | sed 's/^\/\/\/ *//')
-                
-                # Convert Rust doc headings to markdown headings
-                processed_comments=$(echo "$doc_comments" | 
-                  # Convert "# Arguments" style headings to markdown h3
-                  sed 's/^# \(.*\)$/### \1/' |
-                  # Handle other standard Rust doc headings
-                  sed '/^###/!s/^#\s*Arguments$/### Arguments/' |
-                  sed '/^###/!s/^#\s*Parameters$/### Parameters/' |
-                  sed '/^###/!s/^#\s*Returns$/### Returns/' |
-                  sed '/^###/!s/^#\s*Examples$/### Examples/' |
-                  sed '/^###/!s/^#\s*Note$/### Note/' |
-                  sed '/^###/!s/^#\s*Notes$/### Notes/' |
-                  sed '/^###/!s/^#\s*Error Handling$/### Error Handling/' |
-                  sed '/^###/!s/^#\s*Warning$/### Warning/' |
-                  sed '/^###/!s/^#\s*Use Cases$/### Use Cases/' |
-                  sed '/^###/!s/^#\s*Pagination$/### Pagination/' |
-                  sed '/^###/!s/^#\s*Important$/### Important/' |
-                  sed '/^###/!s/^#\s*Transaction Handling$/### Transaction Handling/' |
-                  sed '/^###/!s/^#\s*State Model$/### State Model/' |
-                  sed '/^###/!s/^#\s*Status Model$/### Status Model/')
-                
-                echo "$processed_comments" >> "$output_file"
-                echo "" >> "$output_file"
-              fi
-            done
+                # Check if definition ends on this line
+                if (brace_count == 0 && ($0 ~ /;$/ || $0 ~ /\}$/)) {
+                  # Extract signature for functions (up to opening brace)
+                  if (item_type == "fn") {
+                    # Capture everything until the first {
+                    full_def = item_def;
+                    gsub(/\{.*$/, "{...}", item_def);
+                  }
+                  
+                  # Print the item with its documentation
+                  print "### " item_type " " item_name;
+                  print "";
+                  print "```rust";
+                  print item_def;
+                  print "```";
+                  print "";
+                  
+                  # Process doc comments to handle markdown formatting
+                  processed_comments = doc_comments;
+                  gsub(/^# /, "### ", processed_comments);
+                  gsub(/^#\s*Arguments$/, "### Arguments", processed_comments);
+                  gsub(/^#\s*Parameters$/, "### Parameters", processed_comments);
+                  gsub(/^#\s*Returns$/, "### Returns", processed_comments);
+                  gsub(/^#\s*Examples$/, "### Examples", processed_comments);
+                  gsub(/^#\s*Note$/, "### Note", processed_comments);
+                  
+                  print processed_comments;
+                  print "";
+                  
+                  # Reset for next item
+                  in_item_def = 0;
+                  doc_comments = "";
+                  item_def = "";
+                  brace_count = 0;
+                }
+              }
+              
+              # Any other line resets doc comment tracking without resetting item tracking
+              !in_item_def && !/^\s*$/ {
+                in_doc_comment = 0;
+                doc_comments = "";
+              }
+              '
+            } >> "$output_file"
             
             # Add a link to the home page
             echo "* [$unique_name]($unique_name)" >> wiki-content/Home.md
