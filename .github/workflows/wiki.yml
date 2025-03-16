@@ -17,7 +17,7 @@ on:
     paths:
       - '**/*.rs'
       - 'Cargo.toml'
-      - '.github/workflows/wiki.yml'
+      - '.github/workflows/rust-docs-to-wiki.yml'
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
@@ -128,22 +128,39 @@ jobs:
                 sig_end_line=$sig_start_line
                 
                 # For function signatures that span multiple lines
+                in_signature=true
                 for ((i=line_num; i<$(wc -l < "$file"); i++)); do
                   content=$(sed -n "${i}p" "$file")
-                  sig_end_line=$i
-                  if echo "$content" | grep -q "{" || echo "$content" | grep -q ";" || echo "$content" | grep -q "where"; then
+                  
+                  # Check if we've found the end of the signature
+                  if echo "$content" | grep -q "{"; then
+                    sig_end_line=$i
+                    break
+                  elif echo "$content" | grep -q ";"; then
+                    sig_end_line=$i
                     break
                   fi
                 done
                 
-                # Extract the full signature
+                # Extract the full signature including opening brace
                 full_sig=$(sed -n "${sig_start_line},${sig_end_line}p" "$file")
                 
                 # Write the function/item name and signature
                 echo "## $item_name" >> "$output_file"
                 echo "" >> "$output_file"
                 echo '```rust' >> "$output_file"
-                echo "$full_sig" >> "$output_file"
+                
+                # For multi-line function definitions, extract the complete function header
+                if echo "$full_sig" | grep -v "{"; then
+                  # This is a signature without a body opening (like a trait method or extern declaration)
+                  echo "$full_sig" >> "$output_file"
+                else
+                  # This is a normal function with a body
+                  # We'll capture everything from the signature up to the opening brace
+                  stripped_sig=$(echo "$full_sig" | sed 's/{.*//')
+                  echo "${stripped_sig} {" >> "$output_file"
+                fi
+                
                 echo '```' >> "$output_file"
                 echo "" >> "$output_file"
                 
