@@ -196,6 +196,59 @@ jobs:
           # Use PAT for wiki push (needs to be set in repository secrets)
           git clone https://${{ secrets.WIKI_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
           
+          # Before copying, check for duplicates and rename as needed
+          duplicate_check=$(find wiki-content -name "*.md" -exec basename {} \; | sort | uniq -d)
+          
+          if [ -n "$duplicate_check" ]; then
+            echo "Found duplicate file names. Resolving conflicts..."
+            
+            for duplicate in $duplicate_check; do
+              # Find all files with this name
+              files=$(find wiki-content -name "$duplicate")
+              
+              # For each duplicate, rename to include parent directories until unique
+              for file in $files; do
+                dir_path=$(dirname "$file")
+                base_name=$(basename "$file" .md)
+                
+                # Start with one directory up
+                parent_dir=$(basename "$dir_path")
+                new_name="${parent_dir}_${base_name}.md"
+                target_path="wiki-content/${new_name}"
+                
+                # If still a duplicate, keep adding parent directories
+                while [ -f "$target_path" ] && [ "$dir_path" != "wiki-content" ]; do
+                  dir_path=$(dirname "$dir_path")
+                  parent_dir=$(basename "$dir_path")
+                  new_name="${parent_dir}_${new_name}"
+                  target_path="wiki-content/${new_name}"
+                done
+                
+                # Rename the file
+                cp "$file" "$target_path"
+                rm "$file"
+                
+                # Update the title in the file
+                sed -i "1s/^# .*$/# ${new_name%.md}/" "$target_path"
+                
+                echo "Renamed $file to $target_path"
+              done
+            done
+            
+            # Regenerate Home.md with updated links
+            echo "# ${GITHUB_REPOSITORY#*/} Documentation" > wiki-content/Home.md
+            echo "" >> wiki-content/Home.md
+            echo "This wiki contains automatically generated documentation from the Rust codebase." >> wiki-content/Home.md
+            echo "" >> wiki-content/Home.md
+            echo "## Modules" >> wiki-content/Home.md
+            
+            find wiki-content -type f -name "*.md" ! -name "Home.md" | sort | while read -r file; do
+              rel_file=${file#wiki-content/}
+              module_name=$(basename "$file" .md)
+              echo "* [$module_name]($rel_file)" >> wiki-content/Home.md
+            done
+          fi
+          
           # Copy new content to wiki repository
           cp -r wiki-content/* wiki-repo/
           
