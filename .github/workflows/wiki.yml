@@ -10,9 +10,6 @@ name: Rust Docs to Wiki
 #    https://github.com/settings/tokens
 # 2. Add the token as a repository secret named 'WIKI_TOKEN' at:
 #    https://github.com/YOUR_USERNAME/YOUR_REPO/settings/secrets/actions
-# 
-# If you don't want to use a PAT, you can comment out the 'Clone Wiki Repository' step
-# and uncomment the artifact upload step to manually update the wiki.
 
 on:
   push:
@@ -37,71 +34,40 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
-          components: rustfmt
 
-      - name: Install mdBook
-        run: cargo install mdbook
-
-      - name: Generate documentation
+      - name: Generate documentation in Markdown
         run: |
-          # Generate standard docs
-          cargo doc --no-deps
-          
-          # Create a directory for markdown docs
+          # Create a directory for the wiki content
           mkdir -p wiki-content
           
-          # Extract HTML docs for later parsing
-          mkdir -p target/doc-extract
-          cp -r target/doc/* target/doc-extract/
+          # Get the crate name from Cargo.toml
+          CRATE_NAME=$(grep -E "^name\s*=\s*" Cargo.toml | head -1 | cut -d'"' -f2 || echo ${GITHUB_REPOSITORY#*/})
           
-          # For each Rust file, extract doc comments directly
-          find src -name "*.rs" | while read -r file; do
-            # Get relative path for wiki structure
-            rel_path=${file#src/}
-            rel_path=${rel_path%.rs}
-            dir_path="wiki-content/${rel_path%/*}"
+          # Generate markdown documentation using rustdoc
+          for file in $(find src -name "*.rs"); do
+            # Create output directory for this file
+            dir_name=$(dirname "$file")
+            mkdir -p "wiki-content/$dir_name"
             
-            # Create directory if it doesn't exist
-            mkdir -p "$dir_path"
+            # Extract file name without extension
+            base_name=$(basename "$file" .rs)
             
-            # Extract doc comments and convert to markdown
-            echo "# $(basename ${file%.rs})" > "wiki-content/${rel_path}.md"
-            echo "" >> "wiki-content/${rel_path}.md"
-            echo "Path: \`$file\`" >> "wiki-content/${rel_path}.md"
-            echo "" >> "wiki-content/${rel_path}.md"
+            # Generate markdown documentation for this file
+            RUSTDOCFLAGS="--markdown-no-toc" cargo rustdoc --lib -- -w markdown "$file" -o "wiki-content/$dir_name"
             
-            # Extract module-level documentation
-            module_docs=$(grep -A 5 "//!" "$file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
-            if [ -n "$module_docs" ]; then
-              echo "## Module Documentation" >> "wiki-content/${rel_path}.md"
-              echo "" >> "wiki-content/${rel_path}.md"
-              echo "$module_docs" >> "wiki-content/${rel_path}.md"
-              echo "" >> "wiki-content/${rel_path}.md"
-            fi
-            
-            # Add section for public items
-            echo "## Public Items" >> "wiki-content/${rel_path}.md"
-            echo "" >> "wiki-content/${rel_path}.md"
-            
-            # Extract function/struct/trait names and doc comments
-            grep -n "^pub " "$file" | while read -r line; do
-              line_num=$(echo "$line" | cut -d: -f1)
-              item=$(echo "$line" | cut -d: -f2-)
-              
-              # Get doc comments above this item (/// style comments)
-              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
-              
-              if [ -n "$prev_lines" ]; then
-                echo "### $(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')" >> "wiki-content/${rel_path}.md"
-                echo "" >> "wiki-content/${rel_path}.md"
-                echo "$prev_lines" | sed 's/\/\/\/\s*//' >> "wiki-content/${rel_path}.md"
-                echo "" >> "wiki-content/${rel_path}.md"
-                echo '```rust' >> "wiki-content/${rel_path}.md"
-                echo "$item" | sed 's/\s*{.*$//' >> "wiki-content/${rel_path}.md"
-                echo '```' >> "wiki-content/${rel_path}.md"
-                echo "" >> "wiki-content/${rel_path}.md"
+            # If markdown file exists, move it to appropriate location
+            if [ -f "wiki-content/$dir_name/$base_name.md" ]; then
+              # For mod.rs files, move to directory name
+              if [ "$base_name" = "mod" ]; then
+                dir_parent=$(dirname "$dir_name")
+                dir_base=$(basename "$dir_name")
+                mkdir -p "wiki-content/$dir_parent"
+                mv "wiki-content/$dir_name/$base_name.md" "wiki-content/$dir_parent/$dir_base.md"
+              else
+                # Fix links in the file
+                sed -i 's/\.\.\/\.\.\//\//g' "wiki-content/$dir_name/$base_name.md"
               fi
-            done
+            fi
           done
           
           # Create Home.md
@@ -111,11 +77,11 @@ jobs:
           echo "" >> wiki-content/Home.md
           echo "## Modules" >> wiki-content/Home.md
           
-          # Add links to files (excluding Home.md)
+          # Add links to modules excluding Home.md
           find wiki-content -type f -name "*.md" ! -name "Home.md" | sort | while read -r file; do
             rel_file=${file#wiki-content/}
-            title=$(head -n 1 "$file" | sed 's/^# //')
-            echo "* [$title]($rel_file)" >> wiki-content/Home.md
+            module_name=$(basename "$file" .md)
+            echo "* [$module_name]($rel_file)" >> wiki-content/Home.md
           done
 
       - name: Setup Git for Wiki
