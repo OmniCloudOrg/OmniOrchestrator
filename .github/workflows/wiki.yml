@@ -1,0 +1,86 @@
+name: Rust Docs to Wiki
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - '**/*.rs'
+      - 'Cargo.toml'
+      - '.github/workflows/rust-docs-to-wiki.yml'
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  extract-docs-and-update-wiki:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: Install cargo-doc-extract
+        run: cargo install cargo-doc-extract
+
+      - name: Generate documentation
+        run: cargo doc --no-deps
+
+      - name: Extract markdown docs
+        run: |
+          mkdir -p wiki-content
+          cargo doc-extract -o wiki-content
+
+      - name: Process markdown for wiki
+        run: |
+          # Remove HTML comments and fix links
+          find wiki-content -name "*.md" -exec sed -i 's/<!--.*-->//g' {} \;
+          find wiki-content -name "*.md" -exec sed -i 's/\.\.\/\.\.\//\/\/g' {} \;
+          
+          # Create Home.md if it doesn't exist
+          if [ ! -f wiki-content/Home.md ]; then
+            echo "# ${GITHUB_REPOSITORY#*/} Documentation" > wiki-content/Home.md
+            echo "" >> wiki-content/Home.md
+            echo "This wiki contains automatically generated documentation from the Rust codebase." >> wiki-content/Home.md
+            echo "" >> wiki-content/Home.md
+            echo "## Modules" >> wiki-content/Home.md
+            
+            # Add links to modules
+            find wiki-content -maxdepth 1 -name "*.md" -not -name "Home.md" | sort | while read file; do
+              name=$(basename "$file" .md)
+              echo "* [$name]($name)" >> wiki-content/Home.md
+            done
+          fi
+
+      - name: Setup Git for Wiki
+        run: |
+          git config --global user.email "actions@github.com"
+          git config --global user.name "GitHub Actions"
+
+      - name: Clone Wiki Repository
+        run: |
+          git clone https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
+          
+          # Copy new content to wiki repository
+          cp -r wiki-content/* wiki-repo/
+          
+          cd wiki-repo
+          git add .
+          
+          # Only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update documentation from Rust code (${GITHUB_SHA:0:7})"
+            git push
+          fi
+
+      - name: Upload Markdown as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: wiki-docs
+          path: wiki-content/
