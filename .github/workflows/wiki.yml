@@ -40,34 +40,88 @@ jobs:
           # Create a directory for the wiki content
           mkdir -p wiki-content
           
-          # Get the crate name from Cargo.toml
-          CRATE_NAME=$(grep -E "^name\s*=\s*" Cargo.toml | head -1 | cut -d'"' -f2 || echo ${GITHUB_REPOSITORY#*/})
+          # Determine if this is a library or binary crate
+          if grep -q "^\[lib\]" Cargo.toml; then
+            echo "Library crate detected"
+            IS_LIB=true
+          else
+            echo "Binary crate detected"
+            IS_LIB=false
+          fi
           
-          # Generate markdown documentation using rustdoc
-          for file in $(find src -name "*.rs"); do
-            # Create output directory for this file
-            dir_name=$(dirname "$file")
-            mkdir -p "wiki-content/$dir_name"
+          # For each Rust file, extract doc comments directly
+          find src -name "*.rs" | while read -r file; do
+            # Get relative path for wiki structure
+            rel_path=${file#src/}
+            rel_path=${rel_path%.rs}
+            dir_path="wiki-content/${rel_path%/*}"
             
-            # Extract file name without extension
-            base_name=$(basename "$file" .rs)
+            # Create directory if it doesn't exist
+            mkdir -p "$dir_path"
             
-            # Generate markdown documentation for this file
-            RUSTDOCFLAGS="--markdown-no-toc" cargo rustdoc --lib -- -w markdown "$file" -o "wiki-content/$dir_name"
+            # Extract doc comments and convert to markdown
+            file_name=$(basename "$file" .rs)
+            output_file="wiki-content/${rel_path}.md"
             
-            # If markdown file exists, move it to appropriate location
-            if [ -f "wiki-content/$dir_name/$base_name.md" ]; then
-              # For mod.rs files, move to directory name
-              if [ "$base_name" = "mod" ]; then
-                dir_parent=$(dirname "$dir_name")
-                dir_base=$(basename "$dir_name")
-                mkdir -p "wiki-content/$dir_parent"
-                mv "wiki-content/$dir_name/$base_name.md" "wiki-content/$dir_parent/$dir_base.md"
-              else
-                # Fix links in the file
-                sed -i 's/\.\.\/\.\.\//\//g' "wiki-content/$dir_name/$base_name.md"
-              fi
+            echo "# $file_name" > "$output_file"
+            echo "" >> "$output_file"
+            echo "Path: \`$file\`" >> "$output_file"
+            echo "" >> "$output_file"
+            
+            # Extract module-level documentation (//! comments)
+            module_docs=$(grep -A 5 "//!" "$file" | sed 's/\/\/\!\s*//' | sed '/^--$/d')
+            if [ -n "$module_docs" ]; then
+              echo "## Module Documentation" >> "$output_file"
+              echo "" >> "$output_file"
+              echo "$module_docs" >> "$output_file"
+              echo "" >> "$output_file"
             fi
+            
+            # Add section for public items
+            echo "## Public Items" >> "$output_file"
+            echo "" >> "$output_file"
+            
+            # Extract function/struct/trait names and doc comments
+            grep -n "^pub " "$file" | while read -r line; do
+              line_num=$(echo "$line" | cut -d: -f1)
+              item=$(echo "$line" | cut -d: -f2-)
+              
+              # Get doc comments above this item (/// style comments)
+              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
+              
+              if [ -n "$prev_lines" ]; then
+                # Extract the full function/type signature
+                item_name=$(echo "$item" | sed 's/pub //' | sed 's/{.*//' | sed 's/(.*//' | tr -d '\n')
+                
+                # Find the end of the signature (either { or ; or where)
+                start_line=$line_num
+                end_line=$start_line
+                
+                # For function signatures that span multiple lines
+                if ! echo "$item" | grep -q "{" && ! echo "$item" | grep -q ";" && ! echo "$item" | grep -q "where"; then
+                  while [ $end_line -lt $(wc -l < "$file") ]; do
+                    end_line=$((end_line + 1))
+                    line_content=$(sed "${end_line}q;d" "$file")
+                    
+                    if echo "$line_content" | grep -q "{" || echo "$line_content" | grep -q ";" || echo "$line_content" | grep -q "where"; then
+                      break
+                    fi
+                  done
+                fi
+                
+                # Extract the full signature
+                full_sig=$(sed -n "${start_line},${end_line}p" "$file")
+                
+                echo "### $item_name" >> "$output_file"
+                echo "" >> "$output_file"
+                echo "$prev_lines" | sed 's/\/\/\/\s*//' >> "$output_file"
+                echo "" >> "$output_file"
+                echo '```rust' >> "$output_file"
+                echo "$full_sig" >> "$output_file"
+                echo '```' >> "$output_file"
+                echo "" >> "$output_file"
+              fi
+            done
           done
           
           # Create Home.md
