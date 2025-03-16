@@ -103,7 +103,22 @@ jobs:
               item=$(echo "$line" | cut -d: -f2-)
               
               # Get doc comments above this item (/// style comments)
-              prev_lines=$(head -n $((line_num-1)) "$file" | tac | sed -n '/\/\/\//p' | tac)
+              # This extracts only the continuous block of comments immediately preceding the function
+              prev_line_num=$((line_num-1))
+              prev_lines=""
+              
+              # Go backwards from the function definition until we find a non-doc comment line
+              while [ $prev_line_num -gt 0 ]; do
+                line_content=$(sed "${prev_line_num}q;d" "$file")
+                if echo "$line_content" | grep -q "^/// "; then
+                  # This is a doc comment, prepend to our result
+                  prev_lines="$line_content\n$prev_lines"
+                  prev_line_num=$((prev_line_num-1))
+                else
+                  # Found a non-doc comment line, stop
+                  break
+                fi
+              done
               
               if [ -n "$prev_lines" ]; then
                 # Extract the full function/type signature
@@ -136,27 +151,28 @@ jobs:
                 echo "" >> "$output_file"
                 
                 # Process doc comments with clear section formatting
-                formatted_docs=$(echo "$prev_lines" | sed 's/\/\/\/\s*//' | 
-                  # Convert "Arguments" or "Parameters" sections to h3
-                  sed 's/^Arguments$/### Arguments/' | 
-                  sed 's/^Parameters$/### Parameters/' |
-                  # Convert "Returns" sections to h3
-                  sed 's/^Returns$/### Returns/' |
-                  # Convert "Examples" sections to h3
-                  sed 's/^Examples$/### Examples/' |
-                  # Convert "Note" or "Notes" sections to h3
-                  sed 's/^Note$/### Note/' |
-                  sed 's/^Notes$/### Notes/' |
-                  # Convert "Error Handling" sections to h3
-                  sed 's/^Error Handling$/### Error Handling/' |
-                  # Convert "Warning" sections to h3
-                  sed 's/^Warning$/### Warning/' |
-                  # Convert "Use Cases" sections to h3
-                  sed 's/^Use Cases$/### Use Cases/' |
-                  # Convert "Pagination" sections to h3
-                  sed 's/^Pagination$/### Pagination/' |
-                  # Convert "Important" sections to h3
-                  sed 's/^Important$/### Important/')
+                # Strip the /// prefix from all lines
+                formatted_docs=$(echo -e "$prev_lines" | sed 's/^\/\/\/ //')
+                
+                # Convert Rust doc headings to markdown headings
+                formatted_docs=$(echo "$formatted_docs" | 
+                  # Convert "# Arguments" style Rust doc headings to markdown h3
+                  sed 's/^# \(.*\)$/### \1/' |
+                  # Handle special case headings without converting normal text with #
+                  sed '/^###/!s/^#\s*Arguments$/### Arguments/' |
+                  sed '/^###/!s/^#\s*Parameters$/### Parameters/' |
+                  sed '/^###/!s/^#\s*Returns$/### Returns/' |
+                  sed '/^###/!s/^#\s*Examples$/### Examples/' |
+                  sed '/^###/!s/^#\s*Note$/### Note/' |
+                  sed '/^###/!s/^#\s*Notes$/### Notes/' |
+                  sed '/^###/!s/^#\s*Error Handling$/### Error Handling/' |
+                  sed '/^###/!s/^#\s*Warning$/### Warning/' |
+                  sed '/^###/!s/^#\s*Use Cases$/### Use Cases/' |
+                  sed '/^###/!s/^#\s*Pagination$/### Pagination/' |
+                  sed '/^###/!s/^#\s*Important$/### Important/' |
+                  sed '/^###/!s/^#\s*Transaction Handling$/### Transaction Handling/' |
+                  sed '/^###/!s/^#\s*State Model$/### State Model/' |
+                  sed '/^###/!s/^#\s*Status Model$/### Status Model/')
                 
                 echo "$formatted_docs" >> "$output_file"
                 echo "" >> "$output_file"
