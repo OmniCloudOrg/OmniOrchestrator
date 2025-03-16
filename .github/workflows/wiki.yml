@@ -41,57 +41,66 @@ jobs:
           mkdir -p file-mapping
           mkdir -p wiki-content
           
-          # First, scan all source files and check for potential filename conflicts
-          echo "Scanning source files for potential filename conflicts..."
-          
-          # Generate a list of all .rs files with their potential wiki page names
-          find src -name "*.rs" | while read -r file; do
-            base_name=$(basename "$file" .rs)
-            echo "$file:$base_name" >> file-mapping/potential-names.txt
-          done
-          
-          # Find duplicate base names
-          cat file-mapping/potential-names.txt | cut -d: -f2 | sort | uniq -d > file-mapping/duplicates.txt
-          
-          # Create a mapping file showing the complete filepath to wiki name mapping
+          # Create a file to store output mappings
           > file-mapping/final-mapping.txt
           
-          # For each source file, determine the wiki page name
-          cat file-mapping/potential-names.txt | while read -r line; do
-            source_file=$(echo "$line" | cut -d: -f1)
-            base_name=$(echo "$line" | cut -d: -f2)
+          # First get all base filenames and count duplicates
+          find src -name "*.rs" -type f | while read -r file; do
+            basename=$(basename "$file" .rs)
+            echo "$basename" >> file-mapping/base-names.txt
+          done
+          
+          # Get list of duplicates
+          cat file-mapping/base-names.txt | sort | uniq -c | grep -v "^\s*1" | awk '{print $2}' > file-mapping/duplicates.txt
+          
+          # Process each source file
+          find src -name "*.rs" -type f | while read -r file; do
+            basename=$(basename "$file" .rs)
             
-            # Check if this base name is in the duplicates list
-            if grep -q "^$base_name$" file-mapping/duplicates.txt; then
-              # It's a duplicate, need to include parent directories
-              dir_path=$(dirname "$source_file")
-              
-              # Start with just the immediate parent
-              wiki_name="${dir_path##*/}_${base_name}"
-              
-              # Keep adding parent directories until unique
-              while grep -q ":$wiki_name$" file-mapping/final-mapping.txt; do
-                dir_path=$(dirname "$dir_path")
-                parent=$(basename "$dir_path")
-                wiki_name="${parent}_${wiki_name}"
-              done
-              
-              echo "$source_file:$wiki_name" >> file-mapping/final-mapping.txt
-              echo "Mapped duplicate: $source_file → $wiki_name"
+            if grep -q "^$basename$" file-mapping/duplicates.txt; then
+              # This is a duplicate, use parent directory in name
+              parent_dir=$(basename $(dirname "$file"))
+              new_name="${parent_dir}_${basename}"
+              echo "$file:$new_name" >> file-mapping/final-mapping.txt
             else
-              # Not a duplicate, use base name
-              echo "$source_file:$base_name" >> file-mapping/final-mapping.txt
+              # Not a duplicate, use original name
+              echo "$file:$basename" >> file-mapping/final-mapping.txt
             fi
           done
           
-          # Determine if this is a library or binary crate
-          if grep -q "^\[lib\]" Cargo.toml; then
-            echo "Library crate detected"
-            IS_LIB=true
-          else
-            echo "Binary crate detected"
-            IS_LIB=false
+          # Check if we still have duplicates in the new mapping
+          cat file-mapping/final-mapping.txt | cut -d: -f2 | sort | uniq -c | grep -v "^\s*1" | awk '{print $2}' > file-mapping/remaining-duplicates.txt
+          
+          if [ -s file-mapping/remaining-duplicates.txt ]; then
+            echo "Still have duplicates after first pass, adding more directory context..."
+            
+            # Temporary file for updated mappings
+            > file-mapping/updated-mapping.txt
+            
+            while read -r line; do
+              file=$(echo "$line" | cut -d: -f1)
+              name=$(echo "$line" | cut -d: -f2)
+              
+              if grep -q "^$name$" file-mapping/remaining-duplicates.txt; then
+                # Add one more directory level
+                dir_path=$(dirname "$file")
+                parent_dir=$(basename "$dir_path")
+                grand_parent_dir=$(basename $(dirname "$dir_path"))
+                new_name="${grand_parent_dir}_${name}"
+                echo "$file:$new_name" >> file-mapping/updated-mapping.txt
+              else
+                # Keep the original mapping
+                echo "$line" >> file-mapping/updated-mapping.txt
+              fi
+            done < file-mapping/final-mapping.txt
+            
+            # Replace the mapping file
+            mv file-mapping/updated-mapping.txt file-mapping/final-mapping.txt
           fi
+          
+          # Output final mapping for debugging
+          echo "Final file name mapping:"
+          cat file-mapping/final-mapping.txt
 
       - name: Generate documentation
         run: |
