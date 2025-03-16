@@ -80,7 +80,7 @@ jobs:
           fi
 
       - name: Upload Markdown as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: wiki-docs
           path: wiki-content/
