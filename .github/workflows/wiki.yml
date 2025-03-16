@@ -99,7 +99,7 @@ jobs:
             fi
             
             # Add section for public items
-            echo "## Public Items" >> "$output_file"
+            echo "# Public Items" >> "$output_file"
             echo "" >> "$output_file"
             
             # Extract function/struct/trait names and doc comments
@@ -133,7 +133,7 @@ jobs:
                 # Extract the full signature
                 full_sig=$(sed -n "${start_line},${end_line}p" "$file")
                 
-                echo "### $item_name" >> "$output_file"
+                echo "## $item_name" >> "$output_file"
                 echo "" >> "$output_file"
                 echo '```rust' >> "$output_file"
                 echo "$full_sig" >> "$output_file"
@@ -142,26 +142,29 @@ jobs:
                 
                 # Process doc comments with clear section formatting
                 formatted_docs=$(echo "$prev_lines" | sed 's/\/\/\/\s*//' | 
-                  # Convert "Arguments" or "Parameters" sections to h4
-                  sed 's/^Arguments$/#### Arguments/' | 
-                  sed 's/^Parameters$/#### Parameters/' |
-                  # Convert "Returns" sections to h4
-                  sed 's/^Returns$/#### Returns/' |
-                  # Convert "Examples" sections to h4
-                  sed 's/^Examples$/#### Examples/' |
-                  # Convert "Note" or "Notes" sections to h4
-                  sed 's/^Note$/#### Note/' |
-                  sed 's/^Notes$/#### Notes/' |
-                  # Convert "Error Handling" sections to h4
-                  sed 's/^Error Handling$/#### Error Handling/' |
-                  # Convert "Warning" sections to h4
-                  sed 's/^Warning$/#### Warning/' |
-                  # Convert "Use Cases" sections to h4
-                  sed 's/^Use Cases$/#### Use Cases/' |
-                  # Convert "Pagination" sections to h4
-                  sed 's/^Pagination$/#### Pagination/' |
-                  # Convert "Important" sections to h4
-                  sed 's/^Important$/#### Important/')
+                  # Convert "Arguments" or "Parameters" sections to h3
+                  sed 's/^Arguments$/### Arguments/' | 
+                  sed 's/^Parameters$/### Parameters/' |
+                  # Convert "Returns" sections to h3
+                  sed 's/^Returns$/### Returns/' |
+                  # Convert "Examples" sections to h3
+                  sed 's/^Examples$/### Examples/' |
+                  # Convert "Note" or "Notes" sections to h3
+                  sed 's/^Note$/### Note/' |
+                  sed 's/^Notes$/### Notes/' |
+                  # Convert "Error Handling" sections to h3
+                  sed 's/^Error Handling$/### Error Handling/' |
+                  # Convert "Warning" sections to h3
+                  sed 's/^Warning$/### Warning/' |
+                  # Convert "Use Cases" sections to h3
+                  sed 's/^Use Cases$/### Use Cases/' |
+                  # Convert "Pagination" sections to h3
+                  sed 's/^Pagination$/### Pagination/' |
+                  # Convert "Important" sections to h3
+                  sed 's/^Important$/### Important/')
+                
+                echo "$formatted_docs" >> "$output_file"
+                echo "" >> "$output_file"
                 
                 echo "$formatted_docs" >> "$output_file"
                 echo "" >> "$output_file"
