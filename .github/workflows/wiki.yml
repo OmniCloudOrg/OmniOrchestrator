@@ -148,7 +148,7 @@ jobs:
                 echo "" >> "$output_file"
                 
                 # Extract and format the doc comments
-                doc_comments=$(sed -n "${start_line},${end_line}p" "$file" | sed 's/^\/\/\/ //')
+                doc_comments=$(sed -n "${start_line},${end_line}p" "$file" | sed 's/^\/\/\/ *//')
                 
                 # Convert Rust doc headings to markdown headings
                 processed_comments=$(echo "$doc_comments" | 
