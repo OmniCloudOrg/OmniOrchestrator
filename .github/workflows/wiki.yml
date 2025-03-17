@@ -63,47 +63,42 @@ jobs:
             echo "## Table of Contents" >> "$output_file"
             echo "" >> "$output_file"
             
-            # First add modules to TOC
-            grep -n "^[[:space:]]*pub[[:space:]]\+mod[[:space:]]\+[a-zA-Z0-9_]\+[[:space:]]*;" "$file" | while read -r line_info; do
-              line=$(echo "$line_info" | cut -d: -f2-)
-              mod_name=$(echo "$line" | sed -E 's/^[[:space:]]*pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]*;.*/\1/')
-              if [ -n "$mod_name" ]; then
-                echo "* [mod $mod_name](#mod-${mod_name})" >> "$output_file"
-              fi
-            done
-            
-            # Then add other items to TOC
-            grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | grep -v "pub[[:space:]]\+mod" | while read -r line_info; do
+            # Process all public items for TOC (combined modules and other items)
+            grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | while read -r line_info; do
               line=$(echo "$line_info" | cut -d: -f2-)
               
               # Determine item type and name
-              if [[ "$line" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="struct"
+              if [[ "$line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="mod"
                 item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#mod-${item_name})" >> "$output_file"
+              elif [[ "$line" =~ pub[[:space:]]+(struct)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
                 echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="enum"
-                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$line" =~ pub[[:space:]]+(enum)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
                 echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="trait"
-                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$line" =~ pub[[:space:]]+(trait)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
                 echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+              elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+(fn)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="async fn"
-                item_name="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
                 echo "* [$item_type $item_name](#async-fn-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="fn"
-                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$line" =~ pub[[:space:]]+(fn)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
                 echo "* [$item_type $item_name](#fn-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="type"
-                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$line" =~ pub[[:space:]]+(type)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
                 echo "* [$item_type $item_name](#type-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="const"
-                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$line" =~ pub[[:space:]]+(const)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
                 echo "* [$item_type $item_name](#const-${item_name})" >> "$output_file"
               fi
             done
@@ -112,60 +107,11 @@ jobs:
             echo "## Public Items" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Add all public items
+            # Process all public items in file order (a single loop for all types)
             extracted_items=0
             
-            # PROCESS ALL PUBLIC MODULES FIRST - GUARANTEED CAPTURE
-            grep -n "^[[:space:]]*pub[[:space:]]\+mod[[:space:]]\+[a-zA-Z0-9_]\+[[:space:]]*;" "$file" | while read -r line_info; do
-              line=$(echo "$line_info" | cut -d: -f2-)
-              line_num=$(echo "$line_info" | cut -d: -f1)
-              
-              # Extract module name directly using sed
-              mod_name=$(echo "$line" | sed -E 's/^[[:space:]]*pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]*;.*/\1/')
-              
-              if [ -n "$mod_name" ]; then
-                echo "### mod $mod_name" >> "$output_file"
-                echo "" >> "$output_file"
-                
-                # Add the module signature first
-                echo "```rust" >> "$output_file"
-                echo "$line" >> "$output_file"
-                echo "```" >> "$output_file"
-                echo "" >> "$output_file"
-                
-                # Try to find any doc comment above
-                prev_line=$((line_num - 1))
-                doc_lines=()
-                
-                # Go backwards to collect doc comments
-                while [ $prev_line -gt 0 ]; do
-                  prev_content=$(sed -n "${prev_line}p" "$file")
-                  if [[ "$prev_content" =~ ^[[:space:]]*\/\/\/ ]]; then
-                    doc_content=$(echo "$prev_content" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
-                    doc_lines=("$doc_content" "${doc_lines[@]}")
-                    prev_line=$((prev_line - 1))
-                  elif [[ "$prev_content" =~ ^[[:space:]]*$ ]] || [[ "$prev_content" =~ ^[[:space:]]*#\[ ]]; then
-                    # Skip empty lines and attributes
-                    prev_line=$((prev_line - 1))
-                  else
-                    break
-                  fi
-                done
-                
-                # Add doc comments after the signature
-                if [ ${#doc_lines[@]} -gt 0 ]; then
-                  for doc_line in "${doc_lines[@]}"; do
-                    echo "$doc_line" >> "$output_file"
-                  done
-                  echo "" >> "$output_file"
-                fi
-                
-                extracted_items=$((extracted_items + 1))
-              fi
-            done
-            
-            # Then do all other pub items
-            grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | grep -v "pub[[:space:]]\+mod" | while read -r line_info; do
+            # Sort the lines numerically to maintain file order
+            grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | sort -n | while read -r line_info; do
               line_num=$(echo "$line_info" | cut -d: -f1)
               line=$(echo "$line_info" | cut -d: -f2-)
               
@@ -173,34 +119,39 @@ jobs:
               item_type=""
               item_name=""
               
-              if [[ "$line" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="struct"
+              if [[ "$line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="mod"
                 item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="enum"
-                item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="trait"
-                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$line" =~ pub[[:space:]]+(struct)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
+              elif [[ "$line" =~ pub[[:space:]]+(enum)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
+              elif [[ "$line" =~ pub[[:space:]]+(trait)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
               elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="async fn"
                 item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="fn"
-                item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="type"
-                item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="const"
-                item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="use"
-                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$line" =~ pub[[:space:]]+(fn)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
+              elif [[ "$line" =~ pub[[:space:]]+(type)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
+              elif [[ "$line" =~ pub[[:space:]]+(const)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="${BASH_REMATCH[1]}"
+                item_name="${BASH_REMATCH[2]}"
               fi
               
               if [ -n "$item_type" ] && [ -n "$item_name" ]; then
-                echo "### $item_type $item_name" >> "$output_file"
+                # Add title
+                if [[ "$item_type" == "async fn" ]]; then
+                  echo "### async fn $item_name" >> "$output_file"
+                else
+                  echo "### $item_type $item_name" >> "$output_file"
+                fi
                 echo "" >> "$output_file"
                 
                 # Add signature first
@@ -276,7 +227,7 @@ jobs:
                       fi
                       
                       # Output header with extra # for markdown heading level
-                      echo "## ${doc_line:2}" >> "$output_file"
+                      echo "#### ${doc_line:2}" >> "$output_file"
                       echo "" >> "$output_file"
                       in_section=false
                     # Handle list items
