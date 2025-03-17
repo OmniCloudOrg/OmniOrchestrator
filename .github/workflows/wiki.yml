@@ -1,4 +1,4 @@
-name: Rust Docs to Wiki with cargo-readme
+name: Rust Docs to Wiki
 
 on:
   push:
@@ -23,219 +23,296 @@ jobs:
         with:
           profile: minimal
           toolchain: stable
+          components: rustdoc
 
-      - name: Install cargo-readme and rustdoc-stripper
+      - name: Install dependencies
+        run: cargo install rustdoc-json || true
+
+      - name: Create doc extractor script
         run: |
-          cargo install cargo-readme
-          cargo install rustdoc-stripper || true
+          # Create a robust documentation extraction script
+          cat > extract_docs.py << 'EOT'
+          #!/usr/bin/env python3
+          import sys
+          import os
+          import re
+          import subprocess
+          import json
+          from pathlib import Path
 
-      - name: Create wiki directories and template
+          def main():
+              if len(sys.argv) < 2:
+                  print("Usage: extract_docs.py <source_dir>")
+                  return 1
+                  
+              source_dir = Path(sys.argv[1])
+              output_dir = Path("wiki-content")
+              output_dir.mkdir(exist_ok=True)
+              
+              # Create Home.md
+              with open(output_dir / "Home.md", "w") as f:
+                  repo_name = os.environ.get("GITHUB_REPOSITORY", "").split("/")[-1] or "Rust Project"
+                  f.write(f"# {repo_name} Documentation\n\n")
+                  f.write("This wiki contains automatically generated documentation from the Rust codebase.\n\n")
+                  f.write("## Modules\n\n")
+              
+              # Process each Rust file
+              rust_files = list(source_dir.glob("**/*.rs"))
+              for file_path in rust_files:
+                  process_file(file_path, source_dir, output_dir)
+                  
+              return 0
+              
+          def process_file(file_path, source_dir, output_dir):
+              # Create a unique, wiki-friendly filename
+              rel_path = file_path.relative_to(source_dir)
+              wiki_name = str(rel_path).replace('/', '_').replace('.rs', '')
+              output_file = output_dir / f"{wiki_name}.md"
+              
+              print(f"Processing {file_path} into {output_file}")
+              
+              # Read the file content
+              with open(file_path, "r") as f:
+                  content = f.read()
+                  
+              # Create the wiki page header
+              with open(output_file, "w") as f:
+                  base_name = file_path.stem
+                  dir_path = str(file_path.parent)
+                  
+                  f.write(f"# {base_name} ({dir_path})\n\n")
+                  f.write(f"Path: `{file_path}`\n\n")
+                  
+                  # Extract module docs (//! comments)
+                  module_docs = extract_module_docs(content)
+                  if module_docs:
+                      f.write("## Module Documentation\n\n")
+                      f.write(module_docs)
+                      f.write("\n\n")
+                      
+                  # Generate table of contents
+                  items = extract_items(content)
+                  if items:
+                      f.write("## Table of Contents\n\n")
+                      for item_type, item_name, _, _ in items:
+                          anchor = item_name.lower().replace(' ', '-')
+                          f.write(f"* [{item_type} {item_name}](#{anchor})\n")
+                      f.write("\n")
+                  
+                  # Extract all doc comments for public items
+                  f.write("## Public Items\n\n")
+                  for item_type, item_name, doc_comment, signature in items:
+                      f.write(f"### {item_type} {item_name}\n\n")
+                      
+                      if doc_comment:
+                          # Process the doc comment for markdown
+                          processed_doc = process_doc_comment(doc_comment)
+                          f.write(processed_doc)
+                          f.write("\n\n")
+                      
+                      f.write("```rust\n")
+                      f.write(signature)
+                      f.write("\n```\n\n")
+              
+              # Add to Home.md
+              with open(output_dir / "Home.md", "a") as f:
+                  f.write(f"* [{wiki_name}]({wiki_name})\n")
+          
+          def extract_module_docs(content):
+              """Extract module-level documentation (//! comments)"""
+              module_docs = []
+              for line in content.split('\n'):
+                  if line.strip().startswith("//!"):
+                      # Remove the //! prefix and add to docs
+                      comment = line.strip()[3:].strip()
+                      module_docs.append(comment)
+              
+              return "\n".join(module_docs)
+          
+          def extract_items(content):
+              """Extract public items with their documentation"""
+              items = []
+              lines = content.split('\n')
+              i = 0
+              
+              while i < len(lines):
+                  line = lines[i].strip()
+                  
+                  # Skip empty lines
+                  if not line:
+                      i += 1
+                      continue
+                  
+                  # Collect doc comments
+                  doc_comments = []
+                  while i < len(lines) and lines[i].strip().startswith("///"):
+                      comment = lines[i].strip()[3:].strip()
+                      doc_comments.append(comment)
+                      i += 1
+                      
+                      # Skip empty lines between doc comments
+                      while i < len(lines) and not lines[i].strip():
+                          i += 1
+                  
+                  # Check if we have a public item after doc comments
+                  if i < len(lines) and lines[i].strip().startswith("pub "):
+                      item_start = i
+                      item_type = ""
+                      item_name = ""
+                      
+                      # Determine item type
+                      pub_line = lines[i].strip()
+                      
+                      if "pub struct " in pub_line:
+                          item_type = "struct"
+                          match = re.search(r'struct\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      elif "pub enum " in pub_line:
+                          item_type = "enum"
+                          match = re.search(r'enum\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      elif "pub trait " in pub_line:
+                          item_type = "trait"
+                          match = re.search(r'trait\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      elif "pub type " in pub_line:
+                          item_type = "type"
+                          match = re.search(r'type\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      elif "pub fn " in pub_line:
+                          item_type = "fn"
+                          match = re.search(r'fn\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      elif "pub async fn " in pub_line:
+                          item_type = "async fn"
+                          match = re.search(r'async\s+fn\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      elif "pub const " in pub_line:
+                          item_type = "const"
+                          match = re.search(r'const\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      elif "pub mod " in pub_line:
+                          item_type = "mod"
+                          match = re.search(r'mod\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      
+                      # If we identified an item
+                      if item_type and item_name:
+                          # Extract full signature
+                          signature = extract_signature(lines, item_start, item_type)
+                          
+                          # Add the item to our list
+                          items.append((
+                              item_type, 
+                              item_name, 
+                              "\n".join(doc_comments) if doc_comments else "", 
+                              signature
+                          ))
+                  
+                  # Move to next line
+                  i += 1
+              
+              return items
+          
+          def extract_signature(lines, start_line, item_type):
+              """Extract the full signature of an item"""
+              line = lines[start_line]
+              
+              # For simple one-line items
+              if ";" in line:
+                  return line
+              
+              # For structs, enums, traits with a body
+              if "{" in line:
+                  # Start with the first line
+                  signature = [line]
+                  brace_count = line.count("{") - line.count("}")
+                  
+                  # If we have an opening brace, get a reasonable chunk of the definition
+                  if brace_count > 0:
+                      if item_type in ["struct", "enum"]:
+                          # For structs and enums, capture a reasonable amount of the definition
+                          i = start_line + 1
+                          field_count = 0
+                          max_fields = 8  # Show at most this many fields
+                          
+                          while i < len(lines) and field_count < max_fields:
+                              current = lines[i].strip()
+                              
+                              # Skip empty lines and comments
+                              if not current or current.startswith("//"):
+                                  i += 1
+                                  continue
+                                  
+                              # Add fields to signature
+                              signature.append(lines[i])
+                              field_count += 1
+                              
+                              # Check for end of struct/enum
+                              if "}" in current:
+                                  break
+                                  
+                              i += 1
+                          
+                          # If we didn't reach the end, add ellipsis and closing brace
+                          if i < len(lines) and field_count >= max_fields:
+                              signature.append("    // ... more fields")
+                              signature.append("}")
+                      else:
+                          # For other items, just show the declaration
+                          signature.append("    // ... implementation")
+                          signature.append("}")
+                  
+                  return "\n".join(signature)
+              
+              # For multi-line function signatures
+              i = start_line
+              signature = [line]
+              
+              # Continue until we hit a '{' or ';'
+              while i + 1 < len(lines):
+                  next_line = lines[i + 1]
+                  if "{" in next_line or ";" in next_line:
+                      signature.append(next_line)
+                      break
+                  elif next_line.strip():  # Only add non-empty lines
+                      signature.append(next_line)
+                  i += 1
+              
+              return "\n".join(signature)
+              
+          def process_doc_comment(comment):
+              """Process doc comments for markdown"""
+              # Process headers
+              lines = []
+              for line in comment.split('\n'):
+                  # Convert # Headers to #### headers (add 3 #'s)
+                  if line.strip().startswith("# "):
+                      line = "###" + line
+                  lines.append(line)
+              
+              return "\n".join(lines)
+              
+          if __name__ == "__main__":
+              sys.exit(main())
+          EOT
+          
+          # Make script executable
+          chmod +x extract_docs.py
+
+      - name: Generate Documentation
         run: |
-          # Create directory for wiki content
-          mkdir -p wiki-content
+          # Run the extractor script
+          python3 extract_docs.py src
           
-          # Create Home.md
-          echo "# ${GITHUB_REPOSITORY#*/} Documentation" > wiki-content/Home.md
-          echo "" >> wiki-content/Home.md
-          echo "This wiki contains automatically generated documentation from the Rust codebase." >> wiki-content/Home.md
-          echo "" >> wiki-content/Home.md
-          echo "## Modules" >> wiki-content/Home.md
-          echo "" >> wiki-content/Home.md
-          
-          # Create template file for cargo-readme
-          echo "# {{title}}" > readme.tpl
-          echo "" >> readme.tpl
-          echo "Path: \`{{file_path}}\`" >> readme.tpl
-          echo "" >> readme.tpl
-          echo "{{readme}}" >> readme.tpl
-
-      - name: Generate rust doc extractor
-        run: |
-          # Create a simple Rust script to extract docs
-          cat > extract_doc_blocks.rs << 'EOF'
-          use std::env;
-          use std::fs;
-          use std::io::{self, Write};
-          use std::path::Path;
-          
-          fn main() -> io::Result<()> {
-              let args: Vec<String> = env::args().collect();
-              if args.len() < 2 {
-                  eprintln!("Usage: {} <file_path>", args[0]);
-                  std::process::exit(1);
-              }
-              
-              let file_path = &args[1];
-              let content = fs::read_to_string(file_path)?;
-              
-              let mut in_doc_comment = false;
-              let mut doc_block = String::new();
-              let mut pub_item = String::new();
-              let mut doc_blocks = Vec::new();
-              
-              // Process file line by line
-              for line in content.lines() {
-                  let trimmed = line.trim();
-                  
-                  // Start of doc comment block
-                  if trimmed.starts_with("///") {
-                      // Extract just the comment content
-                      let comment = trimmed.trim_start_matches("///").trim_start();
-                      
-                      // If this is the first doc comment in a block
-                      if !in_doc_comment {
-                          in_doc_comment = true;
-                          doc_block = String::new();
-                      }
-                      
-                      // Add comment to current block
-                      doc_block.push_str(comment);
-                      doc_block.push('\n');
-                  } 
-                  // Handle empty lines within doc comments
-                  else if trimmed.is_empty() && in_doc_comment {
-                      doc_block.push('\n');
-                  }
-                  // End of doc comment block, start of pub item
-                  else if trimmed.starts_with("pub ") && in_doc_comment {
-                      // Extract the item signature
-                      pub_item = trimmed.to_string();
-                      
-                      // Add to doc blocks
-                      doc_blocks.push((doc_block.clone(), pub_item.clone()));
-                      
-                      // Reset
-                      in_doc_comment = false;
-                      doc_block = String::new();
-                      pub_item = String::new();
-                  }
-                  // Any other non-doc line resets the comment tracking
-                  else {
-                      in_doc_comment = false;
-                  }
-              }
-              
-              // Output the doc blocks with their pub items
-              for (doc, item) in &doc_blocks {
-                  // Skip empty docs
-                  if doc.trim().is_empty() {
-                      continue;
-                  }
-                  
-                  // Extract item type and name for header
-                  let header = extract_item_header(item);
-                  println!("### {}", header);
-                  println!("");
-                  
-                  // Print doc content
-                  println!("{}", doc);
-                  println!("");
-                  
-                  // Print code block with signature
-                  println!("```rust");
-                  println!("{}", item);
-                  println!("```");
-                  println!("");
-              }
-              
-              Ok(())
-          }
-          
-          fn extract_item_header(item: &str) -> String {
-              // Extract struct/enum/fn name for header
-              if let Some(cap) = item.strip_prefix("pub struct ") {
-                  format!("struct {}", cap.split(|c| c == '{' || c == '<' || c == ' ').next().unwrap_or(""))
-              } else if let Some(cap) = item.strip_prefix("pub enum ") {
-                  format!("enum {}", cap.split(|c| c == '{' || c == '<' || c == ' ').next().unwrap_or(""))
-              } else if let Some(cap) = item.strip_prefix("pub fn ") {
-                  format!("fn {}", cap.split(|c| c == '(' || c == '<' || c == ' ').next().unwrap_or(""))
-              } else if let Some(cap) = item.strip_prefix("pub async fn ") {
-                  format!("async fn {}", cap.split(|c| c == '(' || c == '<' || c == ' ').next().unwrap_or(""))
-              } else if let Some(cap) = item.strip_prefix("pub trait ") {
-                  format!("trait {}", cap.split(|c| c == '{' || c == '<' || c == ' ').next().unwrap_or(""))
-              } else if let Some(cap) = item.strip_prefix("pub type ") {
-                  format!("type {}", cap.split(|c| c == '=' || c == '<' || c == ' ').next().unwrap_or(""))
-              } else if let Some(cap) = item.strip_prefix("pub mod ") {
-                  format!("mod {}", cap.split(|c| c == '{' || c == ' ').next().unwrap_or(""))
-              } else if let Some(cap) = item.strip_prefix("pub const ") {
-                  format!("const {}", cap.split(|c| c == ':' || c == ' ').next().unwrap_or(""))
-              } else {
-                  "item".to_string()
-              }
-          }
-          EOF
-          
-          # Compile the doc extractor
-          rustc extract_doc_blocks.rs
-
-      - name: Process Rust files
-        run: |
-          # Find all .rs files
-          find src -name "*.rs" -type f > rs_files.txt
-          
-          # Process each file
-          while IFS= read -r file; do
-            # Get file info
-            base_name=$(basename "$file" .rs)
-            dir_path=$(dirname "$file")
-            
-            # Create unique filename
-            unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
-            output_file="wiki-content/${unique_name}.md"
-            
-            echo "Processing $file into $output_file"
-            
-            # Create temporary directory for the "crate"
-            temp_dir=$(mktemp -d)
-            mkdir -p "$temp_dir/src"
-            
-            # Copy the file as lib.rs
-            cp "$file" "$temp_dir/src/lib.rs"
-            
-            # Create minimal Cargo.toml
-            echo "[package]" > "$temp_dir/Cargo.toml"
-            echo "name = \"${base_name}\"" >> "$temp_dir/Cargo.toml"
-            echo "version = \"0.1.0\"" >> "$temp_dir/Cargo.toml"
-            echo "edition = \"2021\"" >> "$temp_dir/Cargo.toml"
-            echo "" >> "$temp_dir/Cargo.toml"
-            echo "[lib]" >> "$temp_dir/Cargo.toml"
-            echo "path = \"src/lib.rs\"" >> "$temp_dir/Cargo.toml"
-            
-            # Create header for the wiki page
-            echo "# $base_name ($dir_path)" > "$output_file"
-            echo "" >> "$output_file"
-            echo "Path: \`$file\`" >> "$output_file"
-            echo "" >> "$output_file"
-            
-            # Create JSON file with variables
-            echo "{\"title\":\"$base_name ($dir_path)\",\"file_path\":\"$file\"}" > "$temp_dir/readme_vars.json"
-            
-            # Extract module docs with cargo-readme
-            (
-              cd "$temp_dir"
-              cargo readme --template "$GITHUB_WORKSPACE/readme.tpl" --no-title --no-badge --no-license --json readme_vars.json > module_docs.md || true
-              
-              # Check if we got module docs and append them
-              if [ -s module_docs.md ]; then
-                # Skip the header lines (first 3 lines) from cargo-readme output
-                tail -n +4 module_docs.md >> "$GITHUB_WORKSPACE/$output_file"
-              fi
-            )
-            
-            # Extract public items and their doc comments
-            echo "## Public API" >> "$output_file"
-            echo "" >> "$output_file"
-            
-            # Run our custom doc extractor
-            ./extract_doc_blocks "$file" >> "$output_file" || true
-            
-            # Add link to home page
-            echo "* [$unique_name](${unique_name})" >> wiki-content/Home.md
-            
-            # Clean up
-            rm -rf "$temp_dir"
-          done < rs_files.txt
-
       - name: Setup Git for Wiki
         run: |
           git config --global user.email "actions@github.com"
