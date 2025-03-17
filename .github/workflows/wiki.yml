@@ -154,41 +154,88 @@ jobs:
                 fi
                 echo "" >> "$output_file"
                 
-                # Add signature first
-                echo "```rust" >> "$output_file"
-                echo "$line" >> "$output_file"
+                # Extract the entire item definition
+                def_start_line=$line_num
+                def_lines=("$line")
+                current_indent=""
                 
-                # For multi-line items, add additional lines
-                if ! [[ "$line" =~ \;$ ]]; then
-                  if [[ "$line" =~ \{$ ]]; then
-                    # Show just implementation indicator for items with bodies
-                    echo "    // ... implementation" >> "$output_file"
-                    echo "}" >> "$output_file"
-                  else
-                    # For multi-line signatures, add a few more lines
-                    next_line_num=$((line_num + 1))
-                    max_lines=5
-                    current_line=1
+                # Determine initial indentation
+                if [[ "$line" =~ ^([[:space:]]*) ]]; then
+                  current_indent="${BASH_REMATCH[1]}"
+                fi
+                
+                # For struct, enum, trait, impl definitions that span multiple lines
+                if [[ "$line" =~ \{$ ]]; then
+                  # If line ends with opening brace, need to find closing brace
+                  brace_count=1
+                  next_line_num=$((def_start_line + 1))
+                  max_lines=30  # Limit to reasonable size
+                  current_line=1
+                  
+                  while [ $brace_count -gt 0 ] && [ $current_line -le $max_lines ] && [ $next_line_num -le $(wc -l < "$file") ]; do
+                    next_line=$(sed -n "${next_line_num}p" "$file")
                     
-                    while [ $current_line -le $max_lines ] && [ $next_line_num -le $(wc -l < "$file") ]; do
-                      next_line=$(sed -n "${next_line_num}p" "$file")
-                      echo "$next_line" >> "$output_file"
-                      
-                      # Stop at semicolon or opening brace
-                      if [[ "$next_line" =~ [\;\{] ]]; then
-                        if [[ "$next_line" =~ \{$ ]]; then
-                          echo "    // ... implementation" >> "$output_file"
-                          echo "}" >> "$output_file"
-                        fi
-                        break
-                      fi
-                      
-                      next_line_num=$((next_line_num + 1))
-                      current_line=$((current_line + 1))
-                    done
+                    # Count opening and closing braces
+                    open_braces=$(grep -o "{" <<< "$next_line" | wc -l)
+                    close_braces=$(grep -o "}" <<< "$next_line" | wc -l)
+                    brace_count=$((brace_count + open_braces - close_braces))
+                    
+                    # Add line to definition
+                    def_lines+=("$next_line")
+                    
+                    # Check if we've found the end of the definition
+                    if [ $brace_count -eq 0 ]; then
+                      break
+                    fi
+                    
+                    next_line_num=$((next_line_num + 1))
+                    current_line=$((current_line + 1))
+                  done
+                  
+                  # If we hit the line limit but didn't find end, add placeholder
+                  if [ $brace_count -gt 0 ]; then
+                    def_lines+=("${current_indent}    // ... implementation")
+                    def_lines+=("${current_indent}}")
+                  fi
+                  
+                # For single line or simple multi-line definitions ending with semicolon
+                elif ! [[ "$line" =~ \;$ ]]; then
+                  next_line_num=$((def_start_line + 1))
+                  max_lines=10  # Limit to reasonable size for signatures
+                  current_line=1
+                  
+                  while [ $current_line -le $max_lines ] && [ $next_line_num -le $(wc -l < "$file") ]; do
+                    next_line=$(sed -n "${next_line_num}p" "$file")
+                    def_lines+=("$next_line")
+                    
+                    # Stop if we hit a semicolon or opening brace
+                    if [[ "$next_line" =~ \;$ ]]; then
+                      break
+                    elif [[ "$next_line" =~ \{$ ]]; then
+                      # If we hit an opening brace, add a simplified implementation
+                      def_lines+=("${current_indent}    // ... implementation")
+                      def_lines+=("${current_indent}}")
+                      break
+                    fi
+                    
+                    next_line_num=$((next_line_num + 1))
+                    current_line=$((current_line + 1))
+                  done
+                  
+                  # If we hit the limit, add an ellipsis
+                  if [ $current_line -gt $max_lines ]; then
+                    def_lines+=("${current_indent}    // ... rest of definition")
+                    if ! [[ "${def_lines[-1]}" =~ [\;\}]$ ]]; then
+                      def_lines+=("${current_indent};")
+                    fi
                   fi
                 fi
                 
+                # Output the code block with the full definition
+                echo "```rust" >> "$output_file"
+                for def_line in "${def_lines[@]}"; do
+                  echo "$def_line" >> "$output_file"
+                done
                 echo "```" >> "$output_file"
                 echo "" >> "$output_file"
                 
