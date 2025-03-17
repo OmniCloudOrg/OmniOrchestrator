@@ -45,13 +45,13 @@ jobs:
           echo "" >> wiki-content/Home.md
           
           # Create template for cargo-readme
-          cat > readme.tpl << 'EOF'
+          cat > readme.tpl << 'EOT'
           # {{title}}
 
           Path: `{{file_path}}`
 
           {{readme}}
-          EOF
+          EOT
 
           # Process each source file
           find src -name "*.rs" -type f | while read -r file; do
@@ -73,7 +73,7 @@ jobs:
             cp "$file" "$temp_dir/src/lib.rs"
             
             # Create a minimal Cargo.toml
-            cat > "$temp_dir/Cargo.toml" << EOF
+            cat > "$temp_dir/Cargo.toml" << EOT
             [package]
             name = "$base_name"
             version = "0.1.0"
@@ -81,7 +81,7 @@ jobs:
             
             [lib]
             path = "src/lib.rs"
-            EOF
+            EOT
             
             # Generate the documentation
             (
