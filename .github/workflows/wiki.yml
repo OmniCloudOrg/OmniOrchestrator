@@ -24,10 +24,7 @@ jobs:
           profile: minimal
           toolchain: stable
 
-      - name: Install cargo-readme
-        run: cargo install cargo-readme
-
-      - name: Create wiki directories and base files
+      - name: Generate documentation
         run: |
           # Create directory for wiki content
           mkdir -p wiki-content
@@ -40,162 +37,159 @@ jobs:
           echo "## Modules" >> wiki-content/Home.md
           echo "" >> wiki-content/Home.md
           
-          # Create template file for cargo-readme
-          echo "# {{title}}" > readme.tpl
-          echo "" >> readme.tpl
-          echo "Path: \`{{file_path}}\`" >> readme.tpl
-          echo "" >> readme.tpl
-          echo "{{readme}}" >> readme.tpl
-
-      - name: Create Public API Extractor Script
-        run: |
-          # Create an external awk script file without heredocs
-          echo '
-          BEGIN {
-            in_pub_item = 0;
-            pub_item = "";
-            brace_count = 0;
-          }
-          
-          /^pub / {
-            if (!in_pub_item) {
-              in_pub_item = 1;
-              pub_item = $0;
-              brace_count = 0;
-              
-              # Count opening braces
-              for (i = 1; i <= length($0); i++) {
-                if (substr($0, i, 1) == "{") brace_count++;
-                if (substr($0, i, 1) == "}") brace_count--;
-              }
-              
-              # If single line item
-              if ($0 ~ /;$/ || brace_count == 0) {
-                print "### " $0;
-                print "";
-                print "```rust";
-                print pub_item;
-                print "```";
-                print "";
-                in_pub_item = 0;
-              }
-            }
-            next;
-          }
-          
-          # Multi-line pub item
-          in_pub_item {
-            pub_item = pub_item "\n" $0;
-            
-            # Count braces
-            for (i = 1; i <= length($0); i++) {
-              if (substr($0, i, 1) == "{") brace_count++;
-              if (substr($0, i, 1) == "}") brace_count--;
-            }
-            
-            # Check if definition is complete
-            if (brace_count == 0 || $0 ~ /;$/ || $0 ~ /}$/) {
-              print "### " substr(pub_item, 5, 50) (length(pub_item) > 55 ? "..." : "");
-              print "";
-              print "```rust";
-              
-              # Handle struct/enum with large bodies
-              if (pub_item ~ /^pub (struct|enum|trait)/ && brace_count == 0) {
-                split_at = index(pub_item, "{");
-                if (split_at > 0) {
-                  print substr(pub_item, 1, split_at) " ... }";
-                } else {
-                  print pub_item;
-                }
-              } else {
-                print pub_item;
-              }
-              
-              print "```";
-              print "";
-              in_pub_item = 0;
-            }
-          }
-          ' > extract_pub_items.awk
-
-      - name: Process Rust files
-        run: |
-          # Find all .rs files
-          find src -name "*.rs" -type f > rs_files.txt
-          
-          # Process each file
-          while IFS= read -r file; do
+          # Process each source file
+          find src -name "*.rs" -type f | while read -r file; do
             # Get file info
             base_name=$(basename "$file" .rs)
             dir_path=$(dirname "$file")
             
-            # Create unique filename
+            # Convert path to a unique filename by replacing slashes with underscores
             unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
             output_file="wiki-content/${unique_name}.md"
             
             echo "Processing $file into $output_file"
             
-            # Create temporary directory
-            temp_dir=$(mktemp -d)
-            mkdir -p "$temp_dir/src"
+            # Create the wiki page header
+            echo "# $base_name ($dir_path)" > "$output_file"
+            echo "" >> "$output_file"
+            echo "Path: \`$file\`" >> "$output_file"
+            echo "" >> "$output_file"
             
-            # Copy file as lib.rs
-            cp "$file" "$temp_dir/src/lib.rs"
-            
-            # Create minimal Cargo.toml
-            echo "[package]" > "$temp_dir/Cargo.toml"
-            echo "name = \"$base_name\"" >> "$temp_dir/Cargo.toml"
-            echo "version = \"0.1.0\"" >> "$temp_dir/Cargo.toml"
-            echo "edition = \"2021\"" >> "$temp_dir/Cargo.toml"
-            echo "" >> "$temp_dir/Cargo.toml"
-            echo "[lib]" >> "$temp_dir/Cargo.toml"
-            echo "path = \"src/lib.rs\"" >> "$temp_dir/Cargo.toml"
-            
-            # Generate documentation
-            cd "$temp_dir"
-            
-            # Create JSON file with variables
-            echo "{\"title\":\"$base_name ($dir_path)\",\"file_path\":\"$file\"}" > readme_extra.json
-            
-            # Run cargo-readme
-            cargo readme --template "$GITHUB_WORKSPACE/readme.tpl" --output "$GITHUB_WORKSPACE/$output_file" --no-title --no-badge --no-license --json readme_extra.json || true
-            
-            # Return to workspace
-            cd "$GITHUB_WORKSPACE"
-            
-            # Check if cargo-readme succeeded
-            if [ ! -f "$output_file" ] || [ ! -s "$output_file" ]; then
-              # Create minimal documentation file
-              echo "# $base_name ($dir_path)" > "$output_file"
+            # Extract module-level docs (//!)
+            grep -n "^//!" "$file" | sed 's/^[0-9]*://g' | sed 's/\/\/!\s*//' > module_docs.txt
+            if [ -s module_docs.txt ]; then
+              echo "## Module Documentation" >> "$output_file"
               echo "" >> "$output_file"
-              echo "Path: \`$file\`" >> "$output_file"
+              cat module_docs.txt >> "$output_file"
               echo "" >> "$output_file"
-              echo "## Public Items" >> "$output_file"
-              echo "" >> "$output_file"
-              
-              # Extract public items
-              grep -n "^pub " "$file" | while read -r line; do
-                item=$(echo "$line" | cut -d: -f2-)
-                # Clean up and format
-                cleaned_item=$(echo "$item" | sed 's/{.*//' | sed 's/(.*//')
-                echo "* \`$cleaned_item\`" >> "$output_file"
-              done
             fi
+            rm module_docs.txt
             
-            # Enhance with public API reference
+            # Generate table of contents from public items
+            echo "## Table of Contents" >> "$output_file"
             echo "" >> "$output_file"
-            echo "## Public API Reference" >> "$output_file"
+            
+            # Find public items with doc comments for the TOC
+            grep -n "^pub " "$file" | while read -r line_info; do
+              line_num=$(echo "$line_info" | cut -d: -f1)
+              item=$(echo "$line_info" | cut -d: -f2-)
+              
+              # Extract item type and name
+              item_type=""
+              item_name=""
+              
+              if [[ "$item" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="struct"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="enum"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="fn"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="trait"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="mod"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="type"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="const"
+                item_name="${BASH_REMATCH[1]}"
+              fi
+              
+              if [ -n "$item_name" ]; then
+                # Check if this item has doc comments above it
+                prev_line=$((line_num - 1))
+                if grep -q "^///" <(sed -n "${prev_line}p" "$file"); then
+                  anchor=$(echo "$item_name" | tr '[:upper:]' '[:lower:]')
+                  echo "* [$item_type $item_name](#$anchor)" >> "$output_file"
+                fi
+              fi
+            done
+            
+            echo "" >> "$output_file"
+            echo "## Public Items" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Run AWK script on the file
-            awk -f extract_pub_items.awk "$file" >> "$output_file"
+            # Process public items with their documentation
+            grep -n "^pub " "$file" | while read -r line_info; do
+              line_num=$(echo "$line_info" | cut -d: -f1)
+              item=$(echo "$line_info" | cut -d: -f2-)
+              
+              # Extract item type and name
+              item_type=""
+              item_name=""
+              
+              if [[ "$item" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="struct"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="enum"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="fn"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="trait"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="mod"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="type"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="const"
+                item_name="${BASH_REMATCH[1]}"
+              fi
+              
+              if [ -n "$item_name" ]; then
+                # Get doc comments above this item
+                doc_comments=""
+                i=$((line_num - 1))
+                while [ $i -ge 1 ]; do
+                  line=$(sed -n "${i}p" "$file")
+                  if [[ "$line" =~ ^[[:space:]]*/// ]]; then
+                    # Extract comment content without ///
+                    comment=$(echo "$line" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
+                    doc_comments="$comment\n$doc_comments"
+                    i=$((i - 1))
+                  elif [[ "$line" =~ ^[[:space:]]*$ ]]; then
+                    # Skip empty lines
+                    i=$((i - 1))
+                  else
+                    # Stop at any non-comment, non-empty line
+                    break
+                  fi
+                done
+                
+                # Extract the item signature (single line or first line for multi-line items)
+                signature=$(echo "$item" | sed -E 's/\{.*$//')
+                
+                # Write item header and documentation
+                echo "### $item_type $item_name" >> "$output_file"
+                echo "" >> "$output_file"
+                
+                if [ -n "$doc_comments" ]; then
+                  echo -e "$doc_comments" >> "$output_file"
+                  echo "" >> "$output_file"
+                fi
+                
+                # Write code block with signature
+                echo '```rust' >> "$output_file"
+                echo "pub $signature" >> "$output_file"
+                echo '```' >> "$output_file"
+                echo "" >> "$output_file"
+              fi
+            done
             
-            # Add link to home page
+            # Add a link to the home page
             echo "* [$unique_name](${unique_name})" >> wiki-content/Home.md
-            
-            # Clean up
-            rm -rf "$temp_dir"
-          done < rs_files.txt
+          done
 
       - name: Setup Git for Wiki
         run: |
@@ -204,16 +198,16 @@ jobs:
 
       - name: Clone Wiki Repository
         run: |
-          # Use PAT for wiki push
+          # Use PAT for wiki push (needs to be set in repository secrets)
           git clone https://${{ secrets.WIKI_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
           
-          # Copy content to wiki
+          # Copy new content to wiki repository
           cp -r wiki-content/* wiki-repo/
           
           cd wiki-repo
           git add .
           
-          # Commit if changes exist
+          # Only commit if there are changes
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
