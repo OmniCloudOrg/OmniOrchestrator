@@ -31,7 +31,7 @@ jobs:
           echo "## Modules" >> wiki-content/Home.md
           echo "" >> wiki-content/Home.md
 
-          # Very simple direct processing of all Rust files
+          # Process all Rust files
           find src -name "*.rs" -type f | while read -r file; do
             # Get file info
             base_name=$(basename "$file" .rs)
@@ -63,86 +63,112 @@ jobs:
             echo "## Table of Contents" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Process all public items for TOC (combined modules and other items)
-            grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | while read -r line_info; do
-              line=$(echo "$line_info" | cut -d: -f2-)
+            # Extract all public items for TOC
+            {
+              # Extract public mods
+              grep -n "^[[:space:]]*pub[[:space:]]\+mod" "$file" | sed -E 's/^([0-9]+):.*(pub[[:space:]]+mod[[:space:]]+[a-zA-Z0-9_]+).*/\1:\2/'
               
-              # Determine item type and name
-              if [[ "$line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+              # Extract public structs 
+              grep -n "^[[:space:]]*pub[[:space:]]\+struct" "$file" | sed -E 's/^([0-9]+):.*(pub[[:space:]]+struct[[:space:]]+[a-zA-Z0-9_]+).*/\1:\2/'
+              
+              # Extract public enums
+              grep -n "^[[:space:]]*pub[[:space:]]\+enum" "$file" | sed -E 's/^([0-9]+):.*(pub[[:space:]]+enum[[:space:]]+[a-zA-Z0-9_]+).*/\1:\2/'
+              
+              # Extract public traits
+              grep -n "^[[:space:]]*pub[[:space:]]\+trait" "$file" | sed -E 's/^([0-9]+):.*(pub[[:space:]]+trait[[:space:]]+[a-zA-Z0-9_]+).*/\1:\2/'
+              
+              # Extract public fns
+              grep -n "^[[:space:]]*pub[[:space:]]\+fn" "$file" | sed -E 's/^([0-9]+):.*(pub[[:space:]]+fn[[:space:]]+[a-zA-Z0-9_]+).*/\1:\2/'
+              
+              # Extract public async fns
+              grep -n "^[[:space:]]*pub[[:space:]]\+async[[:space:]]\+fn" "$file" | sed -E 's/^([0-9]+):.*(pub[[:space:]]+async[[:space:]]+fn[[:space:]]+[a-zA-Z0-9_]+).*/\1:\2/'
+              
+              # Extract public types
+              grep -n "^[[:space:]]*pub[[:space:]]\+type" "$file" | sed -E 's/^([0-9]+):.*(pub[[:space:]]+type[[:space:]]+[a-zA-Z0-9_]+).*/\1:\2/'
+              
+              # Extract public consts
+              grep -n "^[[:space:]]*pub[[:space:]]\+const" "$file" | sed -E 's/^([0-9]+):.*(pub[[:space:]]+const[[:space:]]+[a-zA-Z0-9_]+).*/\1:\2/'
+              
+            } | sort -n > "$output_file.items"
+            
+            # Generate TOC from items
+            while read -r line_info; do
+              line_num=$(echo "$line_info" | cut -d: -f1)
+              item_line=$(echo "$line_info" | cut -d: -f2-)
+              
+              # Extract item type and name
+              if [[ "$item_line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="mod"
                 item_name="${BASH_REMATCH[1]}"
                 echo "* [$item_type $item_name](#mod-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+(struct)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
-                echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+(enum)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
-                echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+(trait)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
-                echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+(fn)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+              elif [[ "$item_line" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="struct"
+                item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#struct-${item_name})" >> "$output_file"
+              elif [[ "$item_line" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="enum"
+                item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#enum-${item_name})" >> "$output_file"
+              elif [[ "$item_line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="trait"
+                item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#trait-${item_name})" >> "$output_file"
+              elif [[ "$item_line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="async fn"
-                item_name="${BASH_REMATCH[2]}"
+                item_name="${BASH_REMATCH[1]}"
                 echo "* [$item_type $item_name](#async-fn-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+(fn)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="fn"
+                item_name="${BASH_REMATCH[1]}"
                 echo "* [$item_type $item_name](#fn-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+(type)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="type"
+                item_name="${BASH_REMATCH[1]}"
                 echo "* [$item_type $item_name](#type-${item_name})" >> "$output_file"
-              elif [[ "$line" =~ pub[[:space:]]+(const)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="const"
+                item_name="${BASH_REMATCH[1]}"
                 echo "* [$item_type $item_name](#const-${item_name})" >> "$output_file"
               fi
-            done
+            done < "$output_file.items"
             
             echo "" >> "$output_file"
             echo "## Public Items" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Process all public items in file order (a single loop for all types)
-            extracted_items=0
-            
-            # Sort the lines numerically to maintain file order
-            grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | sort -n | while read -r line_info; do
+            # Process all public items
+            while read -r line_info; do
               line_num=$(echo "$line_info" | cut -d: -f1)
-              line=$(echo "$line_info" | cut -d: -f2-)
+              item_line=$(echo "$line_info" | cut -d: -f2-)
               
-              # Determine item type and name
+              # Extract item type and name
               item_type=""
               item_name=""
               
-              if [[ "$line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+              if [[ "$item_line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="mod"
                 item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+(struct)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
-              elif [[ "$line" =~ pub[[:space:]]+(enum)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
-              elif [[ "$line" =~ pub[[:space:]]+(trait)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
-              elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+              elif [[ "$item_line" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="struct"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="enum"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="trait"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="async fn"
                 item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+(fn)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
-              elif [[ "$line" =~ pub[[:space:]]+(type)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
-              elif [[ "$line" =~ pub[[:space:]]+(const)[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="${BASH_REMATCH[1]}"
-                item_name="${BASH_REMATCH[2]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="fn"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="type"
+                item_name="${BASH_REMATCH[1]}"
+              elif [[ "$item_line" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="const"
+                item_name="${BASH_REMATCH[1]}"
               fi
               
               if [ -n "$item_type" ] && [ -n "$item_name" ]; then
@@ -154,92 +180,7 @@ jobs:
                 fi
                 echo "" >> "$output_file"
                 
-                # Extract the entire item definition
-                def_start_line=$line_num
-                def_lines=("$line")
-                current_indent=""
-                
-                # Determine initial indentation
-                if [[ "$line" =~ ^([[:space:]]*) ]]; then
-                  current_indent="${BASH_REMATCH[1]}"
-                fi
-                
-                # For struct, enum, trait, impl definitions that span multiple lines
-                if [[ "$line" =~ \{$ ]]; then
-                  # If line ends with opening brace, need to find closing brace
-                  brace_count=1
-                  next_line_num=$((def_start_line + 1))
-                  max_lines=30  # Limit to reasonable size
-                  current_line=1
-                  
-                  while [ $brace_count -gt 0 ] && [ $current_line -le $max_lines ] && [ $next_line_num -le $(wc -l < "$file") ]; do
-                    next_line=$(sed -n "${next_line_num}p" "$file")
-                    
-                    # Count opening and closing braces
-                    open_braces=$(grep -o "{" <<< "$next_line" | wc -l)
-                    close_braces=$(grep -o "}" <<< "$next_line" | wc -l)
-                    brace_count=$((brace_count + open_braces - close_braces))
-                    
-                    # Add line to definition
-                    def_lines+=("$next_line")
-                    
-                    # Check if we've found the end of the definition
-                    if [ $brace_count -eq 0 ]; then
-                      break
-                    fi
-                    
-                    next_line_num=$((next_line_num + 1))
-                    current_line=$((current_line + 1))
-                  done
-                  
-                  # If we hit the line limit but didn't find end, add placeholder
-                  if [ $brace_count -gt 0 ]; then
-                    def_lines+=("${current_indent}    // ... implementation")
-                    def_lines+=("${current_indent}}")
-                  fi
-                  
-                # For single line or simple multi-line definitions ending with semicolon
-                elif ! [[ "$line" =~ \;$ ]]; then
-                  next_line_num=$((def_start_line + 1))
-                  max_lines=10  # Limit to reasonable size for signatures
-                  current_line=1
-                  
-                  while [ $current_line -le $max_lines ] && [ $next_line_num -le $(wc -l < "$file") ]; do
-                    next_line=$(sed -n "${next_line_num}p" "$file")
-                    def_lines+=("$next_line")
-                    
-                    # Stop if we hit a semicolon or opening brace
-                    if [[ "$next_line" =~ \;$ ]]; then
-                      break
-                    elif [[ "$next_line" =~ \{$ ]]; then
-                      # If we hit an opening brace, add a simplified implementation
-                      def_lines+=("${current_indent}    // ... implementation")
-                      def_lines+=("${current_indent}}")
-                      break
-                    fi
-                    
-                    next_line_num=$((next_line_num + 1))
-                    current_line=$((current_line + 1))
-                  done
-                  
-                  # If we hit the limit, add an ellipsis
-                  if [ $current_line -gt $max_lines ]; then
-                    def_lines+=("${current_indent}    // ... rest of definition")
-                    if ! [[ "${def_lines[-1]}" =~ [\;\}]$ ]]; then
-                      def_lines+=("${current_indent};")
-                    fi
-                  fi
-                fi
-                
-                # Output the code block with the full definition
-                echo "```rust" >> "$output_file"
-                for def_line in "${def_lines[@]}"; do
-                  echo "$def_line" >> "$output_file"
-                done
-                echo "```" >> "$output_file"
-                echo "" >> "$output_file"
-                
-                # Extract doc comments and add after the signature
+                # Extract doc comments first
                 doc_start=$((line_num - 1))
                 doc_lines=()
                 
@@ -256,6 +197,119 @@ jobs:
                     break
                   fi
                 done
+                
+                # EXTRACT FULL DEFINITION
+                # Create a temporary file to store full item definition
+                temp_def_file="${output_file}.def.tmp"
+                
+                # Start with current line
+                echo "$item_line" > "$temp_def_file"
+                
+                # Determine how to extract based on item type
+                case "$item_type" in
+                  "mod")
+                    # For module, it's typically just one line with a semicolon
+                    ;;
+                  "struct"|"enum"|"trait")
+                    # These typically have a body with braces
+                    if ! [[ "$item_line" =~ \;$ ]]; then
+                      # Find the closing brace
+                      next_line_num=$((line_num + 1))
+                      brace_count=$(grep -o "{" <<< "$item_line" | wc -l)
+                      brace_count=$((brace_count - $(grep -o "}" <<< "$item_line" | wc -l)))
+                      
+                      # Continue until we find matching closing brace
+                      while [ $brace_count -gt 0 ] && [ $next_line_num -le $(wc -l < "$file") ]; do
+                        next_line=$(sed -n "${next_line_num}p" "$file")
+                        echo "$next_line" >> "$temp_def_file"
+                        
+                        # Update brace count
+                        brace_count=$((brace_count + $(grep -o "{" <<< "$next_line" | wc -l)))
+                        brace_count=$((brace_count - $(grep -o "}" <<< "$next_line" | wc -l)))
+                        
+                        next_line_num=$((next_line_num + 1))
+                        
+                        # Limit to 50 lines max to avoid excessive output
+                        if [ $((next_line_num - line_num)) -gt 50 ]; then
+                          echo "    // ... additional implementation" >> "$temp_def_file"
+                          echo "}" >> "$temp_def_file"
+                          break
+                        fi
+                      done
+                    fi
+                    ;;
+                  "fn"|"async fn")
+                    # Functions can end with a semicolon or have a body
+                    if ! [[ "$item_line" =~ \;$ ]]; then
+                      # Find the closing brace if it has a body
+                      next_line_num=$((line_num + 1))
+                      
+                      # If the function signature spans multiple lines
+                      while [ $next_line_num -le $(wc -l < "$file") ]; do
+                        next_line=$(sed -n "${next_line_num}p" "$file")
+                        echo "$next_line" >> "$temp_def_file"
+                        
+                        # If we found a semicolon, we're done
+                        if [[ "$next_line" =~ \;$ ]]; then
+                          break
+                        fi
+                        
+                        # If we found an opening brace, need to find matching closing brace
+                        if [[ "$next_line" =~ \{$ ]]; then
+                          echo "    // ... function body" >> "$temp_def_file"
+                          echo "}" >> "$temp_def_file"
+                          break
+                        fi
+                        
+                        next_line_num=$((next_line_num + 1))
+                        
+                        # Limit to reasonable size
+                        if [ $((next_line_num - line_num)) -gt 20 ]; then
+                          if ! [[ "$next_line" =~ [\;\{] ]]; then
+                            echo "    // ... function definition continues" >> "$temp_def_file"
+                          fi
+                          break
+                        fi
+                      done
+                    fi
+                    ;;
+                  "type"|"const")
+                    # These typically end with a semicolon
+                    if ! [[ "$item_line" =~ \;$ ]]; then
+                      next_line_num=$((line_num + 1))
+                      
+                      # Continue until semicolon
+                      while [ $next_line_num -le $(wc -l < "$file") ]; do
+                        next_line=$(sed -n "${next_line_num}p" "$file")
+                        echo "$next_line" >> "$temp_def_file"
+                        
+                        if [[ "$next_line" =~ \;$ ]]; then
+                          break
+                        fi
+                        
+                        next_line_num=$((next_line_num + 1))
+                        
+                        # Limit to reasonable size
+                        if [ $((next_line_num - line_num)) -gt 10 ]; then
+                          if ! [[ "$next_line" =~ \;$ ]]; then
+                            echo "    // ... definition continues" >> "$temp_def_file"
+                            echo ";" >> "$temp_def_file"
+                          fi
+                          break
+                        fi
+                      done
+                    fi
+                    ;;
+                esac
+                
+                # Output the code block with the definition
+                echo '```rust' >> "$output_file"
+                cat "$temp_def_file" >> "$output_file"
+                echo '```' >> "$output_file"
+                echo "" >> "$output_file"
+                
+                # Clean up temp file
+                rm -f "$temp_def_file"
                 
                 # Process and add doc comments
                 if [ ${#doc_lines[@]} -gt 0 ]; then
@@ -308,16 +362,11 @@ jobs:
                     echo "" >> "$output_file"
                   fi
                 fi
-                
-                extracted_items=$((extracted_items + 1))
               fi
-            done
+            done < "$output_file.items"
             
-            # If no items were extracted, add a message
-            if [ "$extracted_items" -eq 0 ]; then
-              echo "No public items found in this file." >> "$output_file"
-              echo "" >> "$output_file"
-            fi
+            # Clean up temporary files
+            rm -f "$output_file.items"
             
             # Add link to Home.md
             echo "* [$unique_name](${unique_name})" >> wiki-content/Home.md
