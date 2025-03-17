@@ -7,9 +7,8 @@ name: Rust Docs to Wiki Generator
 # - Extracts module-level documentation (//! comments)
 # - Processes doc comments for all public items (/// comments)
 # - Handles struct, enum, trait, function, and other types
-# - Generates a proper table of contents
+# - Preserves markdown formatting in documentation
 # - Creates clean, well-formatted wiki pages
-# - Organizes documentation hierarchically
 
 on:
   push:
@@ -75,22 +74,26 @@ jobs:
           function improve_markdown_formatting() {
             local text="$1"
             
-            # Convert # Arguments to ## Arguments (add a level)
-            text=$(echo "$text" | sed 's/^# Arguments$/## Arguments/')
-            text=$(echo "$text" | sed 's/^# Returns$/## Returns/')
-            text=$(echo "$text" | sed 's/^# Error Handling$/## Error Handling/')
-            text=$(echo "$text" | sed 's/^# Note$/## Note/')
-            text=$(echo "$text" | sed 's/^# Notes$/## Notes/')
-            text=$(echo "$text" | sed 's/^# Warning$/## Warning/')
-            text=$(echo "$text" | sed 's/^# Examples$/## Examples/')
-            text=$(echo "$text" | sed 's/^# Use Cases$/## Use Cases/')
-            text=$(echo "$text" | sed 's/^# Pagination$/## Pagination/')
-            text=$(echo "$text" | sed 's/^# Status Lifecycle$/## Status Lifecycle/')
-            text=$(echo "$text" | sed 's/^# Transaction Handling$/## Transaction Handling/')
-            text=$(echo "$text" | sed 's/^# Relationships$/## Relationships/')
+            # Replace contiguous spaces with newlines
+            # This preserves paragraph breaks from the original doc comment
+            text=$(echo "$text" | sed 's/\\n\\n/\n\n/g')
             
-            # Add blank lines before headers for better formatting
-            text=$(echo "$text" | sed 's/^##/\n##/')
+            # Convert # Arguments to ## Arguments (add a level)
+            text=$(echo "$text" | sed 's/^# Arguments$/\n## Arguments/')
+            text=$(echo "$text" | sed 's/^# Returns$/\n## Returns/')
+            text=$(echo "$text" | sed 's/^# Error Handling$/\n## Error Handling/')
+            text=$(echo "$text" | sed 's/^# Note$/\n## Note/')
+            text=$(echo "$text" | sed 's/^# Notes$/\n## Notes/')
+            text=$(echo "$text" | sed 's/^# Warning$/\n## Warning/')
+            text=$(echo "$text" | sed 's/^# Examples$/\n## Examples/')
+            text=$(echo "$text" | sed 's/^# Use Cases$/\n## Use Cases/')
+            text=$(echo "$text" | sed 's/^# Pagination$/\n## Pagination/')
+            text=$(echo "$text" | sed 's/^# Status Lifecycle$/\n## Status Lifecycle/')
+            text=$(echo "$text" | sed 's/^# Transaction Handling$/\n## Transaction Handling/')
+            text=$(echo "$text" | sed 's/^# Relationships$/\n## Relationships/')
+            
+            # Fix list items that may have been merged into paragraphs
+            text=$(echo "$text" | sed 's/\([^*]\)\* /\1\n* /g')
             
             # Fix spacing in paragraphs (ensure there's a space after each sentence)
             text=$(echo "$text" | sed 's/\.\([A-Z]\)/. \1/g')
@@ -202,6 +205,46 @@ jobs:
             rm -f "$output_file.toc_items"
           }
           
+          # Extract doc comment block into a temporary file
+          function extract_doc_comment_block() {
+            local file="$1"
+            local line_num="$2"
+            local output_file="$3"
+            
+            # Create empty output
+            > "$output_file"
+            
+            # Go backward to find the start of the doc comment block
+            local current_line=$((line_num - 1))
+            local in_comment=false
+            local comment_lines=()
+            
+            # Collect lines in reverse order first
+            while [ $current_line -ge 1 ]; do
+              local line=$(sed -n "${current_line}p" "$file")
+              
+              if [[ "$line" =~ ^[[:space:]]*\/\/\/ ]]; then
+                # Extract comment content
+                local comment=$(echo "$line" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
+                comment_lines=("$comment" "${comment_lines[@]}")
+                in_comment=true
+              elif [[ "$line" =~ ^[[:space:]]*$ ]] && [ "$in_comment" = true ]; then
+                # Keep empty lines within comments
+                comment_lines=("" "${comment_lines[@]}")
+              else
+                # Stop when we hit a non-comment, non-empty line
+                break
+              fi
+              
+              current_line=$((current_line - 1))
+            done
+            
+            # Write the collected comment lines in correct order
+            for comment in "${comment_lines[@]}"; do
+              echo "$comment" >> "$output_file"
+            done
+          }
+          
           # Process doc comments (///) and associate them with public items
           function extract_documented_items() {
             local file="$1"
@@ -212,287 +255,141 @@ jobs:
             echo "## Public Items" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Create temporary file for all lines
-            sed -n '1,$p' "$file" > "$output_file.all_lines"
+            # Find lines with public items
+            grep -n "^[[:space:]]*pub " "$file" > "$output_file.pub_items" || true
             
-            # Process the file line by line to match doc comments with items
-            local line_count=$(wc -l < "$output_file.all_lines")
-            local i=1
-            local in_doc_comment=0
-            local doc_comments=""
-            
-            while [ $i -le $line_count ]; do
-              local line=$(sed -n "${i}p" "$output_file.all_lines")
-              
-              # Check for doc comments
-              if [[ "$line" =~ ^[[:space:]]*\/\/\/ ]]; then
-                # Get comment content without /// prefix
-                local comment=$(echo "$line" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
-                
-                # Add to doc comments
-                if [ $in_doc_comment -eq 0 ]; then
-                  in_doc_comment=1
-                  doc_comments="$comment"
-                else
-                  doc_comments="$doc_comments$comment"
-                fi
-              # Handle empty line in doc comments
-              elif [[ "$line" =~ ^[[:space:]]*$ ]] && [ $in_doc_comment -eq 1 ]; then
-                doc_comments="$doc_comments"
-              # Check for public item after doc comments
-              elif [[ "$line" =~ ^[[:space:]]*pub[[:space:]] ]] && [ $in_doc_comment -eq 1 ]; then
-                # Extract item type and name
-                local item_type=""
-                local item_name=""
-                
-                if [[ "$line" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="struct"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="enum"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="trait"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="fn"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="async fn"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="type"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="mod"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="const"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="use"
-                  item_name="${BASH_REMATCH[1]}"
-                else
-                  # Handle any other pub item
-                  item_type="item"
-                  item_name=$(echo "$line" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/' || echo "unknown")
-                fi
-                
-                # Print header
-                if [ -n "$item_name" ] && [ "$item_name" != "unknown" ]; then
-                  echo "### $item_type $item_name" >> "$output_file"
-                  echo "" >> "$output_file"
-                  
-                  # Process and print doc comments with improved formatting
-                  local formatted_docs=$(improve_markdown_formatting "$doc_comments")
-                  echo "$formatted_docs" >> "$output_file"
-                  echo "" >> "$output_file"
-                  
-                  # Extract signature
-                  extract_item_signature "$output_file.all_lines" $i "$item_type" >> "$output_file" || true
-                  echo "" >> "$output_file"
-                fi
-                
-                # Reset doc comment tracking
-                in_doc_comment=0
-                doc_comments=""
-              else
-                # Any other line resets doc comment tracking
-                in_doc_comment=0
-                doc_comments=""
-              fi
-              
-              # Move to next line
-              i=$((i + 1))
-            done
-            
-            # Clean up temp file
-            rm -f "$output_file.all_lines"
-          }
-          
-          # Extract signature for a Rust item
-          function extract_item_signature() {
-            local file="$1"
-            local start_line="$2"
-            local item_type="$3"
-            
-            # Extract the first line
-            local signature=$(sed -n "${start_line}p" "$file")
-            
-            # If it's a one-line item, return it
-            if [[ "$signature" =~ \;$ ]]; then
-              echo '```rust'
-              echo "$signature"
-              echo '```'
-              return
-            fi
-            
-            # For multi-line signatures, extract a reasonable amount
-            echo '```rust'
-            echo "$signature"
-            
-            # For structs and enums, capture fields/variants
-            if [ "$item_type" == "struct" ] || [ "$item_type" == "enum" ]; then
-              local max_lines=15  # Show at most this many lines
-              local brace_count=0
-              local line_num=$((start_line + 1))
-              local count=1
-              
-              # Count opening braces in first line
-              brace_count=$(echo "$signature" | tr -cd '{' | wc -c)
-              brace_count=$((brace_count - $(echo "$signature" | tr -cd '}' | wc -c)))
-              
-              # Continue until we balance braces or hit max lines
-              while [ $brace_count -gt 0 ] && [ $count -lt $max_lines ]; do
-                if [ $line_num -gt $(wc -l < "$file") ]; then
-                  break
-                fi
-                
-                local next_line=$(sed -n "${line_num}p" "$file" || echo "")
-                
-                # Skip doc comments
-                if [[ "$next_line" =~ ^[[:space:]]*\/\/\/ ]]; then
-                  line_num=$((line_num + 1))
-                  continue
-                fi
-                
-                # Count braces
-                local open_braces=$(echo "$next_line" | tr -cd '{' | wc -c)
-                local close_braces=$(echo "$next_line" | tr -cd '}' | wc -c)
-                brace_count=$((brace_count + open_braces - close_braces))
-                
-                # Add to signature
-                echo "$next_line"
-                
-                line_num=$((line_num + 1))
-                count=$((count + 1))
-                
-                # If we've balanced braces, we're done
-                if [ $brace_count -eq 0 ]; then
-                  break
-                fi
-              done
-              
-              # If we still have unclosed braces, add an ellipsis
-              if [ $brace_count -gt 0 ]; then
-                echo "    // ... additional fields/variants"
-                echo "}"
-              fi
-            else
-              # For functions, traits, etc., just show the first few lines
-              local max_additional=5
-              local line_num=$((start_line + 1))
-              
-              for ((j=0; j<max_additional; j++)); do
-                if [ $line_num -gt $(wc -l < "$file") ]; then
-                  break
-                fi
-                
-                local next_line=$(sed -n "${line_num}p" "$file" || echo "")
-                
-                # Skip doc comments
-                if [[ "$next_line" =~ ^[[:space:]]*\/\/\/ ]]; then
-                  line_num=$((line_num + 1))
-                  continue
-                fi
-                
-                echo "$next_line"
-                
-                # If line has opening brace, add closing brace and stop
-                if [[ "$next_line" =~ \{ ]]; then
-                  echo "    // ... implementation"
-                  echo "}"
-                  break
-                fi
-                
-                # If line has semicolon, we're done
-                if [[ "$next_line" =~ \;$ ]]; then
-                  break
-                fi
-                
-                line_num=$((line_num + 1))
-              done
-            fi
-            
-            echo '```'
-          }
-          
-          # Extract all public items, even if not documented
-          function extract_all_public_items() {
-            local file="$1"
-            local output_file="$2"
-            
-            echo "Extracting all public items from $file"
-            
-            echo "## All Public Items" >> "$output_file"
-            echo "" >> "$output_file"
-            
-            # Find all public items
-            grep -n "^[[:space:]]*pub " "$file" > "$output_file.all_items" || true
-            
-            if [ -f "$output_file.all_items" ] && [ -s "$output_file.all_items" ]; then
-              # Create a copy of the file for item extraction
-              cp "$file" "$output_file.source"
-              
+            if [ -f "$output_file.pub_items" ] && [ -s "$output_file.pub_items" ]; then
               while read -r line_info; do
                 # Extract line number and content
                 line_num=$(echo "$line_info" | cut -d: -f1)
                 line_content=$(echo "$line_info" | cut -d: -f2-)
                 
-                # Determine item type
-                local item_type=""
-                local item_name=""
+                # Extract doc comments for this item
+                extract_doc_comment_block "$file" "$line_num" "$output_file.doc_block"
                 
-                if [[ "$line_content" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="struct"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="enum"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="trait"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="fn"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="async fn"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="type"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="mod"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="const"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="use"
-                  item_name="${BASH_REMATCH[1]}"
-                else
-                  # Handle any other pub item
-                  item_type="item"
-                  item_name=$(echo "$line_content" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/' || echo "unknown")
+                # Check if we have doc comments
+                if [ -s "$output_file.doc_block" ]; then
+                  # Determine item type and name
+                  local item_type=""
+                  local item_name=""
+                  
+                  if [[ "$line_content" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="struct"
+                    item_name="${BASH_REMATCH[1]}"
+                  elif [[ "$line_content" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="enum"
+                    item_name="${BASH_REMATCH[1]}"
+                  elif [[ "$line_content" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="trait"
+                    item_name="${BASH_REMATCH[1]}"
+                  elif [[ "$line_content" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="fn"
+                    item_name="${BASH_REMATCH[1]}"
+                  elif [[ "$line_content" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="async fn"
+                    item_name="${BASH_REMATCH[1]}"
+                  elif [[ "$line_content" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="type"
+                    item_name="${BASH_REMATCH[1]}"
+                  elif [[ "$line_content" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="mod"
+                    item_name="${BASH_REMATCH[1]}"
+                  elif [[ "$line_content" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="const"
+                    item_name="${BASH_REMATCH[1]}"
+                  elif [[ "$line_content" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                    item_type="use"
+                    item_name="${BASH_REMATCH[1]}"
+                  else
+                    # Handle any other pub item
+                    item_type="item"
+                    item_name=$(echo "$line_content" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/' || echo "unknown")
+                  fi
+                  
+                  # Add item to the wiki
+                  if [ -n "$item_name" ] && [ "$item_name" != "unknown" ]; then
+                    echo "### $item_type $item_name" >> "$output_file"
+                    echo "" >> "$output_file"
+                    
+                    # Format and add doc comments
+                    cat "$output_file.doc_block" | awk '{
+                      # Check if this line starts a new paragraph
+                      if ($0 ~ /^$/ && prev_empty == 0) {
+                        print "";  # Print a blank line for paragraph break
+                        prev_empty = 1;
+                      } 
+                      # Check if this is a list item
+                      else if ($0 ~ /^\* /) {
+                        # Ensure list items have a blank line before them if needed
+                        if (prev_empty == 0 && !first_line) {
+                          print "";
+                        }
+                        print $0;
+                        prev_empty = 0;
+                      }
+                      # Regular content line
+                      else if ($0 !~ /^$/) {
+                        print $0;
+                        prev_empty = 0;
+                      }
+                      first_line = 0;
+                    }' >> "$output_file"
+                    echo "" >> "$output_file"
+                    
+                    # Add code signature
+                    echo '```rust' >> "$output_file"
+                    echo "$line_content" >> "$output_file"
+                    
+                    # Extract more of the signature if needed
+                    if [[ ! "$line_content" =~ [;{][[:space:]]*$ ]]; then
+                      # Multi-line item, capture more
+                      local next_line=$((line_num + 1))
+                      local max_lines=10
+                      local count=0
+                      
+                      while [ $count -lt $max_lines ]; do
+                        local next_content=$(sed -n "${next_line}p" "$file" || echo "")
+                        
+                        # Skip empty lines and comments
+                        if [[ "$next_content" =~ ^[[:space:]]*$ ]] || [[ "$next_content" =~ ^[[:space:]]*\/\/ ]]; then
+                          next_line=$((next_line + 1))
+                          continue
+                        fi
+                        
+                        echo "$next_content" >> "$output_file"
+                        count=$((count + 1))
+                        
+                        # Stop at end of signature
+                        if [[ "$next_content" =~ [;{][[:space:]]*$ ]]; then
+                          if [[ "$next_content" =~ [{][[:space:]]*$ ]]; then
+                            echo "    // ... implementation" >> "$output_file"
+                            echo "}" >> "$output_file"
+                          fi
+                          break
+                        fi
+                        
+                        next_line=$((next_line + 1))
+                      done
+                      
+                      # If we didn't find the end, add an ellipsis
+                      if [ $count -eq $max_lines ]; then
+                        echo "    // ..." >> "$output_file"
+                      fi
+                    fi
+                    
+                    echo '```' >> "$output_file"
+                    echo "" >> "$output_file"
+                  fi
                 fi
-                
-                # If we identified the item, extract signature
-                if [ -n "$item_name" ] && [ "$item_name" != "unknown" ]; then
-                  echo "### $item_type $item_name" >> "$output_file"
-                  echo "" >> "$output_file"
-                  extract_item_signature "$output_file.source" "$line_num" "$item_type" >> "$output_file" || true
-                  echo "" >> "$output_file"
-                fi
-              done < "$output_file.all_items"
-              
-              # Clean up
-              rm -f "$output_file.source"
+              done < "$output_file.pub_items"
             else
-              echo "No public items found." >> "$output_file"
+              echo "No documented public items found." >> "$output_file"
               echo "" >> "$output_file"
             fi
             
-            rm -f "$output_file.all_items"
+            # Clean up
+            rm -f "$output_file.pub_items"
+            rm -f "$output_file.doc_block"
           }
           
           # Safely process a Rust file with error handling
@@ -518,12 +415,6 @@ jobs:
             extract_module_docs "$file" "$output_file" || echo "Warning: Error extracting module docs from $file"
             generate_table_of_contents "$file" "$output_file" || echo "Warning: Error generating TOC for $file"
             extract_documented_items "$file" "$output_file" || echo "Warning: Error extracting documented items from $file"
-            
-            # Skip the all items section if we successfully extracted documented items
-            # This avoids duplication while still ensuring items appear if documentation fails
-            if ! grep -q "## Public Items" "$output_file"; then
-              extract_all_public_items "$file" "$output_file" || echo "Warning: Error extracting all public items from $file"
-            fi
             
             # Add link to Home.md
             echo "* [$unique_name](${unique_name})" >> "$output_dir/Home.md"
