@@ -59,20 +59,20 @@ jobs:
             fi
             rm -f "$output_file.module_docs"
             
-            # Create Table of Contents
+            # Generate TOC
             echo "## Table of Contents" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Add pub mod declarations to TOC
+            # First add modules to TOC
             grep -n "^[[:space:]]*pub[[:space:]]\+mod[[:space:]]\+[a-zA-Z0-9_]\+[[:space:]]*;" "$file" | while read -r line_info; do
               line=$(echo "$line_info" | cut -d: -f2-)
               mod_name=$(echo "$line" | sed -E 's/^[[:space:]]*pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]*;.*/\1/')
               if [ -n "$mod_name" ]; then
-                echo "* [mod $mod_name](#${mod_name,,})" >> "$output_file"
+                echo "* [mod $mod_name](#mod-${mod_name})" >> "$output_file"
               fi
             done
             
-            # Add other pub items to TOC
+            # Then add other items to TOC
             grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | grep -v "pub[[:space:]]\+mod" | while read -r line_info; do
               line=$(echo "$line_info" | cut -d: -f2-)
               
@@ -80,31 +80,31 @@ jobs:
               if [[ "$line" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="struct"
                 item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
               elif [[ "$line" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="enum"
                 item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
               elif [[ "$line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="trait"
                 item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#${item_type}-${item_name})" >> "$output_file"
               elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="async fn"
                 item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#async-fn-${item_name})" >> "$output_file"
               elif [[ "$line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="fn"
                 item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#fn-${item_name})" >> "$output_file"
               elif [[ "$line" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="type"
                 item_name="${BASH_REMATCH[1]}"
+                echo "* [$item_type $item_name](#type-${item_name})" >> "$output_file"
               elif [[ "$line" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="const"
                 item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="use"
-                item_name="${BASH_REMATCH[1]}"
-              fi
-              
-              if [ -n "$item_type" ] && [ -n "$item_name" ]; then
-                echo "* [$item_type $item_name](#${item_name,,})" >> "$output_file"
+                echo "* [$item_type $item_name](#const-${item_name})" >> "$output_file"
               fi
             done
             
@@ -112,51 +112,59 @@ jobs:
             echo "## Public Items" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Add all pub mod declarations first
+            # Add all public items
+            extracted_items=0
+            
+            # PROCESS ALL PUBLIC MODULES FIRST - GUARANTEED CAPTURE
             grep -n "^[[:space:]]*pub[[:space:]]\+mod[[:space:]]\+[a-zA-Z0-9_]\+[[:space:]]*;" "$file" | while read -r line_info; do
               line=$(echo "$line_info" | cut -d: -f2-)
               line_num=$(echo "$line_info" | cut -d: -f1)
               
-              # Extract module name
+              # Extract module name directly using sed
               mod_name=$(echo "$line" | sed -E 's/^[[:space:]]*pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]*;.*/\1/')
               
               if [ -n "$mod_name" ]; then
-                # First add header and definition
                 echo "### mod $mod_name" >> "$output_file"
                 echo "" >> "$output_file"
+                
+                # Add the module signature first
                 echo "```rust" >> "$output_file"
                 echo "$line" >> "$output_file"
                 echo "```" >> "$output_file"
                 echo "" >> "$output_file"
                 
-                # Then add documentation if any exists
-                doc_start=$((line_num - 1))
-                while [ $doc_start -gt 0 ]; do
-                  doc_line=$(sed -n "${doc_start}p" "$file")
-                  if [[ "$doc_line" =~ ^[[:space:]]*\/\/\/ ]]; then
-                    comment=$(echo "$doc_line" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
-                    echo "$comment" >> "$output_file.doc"
-                    doc_start=$((doc_start - 1))
-                  elif [[ "$doc_line" =~ ^[[:space:]]*$ ]] || [[ "$doc_line" =~ ^[[:space:]]*#\[ ]]; then
+                # Try to find any doc comment above
+                prev_line=$((line_num - 1))
+                doc_lines=()
+                
+                # Go backwards to collect doc comments
+                while [ $prev_line -gt 0 ]; do
+                  prev_content=$(sed -n "${prev_line}p" "$file")
+                  if [[ "$prev_content" =~ ^[[:space:]]*\/\/\/ ]]; then
+                    doc_content=$(echo "$prev_content" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
+                    doc_lines=("$doc_content" "${doc_lines[@]}")
+                    prev_line=$((prev_line - 1))
+                  elif [[ "$prev_content" =~ ^[[:space:]]*$ ]] || [[ "$prev_content" =~ ^[[:space:]]*#\[ ]]; then
                     # Skip empty lines and attributes
-                    doc_start=$((doc_start - 1))
+                    prev_line=$((prev_line - 1))
                   else
                     break
                   fi
                 done
                 
-                # If we found doc comments, add them
-                if [ -f "$output_file.doc" ]; then
-                  # Reverse the order to get correct flow
-                  tac "$output_file.doc" > "$output_file.doc.reversed"
-                  cat "$output_file.doc.reversed" >> "$output_file"
+                # Add doc comments after the signature
+                if [ ${#doc_lines[@]} -gt 0 ]; then
+                  for doc_line in "${doc_lines[@]}"; do
+                    echo "$doc_line" >> "$output_file"
+                  done
                   echo "" >> "$output_file"
-                  rm -f "$output_file.doc" "$output_file.doc.reversed"
                 fi
+                
+                extracted_items=$((extracted_items + 1))
               fi
             done
             
-            # Then add all other pub items
+            # Then do all other pub items
             grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | grep -v "pub[[:space:]]\+mod" | while read -r line_info; do
               line_num=$(echo "$line_info" | cut -d: -f1)
               line=$(echo "$line_info" | cut -d: -f2-)
@@ -192,54 +200,56 @@ jobs:
               fi
               
               if [ -n "$item_type" ] && [ -n "$item_name" ]; then
-                # First add header and signature
                 echo "### $item_type $item_name" >> "$output_file"
                 echo "" >> "$output_file"
                 
-                # Extract full signature (handles multi-line function signatures)
-                signature="$line"
+                # Add signature first
+                echo "```rust" >> "$output_file"
+                echo "$line" >> "$output_file"
                 
-                # For multi-line signatures, include a few more lines
+                # For multi-line items, add additional lines
                 if ! [[ "$line" =~ \;$ ]]; then
-                  # If this is a function, struct, or enum, we need more of the signature
-                  line_count=1
-                  next_line_num=$((line_num + 1))
-                  
-                  # For simple items, add more lines until we hit a semicolon or brace
-                  while [ $line_count -lt 10 ] && [ $next_line_num -le $(wc -l < "$file") ]; do
-                    next_line=$(sed -n "${next_line_num}p" "$file")
-                    signature="$signature
-$next_line"
+                  if [[ "$line" =~ \{$ ]]; then
+                    # Show just implementation indicator for items with bodies
+                    echo "    // ... implementation" >> "$output_file"
+                    echo "}" >> "$output_file"
+                  else
+                    # For multi-line signatures, add a few more lines
+                    next_line_num=$((line_num + 1))
+                    max_lines=5
+                    current_line=1
                     
-                    # Stop if we hit a semicolon or opening brace
-                    if [[ "$next_line" =~ [\;\{] ]]; then
-                      if [[ "$next_line" =~ \{ ]]; then
-                        # If we hit an opening brace, add implementation ellipsis
-                        signature="$signature
-    // ... implementation
-}"
+                    while [ $current_line -le $max_lines ] && [ $next_line_num -le $(wc -l < "$file") ]; do
+                      next_line=$(sed -n "${next_line_num}p" "$file")
+                      echo "$next_line" >> "$output_file"
+                      
+                      # Stop at semicolon or opening brace
+                      if [[ "$next_line" =~ [\;\{] ]]; then
+                        if [[ "$next_line" =~ \{$ ]]; then
+                          echo "    // ... implementation" >> "$output_file"
+                          echo "}" >> "$output_file"
+                        fi
+                        break
                       fi
-                      break
-                    fi
-                    
-                    next_line_num=$((next_line_num + 1))
-                    line_count=$((line_count + 1))
-                  done
+                      
+                      next_line_num=$((next_line_num + 1))
+                      current_line=$((current_line + 1))
+                    done
+                  fi
                 fi
                 
-                # Add the signature first, then documentation
-                echo "```rust" >> "$output_file"
-                echo "$signature" >> "$output_file"
                 echo "```" >> "$output_file"
                 echo "" >> "$output_file"
                 
-                # Check for doc comments above
+                # Extract doc comments and add after the signature
                 doc_start=$((line_num - 1))
+                doc_lines=()
+                
                 while [ $doc_start -gt 0 ]; do
                   doc_line=$(sed -n "${doc_start}p" "$file")
                   if [[ "$doc_line" =~ ^[[:space:]]*\/\/\/ ]]; then
                     comment=$(echo "$doc_line" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
-                    echo "$comment" >> "$output_file.doc"
+                    doc_lines=("$comment" "${doc_lines[@]}")
                     doc_start=$((doc_start - 1))
                   elif [[ "$doc_line" =~ ^[[:space:]]*$ ]] || [[ "$doc_line" =~ ^[[:space:]]*#\[ ]]; then
                     # Skip empty lines and attributes
@@ -249,18 +259,67 @@ $next_line"
                   fi
                 done
                 
-                # If we found doc comments, add them
-                if [ -f "$output_file.doc" ]; then
-                  # Reverse the order to get correct flow
-                  tac "$output_file.doc" > "$output_file.doc.reversed"
+                # Process and add doc comments
+                if [ ${#doc_lines[@]} -gt 0 ]; then
+                  # Process the documentation lines for formatting
+                  current_section=""
+                  in_section=false
                   
-                  # Process the documentation
-                  cat "$output_file.doc.reversed" | sed 's/# \([A-Z][a-zA-Z]*\)/\n## \1/g' >> "$output_file"
-                  echo "" >> "$output_file"
-                  rm -f "$output_file.doc" "$output_file.doc.reversed"
+                  for doc_line in "${doc_lines[@]}"; do
+                    # Check for section headers
+                    if [[ "$doc_line" =~ ^#[[:space:]] ]]; then
+                      # If we were in a section, output it first
+                      if [ "$in_section" = true ] && [ -n "$current_section" ]; then
+                        echo "$current_section" >> "$output_file"
+                        echo "" >> "$output_file"
+                        current_section=""
+                      fi
+                      
+                      # Output header with extra # for markdown heading level
+                      echo "## ${doc_line:2}" >> "$output_file"
+                      echo "" >> "$output_file"
+                      in_section=false
+                    # Handle list items
+                    elif [[ "$doc_line" =~ ^\*[[:space:]] ]]; then
+                      # If we were in a paragraph, output it first
+                      if [ "$in_section" = true ] && [ -n "$current_section" ]; then
+                        echo "$current_section" >> "$output_file"
+                        echo "" >> "$output_file"
+                        current_section=""
+                        in_section=false
+                      fi
+                      
+                      # Output list item directly
+                      echo "$doc_line" >> "$output_file"
+                    # Regular paragraph text
+                    else
+                      if [ "$in_section" = true ]; then
+                        # If continuing a paragraph, add a space instead of newline
+                        current_section="${current_section} ${doc_line}"
+                      else
+                        # Starting a new paragraph
+                        current_section="${doc_line}"
+                        in_section=true
+                      fi
+                    fi
+                  done
+                  
+                  # Output any remaining section
+                  if [ "$in_section" = true ] && [ -n "$current_section" ]; then
+                    echo "$current_section" >> "$output_file"
+                    echo "" >> "$output_file"
+                  fi
                 fi
+                
+                extracted_items=$((extracted_items + 1))
               fi
             done
+            
+            # If no items were extracted, add a message
+            if [ "$extracted_items" -eq 0 ]; then
+              echo "No public items found in this file." >> "$output_file"
+              echo "" >> "$output_file"
+            fi
             
             # Add link to Home.md
             echo "* [$unique_name](${unique_name})" >> wiki-content/Home.md
