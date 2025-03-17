@@ -1,7 +1,7 @@
-name: Rust Docs to Wiki
+name: Rust Docs to Wiki with cargo-readme
 
-# This workflow extracts documentation from Rust source code and updates the GitHub wiki.
-# It uses rustdoc directly to ensure proper parsing of Rust syntax and documentation.
+# This workflow uses cargo-readme to extract documentation from Rust source files
+# and update the GitHub wiki repository.
 
 on:
   push:
@@ -18,18 +18,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        
+        with:
+          fetch-depth: 0
+
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
-          
-      - name: Install doc extraction tool
+
+      - name: Install cargo-readme
         run: |
-          # Install a simple Rust tool for documentation extraction
-          cargo install cargo-modules --features docgen
-          cargo install rustdoc-stripper
+          cargo install cargo-readme
 
       - name: Generate documentation
         run: |
@@ -44,287 +44,156 @@ jobs:
           echo "## Modules" >> wiki-content/Home.md
           echo "" >> wiki-content/Home.md
           
-          # Create a simple Rust script to extract docs
-          cat > extract_docs.rs << 'EOF'
-          use std::env;
-          use std::fs::{self, File};
-          use std::io::{self, Read, Write};
-          use std::path::{Path, PathBuf};
-          use std::process::Command;
-          
-          fn main() -> io::Result<()> {
-              let args: Vec<String> = env::args().collect();
-              if args.len() < 3 {
-                  eprintln!("Usage: {} <source_dir> <output_dir>", args[0]);
-                  std::process::exit(1);
-              }
-              
-              let source_dir = &args[1];
-              let output_dir = &args[2];
-              
-              // Create output directory if it doesn't exist
-              fs::create_dir_all(output_dir)?;
-              
-              // Process each Rust file
-              visit_dirs(Path::new(source_dir), output_dir)?;
-              
-              Ok(())
-          }
-          
-          fn visit_dirs(dir: &Path, output_dir: &str) -> io::Result<()> {
-              if dir.is_dir() {
-                  for entry in fs::read_dir(dir)? {
-                      let entry = entry?;
-                      let path = entry.path();
-                      
-                      if path.is_dir() {
-                          visit_dirs(&path, output_dir)?;
-                      } else if let Some(extension) = path.extension() {
-                          if extension == "rs" {
-                              process_rust_file(&path, output_dir)?;
-                          }
-                      }
-                  }
-              }
-              Ok(())
-          }
-          
-          fn process_rust_file(file_path: &Path, output_dir: &str) -> io::Result<()> {
-              // Get file info
-              let file_name = file_path.file_name().unwrap().to_string_lossy();
-              let dir_path = file_path.parent().unwrap().to_string_lossy();
-              
-              // Create unique filename
-              let rel_path = file_path.strip_prefix("src").unwrap_or(file_path);
-              let unique_name = rel_path.to_string_lossy().replace("/", "_").replace("\\", "_");
-              let output_path = format!("{}/{}.md", output_dir, unique_name);
-              
-              println!("Processing {} into {}", file_path.display(), output_path);
-              
-              // Read file content
-              let mut content = String::new();
-              let mut file = File::open(file_path)?;
-              file.read_to_string(&mut content)?;
-              
-              // Create markdown file
-              let mut output = File::create(&output_path)?;
-              
-              // Write header
-              writeln!(output, "# {} ({})", file_name, dir_path)?;
-              writeln!(output, "")?;
-              writeln!(output, "Path: `{}`", file_path.display())?;
-              writeln!(output, "")?;
-              
-              // Extract module level docs (//!)
-              let module_docs = extract_module_docs(&content);
-              if !module_docs.is_empty() {
-                  writeln!(output, "## Module Documentation")?;
-                  writeln!(output, "")?;
-                  writeln!(output, "{}", module_docs)?;
-                  writeln!(output, "")?;
-              }
-              
-              // Extract items with doc comments
-              let items = extract_documented_items(&content);
-              
-              // Generate table of contents
-              if !items.is_empty() {
-                  writeln!(output, "## Table of Contents")?;
-                  writeln!(output, "")?;
-                  
-                  for item in &items {
-                      let anchor = item.name.replace(" ", "-").to_lowercase();
-                      writeln!(output, "* [{}](#{}) - {}", item.name, anchor, item.brief)?;
-                  }
-                  
-                  writeln!(output, "")?;
-                  writeln!(output, "## Public Items")?;
-                  writeln!(output, "")?;
-                  
-                  // Write each item's documentation
-                  for item in &items {
-                      writeln!(output, "### {}", item.name)?;
-                      writeln!(output, "")?;
-                      writeln!(output, "```rust")?;
-                      writeln!(output, "{}", item.signature)?;
-                      writeln!(output, "```")?;
-                      writeln!(output, "")?;
-                      writeln!(output, "{}", item.docs)?;
-                      writeln!(output, "")?;
-                  }
-              }
-              
-              // Add link to home page
-              let home_path = format!("{}/Home.md", output_dir);
-              let mut home = fs::OpenOptions::new().append(true).open(home_path)?;
-              writeln!(home, "* [{}]({})", unique_name, unique_name)?;
-              
-              Ok(())
-          }
-          
-          struct DocItem {
-              name: String,
-              brief: String,
-              signature: String,
-              docs: String,
-          }
-          
-          fn extract_module_docs(content: &str) -> String {
-              let mut module_docs = String::new();
-              let mut in_module_doc = false;
-              
-              for line in content.lines() {
-                  let trimmed = line.trim();
-                  if trimmed.starts_with("//!") {
-                      let doc_line = trimmed.trim_start_matches("//!").trim_start();
-                      module_docs.push_str(doc_line);
-                      module_docs.push('\n');
-                      in_module_doc = true;
-                  } else if in_module_doc && trimmed.is_empty() {
-                      module_docs.push('\n');
-                  } else if in_module_doc {
-                      // Non-empty, non-doc line after docs
-                      break;
-                  }
-              }
-              
-              module_docs
-          }
-          
-          fn extract_documented_items(content: &str) -> Vec<DocItem> {
-              let mut items = Vec::new();
-              let mut doc_comments = String::new();
-              let mut in_doc_comment = false;
-              let mut lines = content.lines().enumerate().peekable();
-              
-              while let Some((i, line)) = lines.next() {
-                  let trimmed = line.trim();
-                  
-                  // Collect doc comments
-                  if trimmed.starts_with("///") {
-                      let doc_line = trimmed.trim_start_matches("///").trim_start();
-                      doc_comments.push_str(doc_line);
-                      doc_comments.push('\n');
-                      in_doc_comment = true;
-                      continue;
-                  }
-                  
-                  // Handle empty lines in doc comments
-                  if in_doc_comment && trimmed.is_empty() {
-                      doc_comments.push('\n');
-                      continue;
-                  }
-                  
-                  // Check for a documented item
-                  if in_doc_comment && trimmed.starts_with("pub ") {
-                      // Extract item name and type
-                      let mut signature = String::new();
-                      signature.push_str(line);
-                      
-                      // Multi-line item definition
-                      let mut brace_count = line.matches('{').count() as isize - line.matches('}').count() as isize;
-                      let mut has_semicolon = line.trim_end().ends_with(';');
-                      
-                      // Continue collecting signature until we reach the end
-                      let mut j = i + 1;
-                      while !has_semicolon && brace_count >= 0 {
-                          if let Some((_, next_line)) = lines.peek() {
-                              signature.push('\n');
-                              signature.push_str(next_line);
-                              
-                              brace_count += next_line.matches('{').count() as isize;
-                              brace_count -= next_line.matches('}').count() as isize;
-                              has_semicolon = next_line.trim_end().ends_with(';');
-                              
-                              lines.next();  // Consume the line
-                              j += 1;
-                              
-                              // Break on end of signature for functions, structs, etc.
-                              if (brace_count == 1 && next_line.contains('{')) || has_semicolon {
-                                  break;
-                              }
-                          } else {
-                              break;
-                          }
-                      }
-                      
-                      // Extract name from signature
-                      let name = if trimmed.contains("struct ") {
-                          trimmed.split("struct ").nth(1).unwrap_or("").split(['{', ' ', '<', '(']).next().unwrap_or("").to_string()
-                      } else if trimmed.contains("enum ") {
-                          trimmed.split("enum ").nth(1).unwrap_or("").split(['{', ' ', '<', '(']).next().unwrap_or("").to_string()
-                      } else if trimmed.contains("fn ") {
-                          trimmed.split("fn ").nth(1).unwrap_or("").split(['{', ' ', '<', '(']).next().unwrap_or("").to_string()
-                      } else if trimmed.contains("trait ") {
-                          trimmed.split("trait ").nth(1).unwrap_or("").split(['{', ' ', '<', '(']).next().unwrap_or("").to_string()
-                      } else if trimmed.contains("type ") {
-                          trimmed.split("type ").nth(1).unwrap_or("").split(['{', ' ', '<', '=']).next().unwrap_or("").to_string()
-                      } else if trimmed.contains("const ") {
-                          trimmed.split("const ").nth(1).unwrap_or("").split(['{', ' ', '<', ':']).next().unwrap_or("").to_string()
-                      } else if trimmed.contains("mod ") {
-                          trimmed.split("mod ").nth(1).unwrap_or("").split(['{', ' ', ';']).next().unwrap_or("").to_string()
-                      } else if trimmed.contains("async fn ") {
-                          trimmed.split("async fn ").nth(1).unwrap_or("").split(['{', ' ', '<', '(']).next().unwrap_or("").to_string()
-                      } else {
-                          "Unknown Item".to_string()
-                      };
-                      
-                      // Extract brief description (first line)
-                      let brief = doc_comments.lines().next().unwrap_or("").to_string();
-                      
-                      // Process doc comments
-                      let processed_docs = process_doc_comments(&doc_comments);
-                      
-                      items.push(DocItem {
-                          name: name.to_string(),
-                          brief,
-                          signature,
-                          docs: processed_docs,
-                      });
-                      
-                      // Reset for next item
-                      doc_comments = String::new();
-                      in_doc_comment = false;
-                  } else if !trimmed.is_empty() {
-                      // Non-empty line that's not part of doc comments
-                      doc_comments = String::new();
-                      in_doc_comment = false;
-                  }
-              }
-              
-              items
-          }
-          
-          fn process_doc_comments(doc_comments: &str) -> String {
-              let mut processed = String::new();
-              
-              for line in doc_comments.lines() {
-                  let processed_line = if line.trim().starts_with("# ") {
-                      // Convert Rust doc headers to Markdown headers
-                      format!("### {}", line.trim_start_matches("# "))
-                  } else if line.trim() == "# Arguments" {
-                      "### Arguments".to_string()
-                  } else if line.trim() == "# Examples" {
-                      "### Examples".to_string()
-                  } else if line.trim() == "# Returns" {
-                      "### Returns".to_string()
-                  } else if line.trim() == "# Errors" {
-                      "### Errors".to_string()
-                  } else {
-                      line.to_string()
-                  };
-                  
-                  processed.push_str(&processed_line);
-                  processed.push('\n');
-              }
-              
-              processed
-          }
+          # Create template for cargo-readme
+          cat > readme.tpl << 'EOF'
+          # {{title}}
+
+          Path: `{{file_path}}`
+
+          {{readme}}
           EOF
-          
-          # Compile and run the doc extractor
-          rustc extract_docs.rs
-          ./extract_docs src wiki-content
+
+          # Process each source file
+          find src -name "*.rs" -type f | while read -r file; do
+            # Get file info
+            base_name=$(basename "$file" .rs)
+            dir_path=$(dirname "$file")
+            
+            # Convert path to a unique filename by replacing slashes with underscores
+            unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
+            output_file="wiki-content/${unique_name}.md"
+            
+            echo "Processing $file into $output_file"
+            
+            # Create temporary cargo project to process the file
+            temp_dir=$(mktemp -d)
+            mkdir -p "$temp_dir/src"
+            
+            # Copy the file as lib.rs in the temp project
+            cp "$file" "$temp_dir/src/lib.rs"
+            
+            # Create a minimal Cargo.toml
+            cat > "$temp_dir/Cargo.toml" << EOF
+            [package]
+            name = "$base_name"
+            version = "0.1.0"
+            edition = "2021"
+            
+            [lib]
+            path = "src/lib.rs"
+            EOF
+            
+            # Generate the documentation
+            (
+              cd "$temp_dir"
+              
+              # Add custom variables to the template
+              echo '{"title":"'"$base_name ($dir_path)"'","file_path":"'"$file"'"}' > readme_extra.json
+              
+              # Run cargo-readme with our template and extra variables
+              cargo readme --template ../readme.tpl --output "$GITHUB_WORKSPACE/$output_file" --no-title --no-badge --no-license --json readme_extra.json
+              
+              # If cargo-readme fails (which can happen if file has no doc comments),
+              # create a minimal doc file
+              if [ $? -ne 0 ]; then
+                echo "# $base_name ($dir_path)" > "$GITHUB_WORKSPACE/$output_file"
+                echo "" >> "$GITHUB_WORKSPACE/$output_file"
+                echo "Path: \`$file\`" >> "$GITHUB_WORKSPACE/$output_file"
+                echo "" >> "$GITHUB_WORKSPACE/$output_file"
+                echo "## Public Items" >> "$GITHUB_WORKSPACE/$output_file"
+                echo "" >> "$GITHUB_WORKSPACE/$output_file"
+                
+                # Try to extract public items using grep
+                grep -n "^pub " "$GITHUB_WORKSPACE/$file" | while read -r line; do
+                  item=$(echo "$line" | cut -d: -f2-)
+                  # Clean up and add to the file
+                  cleaned_item=$(echo "$item" | sed 's/{.*//' | sed 's/(.*//')
+                  echo "* \`$cleaned_item\`" >> "$GITHUB_WORKSPACE/$output_file"
+                done
+              fi
+            )
+            
+            # Clean up
+            rm -rf "$temp_dir"
+            
+            # Enhance the documentation with public item signatures
+            # Create a section with all public items and their signatures
+            echo "" >> "$output_file"
+            echo "## Public API Reference" >> "$output_file"
+            echo "" >> "$output_file"
+            
+            # Extract public items with their signatures
+            awk '
+            BEGIN {
+              in_pub_item = 0;
+              pub_item = "";
+              brace_count = 0;
+            }
+            
+            /^pub / {
+              if (!in_pub_item) {
+                in_pub_item = 1;
+                pub_item = $0;
+                brace_count = 0;
+                
+                # Count opening braces
+                for (i = 1; i <= length($0); i++) {
+                  if (substr($0, i, 1) == "{") brace_count++;
+                  if (substr($0, i, 1) == "}") brace_count--;
+                }
+                
+                # If single line item (ends with semicolon or has balanced braces)
+                if ($0 ~ /;$/ || brace_count == 0) {
+                  print "### " $0;
+                  print "";
+                  print "```rust";
+                  print pub_item;
+                  print "```";
+                  print "";
+                  in_pub_item = 0;
+                }
+              }
+              next;
+            }
+            
+            # Continue collecting multi-line pub item
+            in_pub_item {
+              pub_item = pub_item "\n" $0;
+              
+              # Count braces
+              for (i = 1; i <= length($0); i++) {
+                if (substr($0, i, 1) == "{") brace_count++;
+                if (substr($0, i, 1) == "}") brace_count--;
+              }
+              
+              # If we have a balanced set of braces or end of definition
+              if (brace_count == 0 || $0 ~ /;$/ || $0 ~ /}$/) {
+                # Print truncated definition for readability if too long
+                print "### " substr(pub_item, 5, 50) (length(pub_item) > 55 ? "..." : "");
+                print "";
+                print "```rust";
+                # For struct/enum with large bodies, only show the declaration part
+                if (pub_item ~ /^pub (struct|enum|trait)/ && brace_count == 0) {
+                  split_at = index(pub_item, "{");
+                  if (split_at > 0) {
+                    # Show declaration plus opening brace
+                    print substr(pub_item, 1, split_at) " ... }";
+                  } else {
+                    print pub_item;
+                  }
+                } else {
+                  print pub_item;
+                }
+                print "```";
+                print "";
+                in_pub_item = 0;
+              }
+            }
+            ' "$file" >> "$output_file"
+            
+            # Add a link to the home page
+            echo "* [$unique_name](${unique_name})" >> wiki-content/Home.md
+          done
 
       - name: Setup Git for Wiki
         run: |
