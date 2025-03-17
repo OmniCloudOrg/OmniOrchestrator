@@ -67,7 +67,11 @@ jobs:
               # Process all Rust files
               rust_files = list(source_dir.glob("**/*.rs"))
               for file_path in sorted(rust_files):
-                  process_file(file_path, source_dir, output_dir)
+                  try:
+                      process_file(file_path, source_dir, output_dir)
+                  except Exception as e:
+                      print(f"Error processing {file_path}: {e}")
+                      # Continue with next file
               
               return 0
           
@@ -97,22 +101,52 @@ jobs:
                       f.write("\n\n")
                   
                   # Extract public items
-                  items = extract_public_items(file_path)
+                  items = extract_all_public_items(file_path)
                   if items:
                       f.write("## Table of Contents\n\n")
-                      for item_type, item_name, _, _ in items:
-                          f.write(f"* [{item_type} {item_name}](#{item_name.lower()})\n")
+                      for item in items:
+                          item_type, item_name = item["type"], item["name"]
+                          anchor = item_name.lower()
+                          f.write(f"* [{item_type} {item_name}](#{anchor})\n")
                       f.write("\n")
                       
                       f.write("## Public Items\n\n")
-                      for item_type, item_name, doc_comment, signature in items:
+                      for item in items:
+                          item_type = item["type"]
+                          item_name = item["name"]
+                          doc_comment = item["doc"]
+                          signature = item["signature"]
+                          fields = item.get("fields", [])
+                          
                           f.write(f"### {item_type} {item_name}\n\n")
+                          
                           if doc_comment:
                               f.write(format_doc_comment(doc_comment))
                               f.write("\n\n")
+                          
                           f.write("```rust\n")
                           f.write(signature)
                           f.write("\n```\n\n")
+                          
+                          # Add documentation for struct fields or enum variants
+                          if fields:
+                              f.write("#### Fields/Variants\n\n")
+                              for field in fields:
+                                  field_name = field["name"]
+                                  field_doc = field["doc"]
+                                  field_type = field.get("type", "")
+                                  
+                                  if field_name:
+                                      if field_type:
+                                          f.write(f"* `{field_name}: {field_type}`")
+                                      else:
+                                          f.write(f"* `{field_name}`")
+                                      
+                                      if field_doc:
+                                          f.write(f" - {field_doc}")
+                                      
+                                      f.write("\n")
+                              f.write("\n")
               
               # Add link to Home.md
               with open(output_dir / "Home.md", "a") as f:
@@ -129,116 +163,404 @@ jobs:
               
               return format_doc_comment("\n".join(module_docs)) if module_docs else ""
           
-          def extract_public_items(file_path):
-              """Extract public items with their doc comments"""
-              items = []
+          def extract_doc_comment(lines, start_idx):
+              """Extract a block of doc comments starting at a specific line"""
+              doc_lines = []
+              i = start_idx
               
+              while i < len(lines) and re.match(r'^\s*///', lines[i]):
+                  comment = re.sub(r'^\s*///\s?', '', lines[i]).rstrip()
+                  doc_lines.append(comment)
+                  i += 1
+              
+              # Skip empty lines after doc comment
+              while i < len(lines) and not lines[i].strip():
+                  i += 1
+              
+              return "\n".join(doc_lines), i
+          
+          def extract_struct_fields(lines, start_idx):
+              """Extract field documentation from a struct definition"""
+              fields = []
+              i = start_idx
+              brace_level = 0
+              in_struct_body = False
+              current_doc = ""
+              
+              # Find opening brace
+              while i < len(lines) and "{" not in lines[i]:
+                  i += 1
+              
+              if i < len(lines) and "{" in lines[i]:
+                  in_struct_body = True
+                  brace_level = 1
+                  i += 1
+              else:
+                  return fields, i
+              
+              # Process the struct body
+              while i < len(lines) and in_struct_body:
+                  line = lines[i].strip()
+                  
+                  # Track brace level
+                  brace_level += line.count("{") - line.count("}")
+                  if brace_level == 0:
+                      in_struct_body = False
+                      break
+                  
+                  # Check for doc comment
+                  if line.startswith("///"):
+                      doc_comment, i = extract_doc_comment(lines, i)
+                      current_doc = doc_comment
+                      continue
+                  
+                  # Check for field
+                  if not line.startswith("//") and not line.startswith("#") and line and ":" in line:
+                      # Extract field name and type
+                      field_match = re.match(r'(?:pub\s+)?([a-zA-Z0-9_]+)\s*:\s*(.+?)(?:,|$)', line)
+                      if field_match:
+                          field_name = field_match.group(1)
+                          field_type = field_match.group(2).strip()
+                          
+                          fields.append({
+                              "name": field_name,
+                              "type": field_type,
+                              "doc": current_doc
+                          })
+                          current_doc = ""
+                  
+                  i += 1
+              
+              return fields, i
+          
+          def extract_enum_variants(lines, start_idx):
+              """Extract variant documentation from an enum definition"""
+              variants = []
+              i = start_idx
+              brace_level = 0
+              in_enum_body = False
+              current_doc = ""
+              
+              # Find opening brace
+              while i < len(lines) and "{" not in lines[i]:
+                  i += 1
+              
+              if i < len(lines) and "{" in lines[i]:
+                  in_enum_body = True
+                  brace_level = 1
+                  i += 1
+              else:
+                  return variants, i
+              
+              # Process the enum body
+              while i < len(lines) and in_enum_body:
+                  line = lines[i].strip()
+                  
+                  # Track brace level
+                  brace_level += line.count("{") - line.count("}")
+                  if brace_level == 0:
+                      in_enum_body = False
+                      break
+                  
+                  # Check for doc comment
+                  if line.startswith("///"):
+                      doc_comment, i = extract_doc_comment(lines, i)
+                      current_doc = doc_comment
+                      continue
+                  
+                  # Check for variant
+                  if not line.startswith("//") and not line.startswith("#") and line:
+                      # Extract variant name
+                      variant_match = re.match(r'([A-Z][a-zA-Z0-9_]*)(?:\s*\(.*\)|\s*{.*})?(?:,|$)', line)
+                      if variant_match:
+                          variant_name = variant_match.group(1)
+                          
+                          variants.append({
+                              "name": variant_name,
+                              "doc": current_doc
+                          })
+                          current_doc = ""
+                  
+                  i += 1
+              
+              return variants, i
+          
+          def extract_item_signature(lines, start_idx, max_lines=20):
+              """Extract a reasonable signature for an item"""
+              signature_lines = [lines[start_idx]]
+              i = start_idx + 1
+              
+              # If the item is one line (ends with semicolon)
+              if ";" in lines[start_idx] and "{" not in lines[start_idx]:
+                  return lines[start_idx], i
+              
+              # Track braces for multi-line items
+              brace_count = lines[start_idx].count("{") - lines[start_idx].count("}")
+              
+              # If opening brace is on the first line
+              if "{" in lines[start_idx]:
+                  # For structs and enums, show a reasonable number of fields
+                  if "struct " in lines[start_idx] or "enum " in lines[start_idx]:
+                      line_count = 0
+                      while i < len(lines) and brace_count > 0 and line_count < max_lines:
+                          line = lines[i]
+                          signature_lines.append(line)
+                          brace_count += line.count("{") - line.count("}")
+                          line_count += 1
+                          i += 1
+                          
+                          if brace_count == 0:
+                              break
+                      
+                      # If we didn't capture the closing brace, add ellipsis
+                      if brace_count > 0:
+                          signature_lines.append("    // ... additional fields/variants")
+                          signature_lines.append("}")
+                  else:
+                      # For functions, just show the first line with brace
+                      signature_lines.append("    // ... implementation")
+                      signature_lines.append("}")
+                      i += 1
+              else:
+                  # For multi-line signatures without braces yet
+                  line_count = 0
+                  
+                  # Continue until we find a line with brace or semicolon
+                  while i < len(lines) and "{" not in lines[i] and ";" not in lines[i] and line_count < max_lines:
+                      signature_lines.append(lines[i])
+                      line_count += 1
+                      i += 1
+                      
+                      # If end of file or max lines reached
+                      if i >= len(lines) or line_count >= max_lines:
+                          break
+                  
+                  # If we find an opening brace, add it plus ellipsis
+                  if i < len(lines) and "{" in lines[i]:
+                      signature_lines.append(lines[i])
+                      signature_lines.append("    // ... implementation")
+                      signature_lines.append("}")
+                      i += 1
+                  elif i < len(lines) and ";" in lines[i]:
+                      signature_lines.append(lines[i])
+                      i += 1
+              
+              return "\n".join(signature_lines), i
+          
+          def extract_all_public_items(file_path):
+              """Extract all public items with their documentation"""
               with open(file_path, "r") as f:
                   content = f.read()
               
-              # Split into lines
               lines = content.split('\n')
+              items = []
               i = 0
               
               while i < len(lines):
+                  line = lines[i].strip()
+                  
                   # Skip empty lines
-                  if not lines[i].strip():
+                  if not line:
                       i += 1
                       continue
                   
-                  # Look for doc comments
-                  if re.match(r'^\s*///', lines[i]):
-                      doc_lines = []
-                      start_line = i
-                      
-                      # Collect all doc lines
-                      while i < len(lines) and re.match(r'^\s*///', lines[i]):
-                          comment = re.sub(r'^\s*///\s?', '', lines[i]).rstrip()
-                          doc_lines.append(comment)
-                          i += 1
-                      
-                      # Skip whitespace
-                      while i < len(lines) and not lines[i].strip():
-                          i += 1
+                  # Check for doc comments
+                  if line.startswith("///"):
+                      doc_comment, next_i = extract_doc_comment(lines, i)
                       
                       # Check if followed by a public item
-                      if i < len(lines) and re.match(r'^\s*pub\s', lines[i]):
-                          pub_line = lines[i]
+                      if next_i < len(lines) and lines[next_i].strip().startswith("pub "):
+                          pub_line = lines[next_i].strip()
                           
-                          # Extract item type and name
-                          item_type = "item"
-                          item_name = ""
+                          # Determine item type and name
+                          item_type, item_name = "item", ""
+                          fields = []
                           
+                          # Handle different item types
                           if "pub struct " in pub_line:
                               item_type = "struct"
                               match = re.search(r'struct\s+([a-zA-Z0-9_]+)', pub_line)
                               if match:
                                   item_name = match.group(1)
+                                  
+                                  # Extract signature with a reasonable amount of fields
+                                  signature, field_end = extract_item_signature(lines, next_i)
+                                  
+                                  # Extract field documentation
+                                  fields, _ = extract_struct_fields(lines, next_i)
+                                  
+                                  items.append({
+                                      "type": item_type,
+                                      "name": item_name,
+                                      "doc": doc_comment,
+                                      "signature": signature,
+                                      "fields": fields
+                                  })
+                                  
+                                  i = field_end
+                                  continue
+                          
                           elif "pub enum " in pub_line:
                               item_type = "enum"
                               match = re.search(r'enum\s+([a-zA-Z0-9_]+)', pub_line)
                               if match:
                                   item_name = match.group(1)
+                                  
+                                  # Extract signature with a reasonable amount of variants
+                                  signature, variant_end = extract_item_signature(lines, next_i)
+                                  
+                                  # Extract variant documentation
+                                  fields, _ = extract_enum_variants(lines, next_i)
+                                  
+                                  items.append({
+                                      "type": item_type,
+                                      "name": item_name,
+                                      "doc": doc_comment,
+                                      "signature": signature,
+                                      "fields": fields
+                                  })
+                                  
+                                  i = variant_end
+                                  continue
+                          
                           elif "pub trait " in pub_line:
                               item_type = "trait"
                               match = re.search(r'trait\s+([a-zA-Z0-9_]+)', pub_line)
                               if match:
                                   item_name = match.group(1)
+                          
                           elif "pub async fn " in pub_line:
                               item_type = "async fn"
                               match = re.search(r'async\s+fn\s+([a-zA-Z0-9_]+)', pub_line)
                               if match:
                                   item_name = match.group(1)
+                          
                           elif "pub fn " in pub_line:
                               item_type = "fn"
                               match = re.search(r'fn\s+([a-zA-Z0-9_]+)', pub_line)
                               if match:
                                   item_name = match.group(1)
-                          
-                          # Extract signature
-                          signature_lines = [pub_line]
-                          sig_end = i + 1
-                          
-                          # For multi-line signatures
-                          if "{" in pub_line and "}" not in pub_line:
-                              braces = 1
-                              while sig_end < len(lines) and braces > 0:
-                                  line = lines[sig_end]
-                                  braces += line.count("{") - line.count("}")
-                                  signature_lines.append(line)
-                                  sig_end += 1
-                                  # Limit the amount we collect
-                                  if sig_end > i + 15:
-                                      signature_lines.append("    // ... implementation")
-                                      signature_lines.append("}")
-                                      break
-                          elif "{" not in pub_line and ";" not in pub_line:
-                              # Multi-line signature without body yet
-                              while sig_end < len(lines) and ";" not in lines[sig_end] and "{" not in lines[sig_end]:
-                                  signature_lines.append(lines[sig_end])
-                                  sig_end += 1
                                   
-                                  # If we hit opening brace
-                                  if sig_end < len(lines) and "{" in lines[sig_end]:
-                                      signature_lines.append(lines[sig_end])
-                                      signature_lines.append("    // ... implementation")
-                                      signature_lines.append("}")
-                                      sig_end += 1
-                                      break
+                          elif "pub type " in pub_line:
+                              item_type = "type"
+                              match = re.search(r'type\s+([a-zA-Z0-9_]+)', pub_line)
+                              if match:
+                                  item_name = match.group(1)
                                   
-                                  # Limit the amount we collect
-                                  if sig_end > i + 10:
-                                      break
+                          elif "pub mod " in pub_line:
+                              item_type = "mod"
+                              match = re.search(r'mod\s+([a-zA-Z0-9_]+)', pub_line)
+                              if match:
+                                  item_name = match.group(1)
+                                  
+                          # Extract signature for non-struct/enum items
+                          if item_name and item_type not in ["struct", "enum"]:
+                              signature, next_line = extract_item_signature(lines, next_i)
+                              
+                              items.append({
+                                  "type": item_type,
+                                  "name": item_name,
+                                  "doc": doc_comment,
+                                  "signature": signature
+                              })
+                              
+                              i = next_line
+                              continue
+                      
+                      # If we process the doc comment but didn't create an item,
+                      # continue from where the doc comment ended
+                      i = next_i
+                      continue
+                  
+                  # Check for public items without doc comments
+                  elif line.startswith("pub ") and not line.startswith("pub use"):
+                      # Similar logic as above, but for undocumented items
+                      pub_line = line
+                      
+                      # Determine item type and name
+                      item_type, item_name = "item", ""
+                      fields = []
+                      
+                      if "pub struct " in pub_line:
+                          item_type = "struct"
+                          match = re.search(r'struct\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                              
+                              # Extract signature with a reasonable amount of fields
+                              signature, field_end = extract_item_signature(lines, i)
+                              
+                              # Extract field documentation
+                              fields, _ = extract_struct_fields(lines, i)
+                              
+                              items.append({
+                                  "type": item_type,
+                                  "name": item_name,
+                                  "doc": "",
+                                  "signature": signature,
+                                  "fields": fields
+                              })
+                              
+                              i = field_end
+                              continue
+                      
+                      elif "pub enum " in pub_line:
+                          item_type = "enum"
+                          match = re.search(r'enum\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                              
+                              # Extract signature with a reasonable amount of variants
+                              signature, variant_end = extract_item_signature(lines, i)
+                              
+                              # Extract variant documentation
+                              fields, _ = extract_enum_variants(lines, i)
+                              
+                              items.append({
+                                  "type": item_type,
+                                  "name": item_name,
+                                  "doc": "",
+                                  "signature": signature,
+                                  "fields": fields
+                              })
+                              
+                              i = variant_end
+                              continue
+                      
+                      # Other item types (traits, functions, etc.)
+                      elif "pub trait " in pub_line:
+                          item_type = "trait"
+                          match = re.search(r'trait\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      
+                      elif "pub async fn " in pub_line:
+                          item_type = "async fn"
+                          match = re.search(r'async\s+fn\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      
+                      elif "pub fn " in pub_line:
+                          item_type = "fn"
+                          match = re.search(r'fn\s+([a-zA-Z0-9_]+)', pub_line)
+                          if match:
+                              item_name = match.group(1)
+                      
+                      # Extract signature for non-struct/enum items
+                      if item_name and item_type not in ["struct", "enum"]:
+                          signature, next_line = extract_item_signature(lines, i)
                           
-                          signature = "\n".join(signature_lines)
+                          items.append({
+                              "type": item_type,
+                              "name": item_name,
+                              "doc": "",
+                              "signature": signature
+                          })
                           
-                          # Add the item to our list
-                          if item_name:
-                              items.append((item_type, item_name, "\n".join(doc_lines), signature))
-                          
-                          i = sig_end
+                          i = next_line
                           continue
                   
+                  # Move to next line if we didn't process this one
                   i += 1
               
               return items
@@ -246,18 +568,20 @@ jobs:
           def format_doc_comment(text):
               """Format documentation with proper markdown"""
               # Fix headers - ensure # headings start on their own line
-              text = re.sub(r'([^\n])# ([A-Z][a-zA-Z]+)', r'\1\n\n## \2', text)
+              text = re.sub(r'([^\n])# ([A-Z][a-zA-Z ]+)', r'\1\n\n## \2', text)
               
               # Ensure proper spacing around lists
-              text = re.sub(r'([^\n])\* ', r'\1\n\n* ', text)
+              text = re.sub(r'([^\n])(\n\*)', r'\1\n\n\2', text)
               
               # Fix spacing in paragraphs
               text = re.sub(r'\.([A-Z])', r'. \1', text)
               
               # Ensure backticks for code references
-              text = re.sub(r'`([^`]+)`', r'`\1`', text)
+              text = re.sub(r' ([a-zA-Z0-9_]+)\(\)', r' `\1()`', text)
               
-              return text
+              # Ensure proper spacing between paragraphs
+              paragraphs = re.split(r'\n{2,}', text)
+              return "\n\n".join(p.strip() for p in paragraphs if p.strip())
           
           if __name__ == "__main__":
               sys.exit(main())
