@@ -1,7 +1,4 @@
-name: Rust Docs to Wiki with cargo-readme
-
-# This workflow uses cargo-readme to extract documentation from Rust source files
-# and update the GitHub wiki repository.
+name: Rust Docs to Wiki
 
 on:
   push:
@@ -28,10 +25,9 @@ jobs:
           toolchain: stable
 
       - name: Install cargo-readme
-        run: |
-          cargo install cargo-readme
+        run: cargo install cargo-readme
 
-      - name: Generate documentation
+      - name: Create wiki directories and base files
         run: |
           # Create directory for wiki content
           mkdir -p wiki-content
@@ -44,86 +40,84 @@ jobs:
           echo "## Modules" >> wiki-content/Home.md
           echo "" >> wiki-content/Home.md
           
-          # Create template for cargo-readme
-          cat > readme.tpl << 'EOT'
-          # {{title}}
+          # Create template file for cargo-readme (avoid heredoc)
+          echo "# {{title}}" > readme.tpl
+          echo "" >> readme.tpl
+          echo "Path: \`{{file_path}}\`" >> readme.tpl
+          echo "" >> readme.tpl
+          echo "{{readme}}" >> readme.tpl
 
-          Path: `{{file_path}}`
-
-          {{readme}}
-          EOT
-
-          # Process each source file
-          find src -name "*.rs" -type f | while read -r file; do
+      - name: Process Rust files
+        run: |
+          # Find all .rs files
+          find src -name "*.rs" -type f > rs_files.txt
+          
+          # Process each file
+          while IFS= read -r file; do
             # Get file info
             base_name=$(basename "$file" .rs)
             dir_path=$(dirname "$file")
             
-            # Convert path to a unique filename by replacing slashes with underscores
+            # Create unique filename
             unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
             output_file="wiki-content/${unique_name}.md"
             
             echo "Processing $file into $output_file"
             
-            # Create temporary cargo project to process the file
+            # Create temporary directory
             temp_dir=$(mktemp -d)
             mkdir -p "$temp_dir/src"
             
-            # Copy the file as lib.rs in the temp project
+            # Copy file as lib.rs
             cp "$file" "$temp_dir/src/lib.rs"
             
-            # Create a minimal Cargo.toml
-            cat > "$temp_dir/Cargo.toml" << EOT
-            [package]
-            name = "$base_name"
-            version = "0.1.0"
-            edition = "2021"
+            # Create minimal Cargo.toml (avoid heredoc)
+            echo "[package]" > "$temp_dir/Cargo.toml"
+            echo "name = \"$base_name\"" >> "$temp_dir/Cargo.toml"
+            echo "version = \"0.1.0\"" >> "$temp_dir/Cargo.toml"
+            echo "edition = \"2021\"" >> "$temp_dir/Cargo.toml"
+            echo "" >> "$temp_dir/Cargo.toml"
+            echo "[lib]" >> "$temp_dir/Cargo.toml"
+            echo "path = \"src/lib.rs\"" >> "$temp_dir/Cargo.toml"
             
-            [lib]
-            path = "src/lib.rs"
-            EOT
+            # Generate documentation
+            cd "$temp_dir"
             
-            # Generate the documentation
-            (
-              cd "$temp_dir"
+            # Create JSON file with variables
+            echo "{\"title\":\"$base_name ($dir_path)\",\"file_path\":\"$file\"}" > readme_extra.json
+            
+            # Run cargo-readme
+            cargo readme --template "$GITHUB_WORKSPACE/readme.tpl" --output "$GITHUB_WORKSPACE/$output_file" --no-title --no-badge --no-license --json readme_extra.json
+            
+            # Return to workspace
+            cd "$GITHUB_WORKSPACE"
+            
+            # Check if cargo-readme succeeded
+            if [ ! -f "$output_file" ] || [ ! -s "$output_file" ]; then
+              # Create minimal documentation file
+              echo "# $base_name ($dir_path)" > "$output_file"
+              echo "" >> "$output_file"
+              echo "Path: \`$file\`" >> "$output_file"
+              echo "" >> "$output_file"
+              echo "## Public Items" >> "$output_file"
+              echo "" >> "$output_file"
               
-              # Add custom variables to the template
-              echo '{"title":"'"$base_name ($dir_path)"'","file_path":"'"$file"'"}' > readme_extra.json
-              
-              # Run cargo-readme with our template and extra variables
-              cargo readme --template ../readme.tpl --output "$GITHUB_WORKSPACE/$output_file" --no-title --no-badge --no-license --json readme_extra.json
-              
-              # If cargo-readme fails (which can happen if file has no doc comments),
-              # create a minimal doc file
-              if [ $? -ne 0 ]; then
-                echo "# $base_name ($dir_path)" > "$GITHUB_WORKSPACE/$output_file"
-                echo "" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "Path: \`$file\`" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "## Public Items" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "" >> "$GITHUB_WORKSPACE/$output_file"
-                
-                # Try to extract public items using grep
-                grep -n "^pub " "$GITHUB_WORKSPACE/$file" | while read -r line; do
-                  item=$(echo "$line" | cut -d: -f2-)
-                  # Clean up and add to the file
-                  cleaned_item=$(echo "$item" | sed 's/{.*//' | sed 's/(.*//')
-                  echo "* \`$cleaned_item\`" >> "$GITHUB_WORKSPACE/$output_file"
-                done
-              fi
-            )
+              # Extract public items
+              grep -n "^pub " "$file" | while read -r line; do
+                item=$(echo "$line" | cut -d: -f2-)
+                # Clean up and format
+                cleaned_item=$(echo "$item" | sed 's/{.*//' | sed 's/(.*//')
+                echo "* \`$cleaned_item\`" >> "$output_file"
+              done
+            fi
             
-            # Clean up
-            rm -rf "$temp_dir"
-            
-            # Enhance the documentation with public item signatures
-            # Create a section with all public items and their signatures
+            # Enhance with public API reference
             echo "" >> "$output_file"
             echo "## Public API Reference" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Extract public items with their signatures
-            awk '
+            # Create a separate AWK script file (avoids heredoc)
+            cat > extract_pub_items.awk << 'AWKSCRIPT'
             BEGIN {
               in_pub_item = 0;
               pub_item = "";
@@ -142,7 +136,7 @@ jobs:
                   if (substr($0, i, 1) == "}") brace_count--;
                 }
                 
-                # If single line item (ends with semicolon or has balanced braces)
+                # If single line item
                 if ($0 ~ /;$/ || brace_count == 0) {
                   print "### " $0;
                   print "";
@@ -156,7 +150,7 @@ jobs:
               next;
             }
             
-            # Continue collecting multi-line pub item
+            # Multi-line pub item
             in_pub_item {
               pub_item = pub_item "\n" $0;
               
@@ -166,17 +160,16 @@ jobs:
                 if (substr($0, i, 1) == "}") brace_count--;
               }
               
-              # If we have a balanced set of braces or end of definition
+              # Check if definition is complete
               if (brace_count == 0 || $0 ~ /;$/ || $0 ~ /}$/) {
-                # Print truncated definition for readability if too long
                 print "### " substr(pub_item, 5, 50) (length(pub_item) > 55 ? "..." : "");
                 print "";
                 print "```rust";
-                # For struct/enum with large bodies, only show the declaration part
+                
+                # Handle struct/enum with large bodies
                 if (pub_item ~ /^pub (struct|enum|trait)/ && brace_count == 0) {
                   split_at = index(pub_item, "{");
                   if (split_at > 0) {
-                    # Show declaration plus opening brace
                     print substr(pub_item, 1, split_at) " ... }";
                   } else {
                     print pub_item;
@@ -184,16 +177,23 @@ jobs:
                 } else {
                   print pub_item;
                 }
+                
                 print "```";
                 print "";
                 in_pub_item = 0;
               }
             }
-            ' "$file" >> "$output_file"
+            AWKSCRIPT
             
-            # Add a link to the home page
+            # Run AWK script on the file
+            awk -f extract_pub_items.awk "$file" >> "$output_file"
+            
+            # Add link to home page
             echo "* [$unique_name](${unique_name})" >> wiki-content/Home.md
-          done
+            
+            # Clean up
+            rm -rf "$temp_dir"
+          done < rs_files.txt
 
       - name: Setup Git for Wiki
         run: |
@@ -202,16 +202,16 @@ jobs:
 
       - name: Clone Wiki Repository
         run: |
-          # Use PAT for wiki push (needs to be set in repository secrets)
+          # Use PAT for wiki push
           git clone https://${{ secrets.WIKI_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
           
-          # Copy new content to wiki repository
+          # Copy content to wiki
           cp -r wiki-content/* wiki-repo/
           
           cd wiki-repo
           git add .
           
-          # Only commit if there are changes
+          # Commit if changes exist
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
