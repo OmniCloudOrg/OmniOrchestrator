@@ -1,4 +1,4 @@
-name: Rust Docs to Wiki Generator
+name: Rust Docs to Wiki
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  generate-wiki:
+  generate-docs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -18,15 +18,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-
-      - name: Create wiki directories
+      - name: Setup directories
         run: |
-          # Create directory for wiki content
           mkdir -p wiki-content
           
           # Create Home.md
@@ -37,563 +30,571 @@ jobs:
           echo "## Modules" >> wiki-content/Home.md
           echo "" >> wiki-content/Home.md
 
-      - name: Create rustdoc extractor
+      - name: Install rust-script
         run: |
-          # This script processes Rust files and extracts documentation
-          cat > extract_docs.py << 'EOF'
-          #!/usr/bin/env python3
-          import os
-          import re
-          import sys
-          import subprocess
-          from pathlib import Path
-          
-          def main():
-              if len(sys.argv) < 3:
-                  print("Usage: python extract_docs.py <source_dir> <output_dir>")
-                  return 1
-                  
-              source_dir = Path(sys.argv[1])
-              output_dir = Path(sys.argv[2])
-              
-              if not source_dir.is_dir():
-                  print(f"Error: Source directory does not exist: {source_dir}")
-                  return 1
-                  
-              if not output_dir.is_dir():
-                  print(f"Error: Output directory does not exist: {output_dir}")
-                  return 1
-              
-              # Process all Rust files
-              rust_files = list(source_dir.glob("**/*.rs"))
-              for file_path in sorted(rust_files):
-                  try:
-                      process_file(file_path, source_dir, output_dir)
-                  except Exception as e:
-                      print(f"Error processing {file_path}: {e}")
-                      # Continue with next file
-              
-              return 0
-          
-          def process_file(file_path, source_dir, output_dir):
-              """Process a single Rust file and extract documentation"""
-              # Create unique filename for wiki page
-              rel_path = file_path.relative_to(source_dir)
-              unique_name = str(rel_path).replace('/', '_').replace('.rs', '')
-              output_file = output_dir / f"{unique_name}.md"
-              
-              print(f"Processing {file_path} -> {output_file}")
-              
-              # Get file info
-              base_name = file_path.stem
-              dir_path = str(file_path.parent)
-              
-              with open(output_file, "w") as f:
-                  # Create header
-                  f.write(f"# {base_name} ({dir_path})\n\n")
-                  f.write(f"Path: `{file_path}`\n\n")
-                  
-                  # Extract module docs
-                  module_docs = extract_module_docs(file_path)
-                  if module_docs:
-                      f.write("## Module Documentation\n\n")
-                      f.write(module_docs)
-                      f.write("\n\n")
-                  
-                  # Extract public items
-                  items = extract_all_public_items(file_path)
-                  if items:
-                      f.write("## Table of Contents\n\n")
-                      for item in items:
-                          item_type, item_name = item["type"], item["name"]
-                          anchor = item_name.lower()
-                          f.write(f"* [{item_type} {item_name}](#{anchor})\n")
-                      f.write("\n")
-                      
-                      f.write("## Public Items\n\n")
-                      for item in items:
-                          item_type = item["type"]
-                          item_name = item["name"]
-                          doc_comment = item["doc"]
-                          signature = item["signature"]
-                          fields = item.get("fields", [])
-                          
-                          f.write(f"### {item_type} {item_name}\n\n")
-                          
-                          if doc_comment:
-                              f.write(format_doc_comment(doc_comment))
-                              f.write("\n\n")
-                          
-                          f.write("```rust\n")
-                          f.write(signature)
-                          f.write("\n```\n\n")
-                          
-                          # Add documentation for struct fields or enum variants
-                          if fields:
-                              f.write("#### Fields/Variants\n\n")
-                              for field in fields:
-                                  field_name = field["name"]
-                                  field_doc = field["doc"]
-                                  field_type = field.get("type", "")
-                                  
-                                  if field_name:
-                                      if field_type:
-                                          f.write(f"* `{field_name}: {field_type}`")
-                                      else:
-                                          f.write(f"* `{field_name}`")
-                                      
-                                      if field_doc:
-                                          f.write(f" - {field_doc}")
-                                      
-                                      f.write("\n")
-                              f.write("\n")
-              
-              # Add link to Home.md
-              with open(output_dir / "Home.md", "a") as f:
-                  f.write(f"* [{unique_name}]({unique_name})\n")
-          
-          def extract_module_docs(file_path):
-              """Extract module-level documentation (//! comments)"""
-              module_docs = []
-              with open(file_path, "r") as f:
-                  for line in f:
-                      if re.match(r'^\s*//!', line):
-                          comment = re.sub(r'^\s*//!\s?', '', line).rstrip()
-                          module_docs.append(comment)
-              
-              return format_doc_comment("\n".join(module_docs)) if module_docs else ""
-          
-          def extract_doc_comment(lines, start_idx):
-              """Extract a block of doc comments starting at a specific line"""
-              doc_lines = []
-              i = start_idx
-              
-              while i < len(lines) and re.match(r'^\s*///', lines[i]):
-                  comment = re.sub(r'^\s*///\s?', '', lines[i]).rstrip()
-                  doc_lines.append(comment)
-                  i += 1
-              
-              # Skip empty lines after doc comment
-              while i < len(lines) and not lines[i].strip():
-                  i += 1
-              
-              return "\n".join(doc_lines), i
-          
-          def extract_struct_fields(lines, start_idx):
-              """Extract field documentation from a struct definition"""
-              fields = []
-              i = start_idx
-              brace_level = 0
-              in_struct_body = False
-              current_doc = ""
-              
-              # Find opening brace
-              while i < len(lines) and "{" not in lines[i]:
-                  i += 1
-              
-              if i < len(lines) and "{" in lines[i]:
-                  in_struct_body = True
-                  brace_level = 1
-                  i += 1
-              else:
-                  return fields, i
-              
-              # Process the struct body
-              while i < len(lines) and in_struct_body:
-                  line = lines[i].strip()
-                  
-                  # Track brace level
-                  brace_level += line.count("{") - line.count("}")
-                  if brace_level == 0:
-                      in_struct_body = False
-                      break
-                  
-                  # Check for doc comment
-                  if line.startswith("///"):
-                      doc_comment, i = extract_doc_comment(lines, i)
-                      current_doc = doc_comment
-                      continue
-                  
-                  # Check for field
-                  if not line.startswith("//") and not line.startswith("#") and line and ":" in line:
-                      # Extract field name and type
-                      field_match = re.match(r'(?:pub\s+)?([a-zA-Z0-9_]+)\s*:\s*(.+?)(?:,|$)', line)
-                      if field_match:
-                          field_name = field_match.group(1)
-                          field_type = field_match.group(2).strip()
-                          
-                          fields.append({
-                              "name": field_name,
-                              "type": field_type,
-                              "doc": current_doc
-                          })
-                          current_doc = ""
-                  
-                  i += 1
-              
-              return fields, i
-          
-          def extract_enum_variants(lines, start_idx):
-              """Extract variant documentation from an enum definition"""
-              variants = []
-              i = start_idx
-              brace_level = 0
-              in_enum_body = False
-              current_doc = ""
-              
-              # Find opening brace
-              while i < len(lines) and "{" not in lines[i]:
-                  i += 1
-              
-              if i < len(lines) and "{" in lines[i]:
-                  in_enum_body = True
-                  brace_level = 1
-                  i += 1
-              else:
-                  return variants, i
-              
-              # Process the enum body
-              while i < len(lines) and in_enum_body:
-                  line = lines[i].strip()
-                  
-                  # Track brace level
-                  brace_level += line.count("{") - line.count("}")
-                  if brace_level == 0:
-                      in_enum_body = False
-                      break
-                  
-                  # Check for doc comment
-                  if line.startswith("///"):
-                      doc_comment, i = extract_doc_comment(lines, i)
-                      current_doc = doc_comment
-                      continue
-                  
-                  # Check for variant
-                  if not line.startswith("//") and not line.startswith("#") and line:
-                      # Extract variant name
-                      variant_match = re.match(r'([A-Z][a-zA-Z0-9_]*)(?:\s*\(.*\)|\s*{.*})?(?:,|$)', line)
-                      if variant_match:
-                          variant_name = variant_match.group(1)
-                          
-                          variants.append({
-                              "name": variant_name,
-                              "doc": current_doc
-                          })
-                          current_doc = ""
-                  
-                  i += 1
-              
-              return variants, i
-          
-          def extract_item_signature(lines, start_idx, max_lines=20):
-              """Extract a reasonable signature for an item"""
-              signature_lines = [lines[start_idx]]
-              i = start_idx + 1
-              
-              # If the item is one line (ends with semicolon)
-              if ";" in lines[start_idx] and "{" not in lines[start_idx]:
-                  return lines[start_idx], i
-              
-              # Track braces for multi-line items
-              brace_count = lines[start_idx].count("{") - lines[start_idx].count("}")
-              
-              # If opening brace is on the first line
-              if "{" in lines[start_idx]:
-                  # For structs and enums, show a reasonable number of fields
-                  if "struct " in lines[start_idx] or "enum " in lines[start_idx]:
-                      line_count = 0
-                      while i < len(lines) and brace_count > 0 and line_count < max_lines:
-                          line = lines[i]
-                          signature_lines.append(line)
-                          brace_count += line.count("{") - line.count("}")
-                          line_count += 1
-                          i += 1
-                          
-                          if brace_count == 0:
-                              break
-                      
-                      # If we didn't capture the closing brace, add ellipsis
-                      if brace_count > 0:
-                          signature_lines.append("    // ... additional fields/variants")
-                          signature_lines.append("}")
-                  else:
-                      # For functions, just show the first line with brace
-                      signature_lines.append("    // ... implementation")
-                      signature_lines.append("}")
-                      i += 1
-              else:
-                  # For multi-line signatures without braces yet
-                  line_count = 0
-                  
-                  # Continue until we find a line with brace or semicolon
-                  while i < len(lines) and "{" not in lines[i] and ";" not in lines[i] and line_count < max_lines:
-                      signature_lines.append(lines[i])
-                      line_count += 1
-                      i += 1
-                      
-                      # If end of file or max lines reached
-                      if i >= len(lines) or line_count >= max_lines:
-                          break
-                  
-                  # If we find an opening brace, add it plus ellipsis
-                  if i < len(lines) and "{" in lines[i]:
-                      signature_lines.append(lines[i])
-                      signature_lines.append("    // ... implementation")
-                      signature_lines.append("}")
-                      i += 1
-                  elif i < len(lines) and ";" in lines[i]:
-                      signature_lines.append(lines[i])
-                      i += 1
-              
-              return "\n".join(signature_lines), i
-          
-          def extract_all_public_items(file_path):
-              """Extract all public items with their documentation"""
-              with open(file_path, "r") as f:
-                  content = f.read()
-              
-              lines = content.split('\n')
-              items = []
-              i = 0
-              
-              while i < len(lines):
-                  line = lines[i].strip()
-                  
-                  # Skip empty lines
-                  if not line:
-                      i += 1
-                      continue
-                  
-                  # Check for doc comments
-                  if line.startswith("///"):
-                      doc_comment, next_i = extract_doc_comment(lines, i)
-                      
-                      # Check if followed by a public item
-                      if next_i < len(lines) and lines[next_i].strip().startswith("pub "):
-                          pub_line = lines[next_i].strip()
-                          
-                          # Determine item type and name
-                          item_type, item_name = "item", ""
-                          fields = []
-                          
-                          # Handle different item types
-                          if "pub struct " in pub_line:
-                              item_type = "struct"
-                              match = re.search(r'struct\s+([a-zA-Z0-9_]+)', pub_line)
-                              if match:
-                                  item_name = match.group(1)
-                                  
-                                  # Extract signature with a reasonable amount of fields
-                                  signature, field_end = extract_item_signature(lines, next_i)
-                                  
-                                  # Extract field documentation
-                                  fields, _ = extract_struct_fields(lines, next_i)
-                                  
-                                  items.append({
-                                      "type": item_type,
-                                      "name": item_name,
-                                      "doc": doc_comment,
-                                      "signature": signature,
-                                      "fields": fields
-                                  })
-                                  
-                                  i = field_end
-                                  continue
-                          
-                          elif "pub enum " in pub_line:
-                              item_type = "enum"
-                              match = re.search(r'enum\s+([a-zA-Z0-9_]+)', pub_line)
-                              if match:
-                                  item_name = match.group(1)
-                                  
-                                  # Extract signature with a reasonable amount of variants
-                                  signature, variant_end = extract_item_signature(lines, next_i)
-                                  
-                                  # Extract variant documentation
-                                  fields, _ = extract_enum_variants(lines, next_i)
-                                  
-                                  items.append({
-                                      "type": item_type,
-                                      "name": item_name,
-                                      "doc": doc_comment,
-                                      "signature": signature,
-                                      "fields": fields
-                                  })
-                                  
-                                  i = variant_end
-                                  continue
-                          
-                          elif "pub trait " in pub_line:
-                              item_type = "trait"
-                              match = re.search(r'trait\s+([a-zA-Z0-9_]+)', pub_line)
-                              if match:
-                                  item_name = match.group(1)
-                          
-                          elif "pub async fn " in pub_line:
-                              item_type = "async fn"
-                              match = re.search(r'async\s+fn\s+([a-zA-Z0-9_]+)', pub_line)
-                              if match:
-                                  item_name = match.group(1)
-                          
-                          elif "pub fn " in pub_line:
-                              item_type = "fn"
-                              match = re.search(r'fn\s+([a-zA-Z0-9_]+)', pub_line)
-                              if match:
-                                  item_name = match.group(1)
-                                  
-                          elif "pub type " in pub_line:
-                              item_type = "type"
-                              match = re.search(r'type\s+([a-zA-Z0-9_]+)', pub_line)
-                              if match:
-                                  item_name = match.group(1)
-                                  
-                          elif "pub mod " in pub_line:
-                              item_type = "mod"
-                              match = re.search(r'mod\s+([a-zA-Z0-9_]+)', pub_line)
-                              if match:
-                                  item_name = match.group(1)
-                                  
-                          # Extract signature for non-struct/enum items
-                          if item_name and item_type not in ["struct", "enum"]:
-                              signature, next_line = extract_item_signature(lines, next_i)
-                              
-                              items.append({
-                                  "type": item_type,
-                                  "name": item_name,
-                                  "doc": doc_comment,
-                                  "signature": signature
-                              })
-                              
-                              i = next_line
-                              continue
-                      
-                      # If we process the doc comment but didn't create an item,
-                      # continue from where the doc comment ended
-                      i = next_i
-                      continue
-                  
-                  # Check for public items without doc comments
-                  elif line.startswith("pub ") and not line.startswith("pub use"):
-                      # Similar logic as above, but for undocumented items
-                      pub_line = line
-                      
-                      # Determine item type and name
-                      item_type, item_name = "item", ""
-                      fields = []
-                      
-                      if "pub struct " in pub_line:
-                          item_type = "struct"
-                          match = re.search(r'struct\s+([a-zA-Z0-9_]+)', pub_line)
-                          if match:
-                              item_name = match.group(1)
-                              
-                              # Extract signature with a reasonable amount of fields
-                              signature, field_end = extract_item_signature(lines, i)
-                              
-                              # Extract field documentation
-                              fields, _ = extract_struct_fields(lines, i)
-                              
-                              items.append({
-                                  "type": item_type,
-                                  "name": item_name,
-                                  "doc": "",
-                                  "signature": signature,
-                                  "fields": fields
-                              })
-                              
-                              i = field_end
-                              continue
-                      
-                      elif "pub enum " in pub_line:
-                          item_type = "enum"
-                          match = re.search(r'enum\s+([a-zA-Z0-9_]+)', pub_line)
-                          if match:
-                              item_name = match.group(1)
-                              
-                              # Extract signature with a reasonable amount of variants
-                              signature, variant_end = extract_item_signature(lines, i)
-                              
-                              # Extract variant documentation
-                              fields, _ = extract_enum_variants(lines, i)
-                              
-                              items.append({
-                                  "type": item_type,
-                                  "name": item_name,
-                                  "doc": "",
-                                  "signature": signature,
-                                  "fields": fields
-                              })
-                              
-                              i = variant_end
-                              continue
-                      
-                      # Other item types (traits, functions, etc.)
-                      elif "pub trait " in pub_line:
-                          item_type = "trait"
-                          match = re.search(r'trait\s+([a-zA-Z0-9_]+)', pub_line)
-                          if match:
-                              item_name = match.group(1)
-                      
-                      elif "pub async fn " in pub_line:
-                          item_type = "async fn"
-                          match = re.search(r'async\s+fn\s+([a-zA-Z0-9_]+)', pub_line)
-                          if match:
-                              item_name = match.group(1)
-                      
-                      elif "pub fn " in pub_line:
-                          item_type = "fn"
-                          match = re.search(r'fn\s+([a-zA-Z0-9_]+)', pub_line)
-                          if match:
-                              item_name = match.group(1)
-                      
-                      # Extract signature for non-struct/enum items
-                      if item_name and item_type not in ["struct", "enum"]:
-                          signature, next_line = extract_item_signature(lines, i)
-                          
-                          items.append({
-                              "type": item_type,
-                              "name": item_name,
-                              "doc": "",
-                              "signature": signature
-                          })
-                          
-                          i = next_line
-                          continue
-                  
-                  # Move to next line if we didn't process this one
-                  i += 1
-              
-              return items
-          
-          def format_doc_comment(text):
-              """Format documentation with proper markdown"""
-              # Fix headers - ensure # headings start on their own line
-              text = re.sub(r'([^\n])# ([A-Z][a-zA-Z ]+)', r'\1\n\n## \2', text)
-              
-              # Ensure proper spacing around lists
-              text = re.sub(r'([^\n])(\n\*)', r'\1\n\n\2', text)
-              
-              # Fix spacing in paragraphs
-              text = re.sub(r'\.([A-Z])', r'. \1', text)
-              
-              # Ensure backticks for code references
-              text = re.sub(r' ([a-zA-Z0-9_]+)\(\)', r' `\1()`', text)
-              
-              # Ensure proper spacing between paragraphs
-              paragraphs = re.split(r'\n{2,}', text)
-              return "\n\n".join(p.strip() for p in paragraphs if p.strip())
-          
-          if __name__ == "__main__":
-              sys.exit(main())
-          EOF
-          
-          # Make script executable
-          chmod +x extract_docs.py
+          curl -sSf https://raw.githubusercontent.com/fornwall/rust-script/master/rust-script-install.sh | bash
 
-      - name: Generate Wiki Documentation
+      - name: Create doc extractor
         run: |
-          # Run the doc extraction script
-          python3 extract_docs.py src wiki-content
+          cat > extract_docs.rs << 'EOF'
+          //! Rust-script for extracting documentation from Rust source files
+          //! 
+          //! Usage: rust-script extract_docs.rs <source_dir> <output_dir>
+          
+          use std::env;
+          use std::fs::{self, File};
+          use std::io::{self, Write, BufRead, BufReader};
+          use std::path::{Path, PathBuf};
+          use std::collections::HashMap;
+          
+          fn main() -> io::Result<()> {
+              let args: Vec<String> = env::args().collect();
+              
+              if args.len() < 3 {
+                  eprintln!("Usage: {} <source_dir> <output_dir>", args[0]);
+                  std::process::exit(1);
+              }
+              
+              let source_dir = &args[1];
+              let output_dir = &args[2];
+              
+              println!("Processing Rust files from {} to {}", source_dir, output_dir);
+              
+              // Process all .rs files in the source directory recursively
+              visit_dirs(Path::new(source_dir), Path::new(output_dir))?;
+              
+              println!("Documentation generation complete!");
+              Ok(())
+          }
+          
+          fn visit_dirs(source_dir: &Path, output_dir: &Path) -> io::Result<()> {
+              if source_dir.is_dir() {
+                  for entry in fs::read_dir(source_dir)? {
+                      let entry = entry?;
+                      let path = entry.path();
+                      
+                      if path.is_dir() {
+                          visit_dirs(&path, output_dir)?;
+                      } else if let Some(extension) = path.extension() {
+                          if extension == "rs" {
+                              process_file(&path, output_dir)?;
+                          }
+                      }
+                  }
+              }
+              
+              Ok(())
+          }
+          
+          // Represents a documentation block with its text and metadata
+          #[derive(Debug, Default)]
+          struct DocBlock {
+              text: String,
+              is_module_doc: bool,
+          }
+          
+          // Represents a Rust item with its metadata
+          #[derive(Debug, Default)]
+          struct RustItem {
+              item_type: String,
+              name: String,
+              signature: String,
+              doc: String,
+              fields: Vec<FieldDoc>,
+          }
+          
+          // Represents a field or variant with its documentation
+          #[derive(Debug, Default)]
+          struct FieldDoc {
+              name: String,
+              type_info: String,
+              doc: String,
+          }
+          
+          fn process_file(file_path: &Path, output_dir: &Path) -> io::Result<()> {
+              println!("Processing file: {}", file_path.display());
+              
+              // Create a unique filename for the wiki page
+              let rel_path = if let Ok(stripped) = file_path.strip_prefix("src") {
+                  stripped.to_path_buf()
+              } else {
+                  file_path.to_path_buf()
+              };
+              
+              let mut unique_name = String::new();
+              for part in rel_path.components() {
+                  if let Some(s) = part.as_os_str().to_str() {
+                      if !unique_name.is_empty() {
+                          unique_name.push('_');
+                      }
+                      unique_name.push_str(s);
+                  }
+              }
+              
+              // Remove .rs extension
+              unique_name = unique_name.replace(".rs", "");
+              
+              let output_file = output_dir.join(format!("{}.md", unique_name));
+              let mut file = File::create(&output_file)?;
+              
+              // Extract file info
+              let file_name = file_path.file_name().unwrap_or_default().to_string_lossy();
+              let dir_path = file_path.parent().unwrap_or_default().to_string_lossy();
+              
+              // Create page header
+              writeln!(file, "# {} ({})", file_name.replace(".rs", ""), dir_path)?;
+              writeln!(file, "")?;
+              writeln!(file, "Path: `{}`", file_path.display())?;
+              writeln!(file, "")?;
+              
+              // Open the source file
+              let source_file = File::open(file_path)?;
+              let reader = BufReader::new(source_file);
+              
+              // Extract module docs and all items
+              let (module_docs, items) = extract_docs_and_items(reader)?;
+              
+              // Write module documentation
+              if !module_docs.is_empty() {
+                  writeln!(file, "## Module Documentation")?;
+                  writeln!(file, "")?;
+                  write!(file, "{}", format_doc_comment(&module_docs))?;
+                  writeln!(file, "")?;
+                  writeln!(file, "")?;
+              }
+              
+              // Create table of contents
+              if !items.is_empty() {
+                  writeln!(file, "## Table of Contents")?;
+                  writeln!(file, "")?;
+                  
+                  for item in &items {
+                      let anchor = item.name.to_lowercase();
+                      writeln!(file, "* [{} {}](#{anchor})", item.item_type, item.name)?;
+                  }
+                  
+                  writeln!(file, "")?;
+              }
+              
+              // Write items with their documentation
+              if !items.is_empty() {
+                  writeln!(file, "## Public Items")?;
+                  writeln!(file, "")?;
+                  
+                  for item in &items {
+                      writeln!(file, "### {} {}", item.item_type, item.name)?;
+                      writeln!(file, "")?;
+                      
+                      if !item.doc.is_empty() {
+                          write!(file, "{}", format_doc_comment(&item.doc))?;
+                          writeln!(file, "")?;
+                          writeln!(file, "")?;
+                      }
+                      
+                      writeln!(file, "```rust")?;
+                      writeln!(file, "{}", item.signature)?;
+                      writeln!(file, "```")?;
+                      writeln!(file, "")?;
+                      
+                      // Add field documentation if available
+                      if !item.fields.is_empty() {
+                          writeln!(file, "#### Fields/Variants")?;
+                          writeln!(file, "")?;
+                          
+                          for field in &item.fields {
+                              if !field.type_info.is_empty() {
+                                  write!(file, "* `{}`: {}", field.name, field.type_info)?;
+                              } else {
+                                  write!(file, "* `{}`", field.name)?;
+                              }
+                              
+                              if !field.doc.is_empty() {
+                                  writeln!(file, " - {}", field.doc.replace("\n", " "))?;
+                              } else {
+                                  writeln!(file, "")?;
+                              }
+                          }
+                          
+                          writeln!(file, "")?;
+                      }
+                  }
+              }
+              
+              // Add link to Home.md
+              let home_path = output_dir.join("Home.md");
+              let mut home_file = fs::OpenOptions::new().append(true).open(home_path)?;
+              writeln!(home_file, "* [{}]({})", unique_name, unique_name)?;
+              
+              println!("Completed processing {} -> {}", file_path.display(), output_file.display());
+              Ok(())
+          }
+          
+          fn extract_docs_and_items<R: BufRead>(mut reader: R) -> io::Result<(String, Vec<RustItem>)> {
+              let mut lines = Vec::new();
+              let mut line = String::new();
+              
+              // Read all lines into memory
+              while reader.read_line(&mut line)? > 0 {
+                  lines.push(line.clone());
+                  line.clear();
+              }
+              
+              let mut module_docs = String::new();
+              let mut items = Vec::new();
+              let mut current_doc = String::new();
+              let mut i = 0;
+              
+              while i < lines.len() {
+                  let line = &lines[i];
+                  
+                  // Check for module documentation
+                  if line.trim().starts_with("//!") {
+                      let comment = line.trim()[3..].trim_start().to_string();
+                      
+                      if !module_docs.is_empty() {
+                          module_docs.push('\n');
+                      }
+                      module_docs.push_str(&comment);
+                  }
+                  // Check for item documentation
+                  else if line.trim().starts_with("///") {
+                      let comment = line.trim()[3..].trim_start().to_string();
+                      
+                      if !current_doc.is_empty() {
+                          current_doc.push('\n');
+                      }
+                      current_doc.push_str(&comment);
+                  }
+                  // Check for public items (including those with attributes/macros)
+                  else if line.trim().starts_with("pub ") || 
+                          (line.trim().starts_with("#[") && i + 1 < lines.len() && lines[i+1].trim().starts_with("pub ")) {
+                      
+                      // Skip ahead past any attributes to the actual pub declaration
+                      let mut attr_idx = i;
+                      while attr_idx < lines.len() && !lines[attr_idx].trim().starts_with("pub ") {
+                          attr_idx += 1;
+                      }
+                      
+                      if attr_idx < lines.len() {
+                          let pub_line = &lines[attr_idx];
+                          
+                          // Determine item type and name
+                          let mut item_type = String::from("item");
+                          let mut item_name = String::new();
+                          
+                          // Check for various item types
+                          if pub_line.contains("pub struct ") {
+                              item_type = String::from("struct");
+                              if let Some(name) = extract_name_after(pub_line, "struct") {
+                                  item_name = name;
+                              }
+                          } else if pub_line.contains("pub enum ") {
+                              item_type = String::from("enum");
+                              if let Some(name) = extract_name_after(pub_line, "enum") {
+                                  item_name = name;
+                              }
+                          } else if pub_line.contains("pub trait ") {
+                              item_type = String::from("trait");
+                              if let Some(name) = extract_name_after(pub_line, "trait") {
+                                  item_name = name;
+                              }
+                          } else if pub_line.contains("pub async fn ") {
+                              item_type = String::from("async fn");
+                              if let Some(name) = extract_name_after(pub_line, "async fn") {
+                                  item_name = name;
+                              }
+                          } else if pub_line.contains("pub fn ") {
+                              item_type = String::from("fn");
+                              if let Some(name) = extract_name_after(pub_line, "fn") {
+                                  item_name = name;
+                              }
+                          } else if pub_line.contains("pub type ") {
+                              item_type = String::from("type");
+                              if let Some(name) = extract_name_after(pub_line, "type") {
+                                  item_name = name;
+                              }
+                          } else if pub_line.contains("pub mod ") {
+                              item_type = String::from("mod");
+                              if let Some(name) = extract_name_after(pub_line, "mod") {
+                                  item_name = name;
+                              }
+                          } else if pub_line.contains("pub const ") {
+                              item_type = String::from("const");
+                              if let Some(name) = extract_name_after(pub_line, "const") {
+                                  item_name = name;
+                              }
+                          }
+                          
+                          // If we identified an item, process it
+                          if !item_name.is_empty() {
+                              let (signature, end_idx, fields) = extract_item_with_fields(&lines, attr_idx);
+                              
+                              items.push(RustItem {
+                                  item_type,
+                                  name: item_name,
+                                  signature,
+                                  doc: current_doc.clone(),
+                                  fields,
+                              });
+                              
+                              // Update index to skip the processed item
+                              i = end_idx;
+                              current_doc.clear();
+                              continue;
+                          }
+                      }
+                  }
+                  // Any other line clears the current doc accumulation
+                  else if !line.trim().is_empty() && !line.trim().starts_with("#") {
+                      current_doc.clear();
+                  }
+                  
+                  i += 1;
+              }
+              
+              Ok((module_docs, items))
+          }
+          
+          fn extract_name_after(line: &str, keyword: &str) -> Option<String> {
+              if let Some(pos) = line.find(keyword) {
+                  let after_keyword = &line[pos + keyword.len()..];
+                  let name_part = after_keyword.trim_start();
+                  
+                  // Extract the name (stops at first space, <, {, ( or :)
+                  if let Some(end) = name_part.find(|c| " <{(:".contains(c)) {
+                      return Some(name_part[..end].to_string());
+                  } else {
+                      return Some(name_part.to_string());
+                  }
+              }
+              None
+          }
+          
+          fn extract_item_with_fields(lines: &[String], start_idx: usize) -> (String, usize, Vec<FieldDoc>) {
+              let mut signature = Vec::new();
+              let mut current_idx = start_idx;
+              let mut fields = Vec::new();
+              
+              // Include any attributes right before the pub declaration
+              let mut attr_idx = start_idx;
+              while attr_idx > 0 && lines[attr_idx - 1].trim().starts_with("#[") {
+                  attr_idx -= 1;
+                  signature.push(lines[attr_idx].clone());
+              }
+              
+              if attr_idx < start_idx {
+                  // Add the pub line itself
+                  signature.push(lines[start_idx].clone());
+                  current_idx = start_idx + 1;
+              } else {
+                  // Start with the pub line
+                  signature.push(lines[start_idx].clone());
+                  current_idx = start_idx + 1;
+              }
+              
+              // Check if this is a one-liner (with semicolon)
+              if signature.last().unwrap().contains(';') {
+                  return (signature.join(""), current_idx, fields);
+              }
+              
+              // Handle multi-line items
+              let pub_line = &lines[start_idx];
+              let mut brace_count = pub_line.chars().filter(|&c| c == '{').count() as isize -
+                                    pub_line.chars().filter(|&c| c == '}').count() as isize;
+              
+              // For items with bodies (structs, enums, traits, functions)
+              if pub_line.contains('{') || 
+                 (pub_line.contains("struct") && !pub_line.contains(';')) ||
+                 (pub_line.contains("enum") && !pub_line.contains(';')) {
+                  
+                  let max_lines = 25; // Limit how much we include
+                  let mut line_count = 1;
+                  let mut field_doc = String::new();
+                  
+                  // Process struct/enum body to extract fields and their docs
+                  let is_struct = pub_line.contains("struct");
+                  let is_enum = pub_line.contains("enum");
+                  
+                  while current_idx < lines.len() && (brace_count > 0 || !signature.last().unwrap().contains('{')) && line_count < max_lines {
+                      let line = &lines[current_idx];
+                      
+                      // Track braces to know when we're done with the item
+                      brace_count += line.chars().filter(|&c| c == '{').count() as isize -
+                                    line.chars().filter(|&c| c == '}').count() as isize;
+                      
+                      // Add the line to the signature
+                      signature.push(line.clone());
+                      
+                      // Check for field documentation
+                      if (is_struct || is_enum) && brace_count > 0 {
+                          let trimmed = line.trim();
+                          
+                          // Collect doc comments for fields
+                          if trimmed.starts_with("///") {
+                              let comment = trimmed[3..].trim_start().to_string();
+                              
+                              if !field_doc.is_empty() {
+                                  field_doc.push('\n');
+                              }
+                              field_doc.push_str(&comment);
+                          }
+                          // Look for field declarations
+                          else if !trimmed.is_empty() && !trimmed.starts_with("//") && !trimmed.starts_with('#') {
+                              // For structs: field_name: type,
+                              if is_struct && trimmed.contains(':') {
+                                  let parts: Vec<&str> = trimmed.split(':').collect();
+                                  if parts.len() >= 2 {
+                                      let field_name = parts[0].trim().to_string();
+                                      let mut type_info = parts[1].trim().to_string();
+                                      
+                                      // Remove trailing comma if present
+                                      if type_info.ends_with(',') {
+                                          type_info.pop();
+                                      }
+                                      
+                                      fields.push(FieldDoc {
+                                          name: field_name,
+                                          type_info,
+                                          doc: field_doc.clone(),
+                                      });
+                                      
+                                      field_doc.clear();
+                                  }
+                              }
+                              // For enums: VariantName(type), or VariantName { fields },
+                              else if is_enum && !trimmed.contains("//") {
+                                  // Simple name extraction for enum variants
+                                  let variant_name = if let Some(idx) = trimmed.find(|c| " ({".contains(c)) {
+                                      trimmed[..idx].trim().to_string()
+                                  } else if trimmed.ends_with(',') {
+                                      trimmed[..trimmed.len()-1].trim().to_string()
+                                  } else {
+                                      trimmed.to_string()
+                                  };
+                                  
+                                  if !variant_name.is_empty() && variant_name.chars().next().unwrap().is_uppercase() {
+                                      fields.push(FieldDoc {
+                                          name: variant_name,
+                                          type_info: String::new(),
+                                          doc: field_doc.clone(),
+                                      });
+                                      
+                                      field_doc.clear();
+                                  }
+                              }
+                              else {
+                                  // Clear field doc if not used
+                                  field_doc.clear();
+                              }
+                          }
+                      }
+                      
+                      current_idx += 1;
+                      line_count += 1;
+                      
+                      // Break if we've closed all braces
+                      if brace_count == 0 {
+                          break;
+                      }
+                  }
+                  
+                  // If we exited due to max lines, add an ellipsis
+                  if brace_count > 0 && line_count >= max_lines {
+                      signature.push("    // ... additional content\n".to_string());
+                      signature.push("}".to_string());
+                  }
+              }
+              // For simple signatures without bodies
+              else {
+                  // For multi-line signatures (e.g., functions with long parameter lists)
+                  let max_lines = 15;
+                  let mut line_count = 1;
+                  
+                  while current_idx < lines.len() && line_count < max_lines {
+                      let line = &lines[current_idx];
+                      
+                      // Add the line to the signature
+                      signature.push(line.clone());
+                      current_idx += 1;
+                      line_count += 1;
+                      
+                      // Stop at semicolon or opening brace
+                      if line.contains(';') || line.contains('{') {
+                          if line.contains('{') {
+                              signature.push("    // ... implementation\n".to_string());
+                              signature.push("}".to_string());
+                          }
+                          break;
+                      }
+                  }
+              }
+              
+              (signature.join(""), current_idx, fields)
+          }
+          
+          fn format_doc_comment(text: &str) -> String {
+              let mut result = String::new();
+              let lines: Vec<&str> = text.split('\n').collect();
+              let mut i = 0;
+              
+              while i < lines.len() {
+                  let line = lines[i].trim();
+                  
+                  // Handle section headers (# Arguments, # Returns, etc.)
+                  if line.starts_with("# ") {
+                      // Add a blank line before headers if not at the start
+                      if i > 0 && !result.ends_with("\n\n") {
+                          result.push_str("\n\n");
+                      }
+                      
+                      result.push_str(&format!("## {}", &line[2..]));
+                  }
+                  // Handle list items
+                  else if line.starts_with("* ") {
+                      // Ensure lists have blank line before them if not already
+                      if i > 0 && !lines[i-1].trim().is_empty() && !result.ends_with("\n\n") {
+                          result.push_str("\n\n");
+                      }
+                      
+                      result.push_str(line);
+                  }
+                  // Regular text
+                  else {
+                      result.push_str(line);
+                  }
+                  
+                  // Handle paragraph breaks
+                  if i < lines.len() - 1 {
+                      let next_line = lines[i+1].trim();
+                      
+                      if line.is_empty() && !next_line.is_empty() {
+                          // Double newline for paragraph break
+                          result.push_str("\n\n");
+                      } else if !line.is_empty() {
+                          if next_line.is_empty() {
+                              // End of paragraph
+                              result.push('\n');
+                          } else if next_line.starts_with("* ") || next_line.starts_with("# ") {
+                              // List or header follows - add paragraph break
+                              result.push_str("\n\n");
+                          } else {
+                              // Continuation of paragraph - add single line break
+                              result.push(' ');
+                          }
+                      }
+                  }
+                  
+                  i += 1;
+              }
+              
+              result
+          }
+          EOF
+
+      - name: Generate documentation
+        run: |
+          # Run doc extractor
+          ~/.cargo/bin/rust-script extract_docs.rs src wiki-content
 
       - name: Setup Git for Wiki
         run: |
