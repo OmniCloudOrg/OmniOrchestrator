@@ -24,8 +24,10 @@ jobs:
           profile: minimal
           toolchain: stable
 
-      - name: Install cargo-readme
-        run: cargo install cargo-readme
+      - name: Install cargo-readme and rustdoc-stripper
+        run: |
+          cargo install cargo-readme
+          cargo install rustdoc-stripper || true
 
       - name: Create wiki directories and template
         run: |
@@ -46,10 +48,125 @@ jobs:
           echo "Path: \`{{file_path}}\`" >> readme.tpl
           echo "" >> readme.tpl
           echo "{{readme}}" >> readme.tpl
-          echo "" >> readme.tpl
-          echo "## Public API" >> readme.tpl
-          echo "" >> readme.tpl
-          echo "{{public_items}}" >> readme.tpl
+
+      - name: Generate rust doc extractor
+        run: |
+          # Create a simple Rust script to extract docs
+          cat > extract_doc_blocks.rs << 'EOF'
+          use std::env;
+          use std::fs;
+          use std::io::{self, Write};
+          use std::path::Path;
+          
+          fn main() -> io::Result<()> {
+              let args: Vec<String> = env::args().collect();
+              if args.len() < 2 {
+                  eprintln!("Usage: {} <file_path>", args[0]);
+                  std::process::exit(1);
+              }
+              
+              let file_path = &args[1];
+              let content = fs::read_to_string(file_path)?;
+              
+              let mut in_doc_comment = false;
+              let mut doc_block = String::new();
+              let mut pub_item = String::new();
+              let mut doc_blocks = Vec::new();
+              
+              // Process file line by line
+              for line in content.lines() {
+                  let trimmed = line.trim();
+                  
+                  // Start of doc comment block
+                  if trimmed.starts_with("///") {
+                      // Extract just the comment content
+                      let comment = trimmed.trim_start_matches("///").trim_start();
+                      
+                      // If this is the first doc comment in a block
+                      if !in_doc_comment {
+                          in_doc_comment = true;
+                          doc_block = String::new();
+                      }
+                      
+                      // Add comment to current block
+                      doc_block.push_str(comment);
+                      doc_block.push('\n');
+                  } 
+                  // Handle empty lines within doc comments
+                  else if trimmed.is_empty() && in_doc_comment {
+                      doc_block.push('\n');
+                  }
+                  // End of doc comment block, start of pub item
+                  else if trimmed.starts_with("pub ") && in_doc_comment {
+                      // Extract the item signature
+                      pub_item = trimmed.to_string();
+                      
+                      // Add to doc blocks
+                      doc_blocks.push((doc_block.clone(), pub_item.clone()));
+                      
+                      // Reset
+                      in_doc_comment = false;
+                      doc_block = String::new();
+                      pub_item = String::new();
+                  }
+                  // Any other non-doc line resets the comment tracking
+                  else {
+                      in_doc_comment = false;
+                  }
+              }
+              
+              // Output the doc blocks with their pub items
+              for (doc, item) in &doc_blocks {
+                  // Skip empty docs
+                  if doc.trim().is_empty() {
+                      continue;
+                  }
+                  
+                  // Extract item type and name for header
+                  let header = extract_item_header(item);
+                  println!("### {}", header);
+                  println!("");
+                  
+                  // Print doc content
+                  println!("{}", doc);
+                  println!("");
+                  
+                  // Print code block with signature
+                  println!("```rust");
+                  println!("{}", item);
+                  println!("```");
+                  println!("");
+              }
+              
+              Ok(())
+          }
+          
+          fn extract_item_header(item: &str) -> String {
+              // Extract struct/enum/fn name for header
+              if let Some(cap) = item.strip_prefix("pub struct ") {
+                  format!("struct {}", cap.split(|c| c == '{' || c == '<' || c == ' ').next().unwrap_or(""))
+              } else if let Some(cap) = item.strip_prefix("pub enum ") {
+                  format!("enum {}", cap.split(|c| c == '{' || c == '<' || c == ' ').next().unwrap_or(""))
+              } else if let Some(cap) = item.strip_prefix("pub fn ") {
+                  format!("fn {}", cap.split(|c| c == '(' || c == '<' || c == ' ').next().unwrap_or(""))
+              } else if let Some(cap) = item.strip_prefix("pub async fn ") {
+                  format!("async fn {}", cap.split(|c| c == '(' || c == '<' || c == ' ').next().unwrap_or(""))
+              } else if let Some(cap) = item.strip_prefix("pub trait ") {
+                  format!("trait {}", cap.split(|c| c == '{' || c == '<' || c == ' ').next().unwrap_or(""))
+              } else if let Some(cap) = item.strip_prefix("pub type ") {
+                  format!("type {}", cap.split(|c| c == '=' || c == '<' || c == ' ').next().unwrap_or(""))
+              } else if let Some(cap) = item.strip_prefix("pub mod ") {
+                  format!("mod {}", cap.split(|c| c == '{' || c == ' ').next().unwrap_or(""))
+              } else if let Some(cap) = item.strip_prefix("pub const ") {
+                  format!("const {}", cap.split(|c| c == ':' || c == ' ').next().unwrap_or(""))
+              } else {
+                  "item".to_string()
+              }
+          }
+          EOF
+          
+          # Compile the doc extractor
+          rustc extract_doc_blocks.rs
 
       - name: Process Rust files
         run: |
@@ -84,43 +201,33 @@ jobs:
             echo "[lib]" >> "$temp_dir/Cargo.toml"
             echo "path = \"src/lib.rs\"" >> "$temp_dir/Cargo.toml"
             
-            # Extract public items separately
-            public_items=$(grep -n "^pub " "$file" | while read -r line_info; do
-              line=$(echo "$line_info" | cut -d: -f2-)
-              
-              # Extract simpler signature without full implementation
-              signature=$(echo "$line" | sed -E 's/\{.*$//g')
-              
-              # Output markdown code block for the item
-              echo "### \`$signature\`"
-              echo ""
-              echo "```rust"
-              echo "$signature"
-              echo "```"
-              echo ""
-            done)
+            # Create header for the wiki page
+            echo "# $base_name ($dir_path)" > "$output_file"
+            echo "" >> "$output_file"
+            echo "Path: \`$file\`" >> "$output_file"
+            echo "" >> "$output_file"
             
-            # Create a JSON file with our variables
-            echo "{\"title\":\"$base_name ($dir_path)\",\"file_path\":\"$file\",\"public_items\":\"$public_items\"}" > "$temp_dir/readme_vars.json"
+            # Create JSON file with variables
+            echo "{\"title\":\"$base_name ($dir_path)\",\"file_path\":\"$file\"}" > "$temp_dir/readme_vars.json"
             
-            # Run cargo-readme in the temp directory
+            # Extract module docs with cargo-readme
             (
               cd "$temp_dir"
+              cargo readme --template "$GITHUB_WORKSPACE/readme.tpl" --no-title --no-badge --no-license --json readme_vars.json > module_docs.md || true
               
-              # Run cargo-readme and redirect to output file
-              RUST_BACKTRACE=1 cargo readme --template "$GITHUB_WORKSPACE/readme.tpl" --output "$GITHUB_WORKSPACE/$output_file" --no-title --no-badge --no-license --json readme_vars.json || true
-              
-              # If cargo-readme fails, create a minimal file
-              if [ ! -f "$GITHUB_WORKSPACE/$output_file" ] || [ ! -s "$GITHUB_WORKSPACE/$output_file" ]; then
-                echo "# $base_name ($dir_path)" > "$GITHUB_WORKSPACE/$output_file"
-                echo "" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "Path: \`$file\`" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "## Public API" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "" >> "$GITHUB_WORKSPACE/$output_file"
-                echo "$public_items" >> "$GITHUB_WORKSPACE/$output_file"
+              # Check if we got module docs and append them
+              if [ -s module_docs.md ]; then
+                # Skip the header lines (first 3 lines) from cargo-readme output
+                tail -n +4 module_docs.md >> "$GITHUB_WORKSPACE/$output_file"
               fi
             )
+            
+            # Extract public items and their doc comments
+            echo "## Public API" >> "$output_file"
+            echo "" >> "$output_file"
+            
+            # Run our custom doc extractor
+            ./extract_doc_blocks "$file" >> "$output_file" || true
             
             # Add link to home page
             echo "* [$unique_name](${unique_name})" >> wiki-content/Home.md
