@@ -71,6 +71,33 @@ jobs:
             echo "  output_dir   Directory where wiki pages will be created"
           }
           
+          # Process markdown text to improve formatting
+          function improve_markdown_formatting() {
+            local text="$1"
+            
+            # Convert # Arguments to ## Arguments (add a level)
+            text=$(echo "$text" | sed 's/^# Arguments$/## Arguments/')
+            text=$(echo "$text" | sed 's/^# Returns$/## Returns/')
+            text=$(echo "$text" | sed 's/^# Error Handling$/## Error Handling/')
+            text=$(echo "$text" | sed 's/^# Note$/## Note/')
+            text=$(echo "$text" | sed 's/^# Notes$/## Notes/')
+            text=$(echo "$text" | sed 's/^# Warning$/## Warning/')
+            text=$(echo "$text" | sed 's/^# Examples$/## Examples/')
+            text=$(echo "$text" | sed 's/^# Use Cases$/## Use Cases/')
+            text=$(echo "$text" | sed 's/^# Pagination$/## Pagination/')
+            text=$(echo "$text" | sed 's/^# Status Lifecycle$/## Status Lifecycle/')
+            text=$(echo "$text" | sed 's/^# Transaction Handling$/## Transaction Handling/')
+            text=$(echo "$text" | sed 's/^# Relationships$/## Relationships/')
+            
+            # Add blank lines before headers for better formatting
+            text=$(echo "$text" | sed 's/^##/\n##/')
+            
+            # Fix spacing in paragraphs (ensure there's a space after each sentence)
+            text=$(echo "$text" | sed 's/\.\([A-Z]\)/. \1/g')
+            
+            echo "$text"
+          }
+          
           # Extract module-level documentation (//! comments)
           function extract_module_docs() {
             local file="$1"
@@ -95,8 +122,12 @@ jobs:
             if [ -f "$output_file.module_docs" ] && [ -s "$output_file.module_docs" ]; then
               echo "## Module Documentation" >> "$output_file"
               echo "" >> "$output_file"
-              cat "$output_file.module_docs" >> "$output_file"
+              
+              # Improve formatting and add to output
+              local formatted_docs=$(improve_markdown_formatting "$(cat "$output_file.module_docs")")
+              echo "$formatted_docs" >> "$output_file"
               echo "" >> "$output_file"
+              
               rm "$output_file.module_docs"
             fi
           }
@@ -203,11 +234,14 @@ jobs:
                   in_doc_comment=1
                   doc_comments="$comment"
                 else
-                  doc_comments="$doc_comments$comment"
+                  doc_comments="$doc_comments
+$comment"
                 fi
               # Handle empty line in doc comments
               elif [[ "$line" =~ ^[[:space:]]*$ ]] && [ $in_doc_comment -eq 1 ]; then
-                doc_comments="$doc_comments"
+                doc_comments="$doc_comments
+
+"
               # Check for public item after doc comments
               elif [[ "$line" =~ ^[[:space:]]*pub[[:space:]] ]] && [ $in_doc_comment -eq 1 ]; then
                 # Extract item type and name
@@ -252,8 +286,9 @@ jobs:
                   echo "### $item_type $item_name" >> "$output_file"
                   echo "" >> "$output_file"
                   
-                  # Print doc comments
-                  echo "$doc_comments" >> "$output_file"
+                  # Process and print doc comments with improved formatting
+                  local formatted_docs=$(improve_markdown_formatting "$doc_comments")
+                  echo "$formatted_docs" >> "$output_file"
                   echo "" >> "$output_file"
                   
                   # Extract signature
@@ -486,7 +521,12 @@ jobs:
             extract_module_docs "$file" "$output_file" || echo "Warning: Error extracting module docs from $file"
             generate_table_of_contents "$file" "$output_file" || echo "Warning: Error generating TOC for $file"
             extract_documented_items "$file" "$output_file" || echo "Warning: Error extracting documented items from $file"
-            extract_all_public_items "$file" "$output_file" || echo "Warning: Error extracting all public items from $file"
+            
+            # Skip the all items section if we successfully extracted documented items
+            # This avoids duplication while still ensuring items appear if documentation fails
+            if ! grep -q "## Public Items" "$output_file"; then
+              extract_all_public_items "$file" "$output_file" || echo "Warning: Error extracting all public items from $file"
+            fi
             
             # Add link to Home.md
             echo "* [$unique_name](${unique_name})" >> "$output_dir/Home.md"
