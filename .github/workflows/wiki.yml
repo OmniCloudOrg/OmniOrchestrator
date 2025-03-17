@@ -1,15 +1,5 @@
 name: Rust Docs to Wiki Generator
 
-# This workflow extracts documentation from Rust source code files and generates
-# a comprehensive wiki with proper documentation for all types of Rust items.
-#
-# Features:
-# - Extracts module-level documentation (//! comments)
-# - Processes doc comments for all public items (/// comments)
-# - Handles struct, enum, trait, function, and other types
-# - Preserves markdown formatting in documentation
-# - Creates clean, well-formatted wiki pages
-
 on:
   push:
     branches: [ main, master ]
@@ -49,426 +39,237 @@ jobs:
 
       - name: Create rustdoc extractor
         run: |
-          # This function-rich script processes Rust files and extracts documentation
-          cat > rustdoc_extract.sh << 'EOF'
-          #!/bin/bash
+          # This script processes Rust files and extracts documentation
+          cat > extract_docs.py << 'EOF'
+          #!/usr/bin/env python3
+          import os
+          import re
+          import sys
+          import subprocess
+          from pathlib import Path
           
-          # rustdoc_extract.sh - Extract documentation from Rust source files
-          #
-          # This script processes Rust source files and extracts documentation comments,
-          # generating markdown files suitable for a GitHub wiki.
-          
-          # Exit on errors unless caught with ||
-          set -eo pipefail
-          
-          # Print how to use this script
-          function print_usage() {
-            echo "Usage: $0 <source_dir> <output_dir>"
-            echo ""
-            echo "Arguments:"
-            echo "  source_dir   Directory containing Rust source files"
-            echo "  output_dir   Directory where wiki pages will be created"
-          }
-          
-          # Process markdown text to improve formatting
-          function improve_markdown_formatting() {
-            local text="$1"
-            
-            # Replace contiguous spaces with newlines
-            # This preserves paragraph breaks from the original doc comment
-            text=$(echo "$text" | sed 's/\\n\\n/\n\n/g')
-            
-            # Convert # Arguments to ## Arguments (add a level)
-            text=$(echo "$text" | sed 's/^# Arguments$/\n## Arguments/')
-            text=$(echo "$text" | sed 's/^# Returns$/\n## Returns/')
-            text=$(echo "$text" | sed 's/^# Error Handling$/\n## Error Handling/')
-            text=$(echo "$text" | sed 's/^# Note$/\n## Note/')
-            text=$(echo "$text" | sed 's/^# Notes$/\n## Notes/')
-            text=$(echo "$text" | sed 's/^# Warning$/\n## Warning/')
-            text=$(echo "$text" | sed 's/^# Examples$/\n## Examples/')
-            text=$(echo "$text" | sed 's/^# Use Cases$/\n## Use Cases/')
-            text=$(echo "$text" | sed 's/^# Pagination$/\n## Pagination/')
-            text=$(echo "$text" | sed 's/^# Status Lifecycle$/\n## Status Lifecycle/')
-            text=$(echo "$text" | sed 's/^# Transaction Handling$/\n## Transaction Handling/')
-            text=$(echo "$text" | sed 's/^# Relationships$/\n## Relationships/')
-            
-            # Fix list items that may have been merged into paragraphs
-            text=$(echo "$text" | sed 's/\([^*]\)\* /\1\n* /g')
-            
-            # Fix spacing in paragraphs (ensure there's a space after each sentence)
-            text=$(echo "$text" | sed 's/\.\([A-Z]\)/. \1/g')
-            
-            echo "$text"
-          }
-          
-          # Extract module-level documentation (//! comments)
-          function extract_module_docs() {
-            local file="$1"
-            local output_file="$2"
-            
-            echo "Extracting module documentation from $file"
-            
-            # Find all //! comments
-            grep -n "^[[:space:]]*//!" "$file" | while read -r line_info; do
-              # Extract line number and content
-              line_num=$(echo "$line_info" | cut -d: -f1)
-              line_content=$(echo "$line_info" | cut -d: -f2-)
-              
-              # Remove //! prefix and leading whitespace
-              comment=$(echo "$line_content" | sed 's/^[[:space:]]*\/\/![[:space:]]*//')
-              
-              # Write to output
-              echo "$comment" >> "$output_file.module_docs"
-            done || true  # Don't fail if grep finds nothing
-            
-            # If we found module docs, add them to the wiki page
-            if [ -f "$output_file.module_docs" ] && [ -s "$output_file.module_docs" ]; then
-              echo "## Module Documentation" >> "$output_file"
-              echo "" >> "$output_file"
-              
-              # Improve formatting and add to output
-              local formatted_docs=$(improve_markdown_formatting "$(cat "$output_file.module_docs")")
-              echo "$formatted_docs" >> "$output_file"
-              echo "" >> "$output_file"
-              
-              rm "$output_file.module_docs"
-            fi
-          }
-          
-          # Create a table of contents based on public items
-          function generate_table_of_contents() {
-            local file="$1"
-            local output_file="$2"
-            
-            echo "Generating table of contents for $file"
-            
-            echo "## Table of Contents" >> "$output_file"
-            echo "" >> "$output_file"
-            
-            # Create a temporary file with all public items
-            grep -n "^[[:space:]]*pub " "$file" > "$output_file.toc_items" || true
-            
-            # Process each item
-            if [ -f "$output_file.toc_items" ] && [ -s "$output_file.toc_items" ]; then
-              while read -r line_info; do
-                # Extract line number and content
-                line_num=$(echo "$line_info" | cut -d: -f1)
-                line_content=$(echo "$line_info" | cut -d: -f2-)
-                
-                # Determine item type and name
-                if [[ "$line_content" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="struct"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="enum"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="trait"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="fn"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="async fn"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="type"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="mod"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="const"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line_content" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="use"
-                  item_name="${BASH_REMATCH[1]}"
-                else
-                  # Handle any other pub item
-                  item_type="item"
-                  item_name=$(echo "$line_content" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/' || echo "unknown")
-                fi
-                
-                # If we identified the item, add it to TOC
-                if [ -n "$item_name" ] && [ "$item_name" != "unknown" ]; then
-                  anchor=$(echo "$item_name" | tr '[:upper:]' '[:lower:]')
-                  echo "* [$item_type $item_name](#$anchor)" >> "$output_file"
-                fi
-              done < "$output_file.toc_items"
-              
-              echo "" >> "$output_file"
-            else
-              echo "No public items found" >> "$output_file"
-              echo "" >> "$output_file"
-            fi
-            
-            rm -f "$output_file.toc_items"
-          }
-          
-          # Extract doc comment block into a temporary file
-          function extract_doc_comment_block() {
-            local file="$1"
-            local line_num="$2"
-            local output_file="$3"
-            
-            # Create empty output
-            > "$output_file"
-            
-            # Go backward to find the start of the doc comment block
-            local current_line=$((line_num - 1))
-            local in_comment=false
-            local comment_lines=()
-            
-            # Collect lines in reverse order first
-            while [ $current_line -ge 1 ]; do
-              local line=$(sed -n "${current_line}p" "$file")
-              
-              if [[ "$line" =~ ^[[:space:]]*\/\/\/ ]]; then
-                # Extract comment content
-                local comment=$(echo "$line" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
-                comment_lines=("$comment" "${comment_lines[@]}")
-                in_comment=true
-              elif [[ "$line" =~ ^[[:space:]]*$ ]] && [ "$in_comment" = true ]; then
-                # Keep empty lines within comments
-                comment_lines=("" "${comment_lines[@]}")
-              else
-                # Stop when we hit a non-comment, non-empty line
-                break
-              fi
-              
-              current_line=$((current_line - 1))
-            done
-            
-            # Write the collected comment lines in correct order
-            for comment in "${comment_lines[@]}"; do
-              echo "$comment" >> "$output_file"
-            done
-          }
-          
-          # Process doc comments (///) and associate them with public items
-          function extract_documented_items() {
-            local file="$1"
-            local output_file="$2"
-            
-            echo "Extracting documented items from $file"
-            
-            echo "## Public Items" >> "$output_file"
-            echo "" >> "$output_file"
-            
-            # Find lines with public items
-            grep -n "^[[:space:]]*pub " "$file" > "$output_file.pub_items" || true
-            
-            if [ -f "$output_file.pub_items" ] && [ -s "$output_file.pub_items" ]; then
-              while read -r line_info; do
-                # Extract line number and content
-                line_num=$(echo "$line_info" | cut -d: -f1)
-                line_content=$(echo "$line_info" | cut -d: -f2-)
-                
-                # Extract doc comments for this item
-                extract_doc_comment_block "$file" "$line_num" "$output_file.doc_block"
-                
-                # Check if we have doc comments
-                if [ -s "$output_file.doc_block" ]; then
-                  # Determine item type and name
-                  local item_type=""
-                  local item_name=""
+          def main():
+              if len(sys.argv) < 3:
+                  print("Usage: python extract_docs.py <source_dir> <output_dir>")
+                  return 1
                   
-                  if [[ "$line_content" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="struct"
-                    item_name="${BASH_REMATCH[1]}"
-                  elif [[ "$line_content" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="enum"
-                    item_name="${BASH_REMATCH[1]}"
-                  elif [[ "$line_content" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="trait"
-                    item_name="${BASH_REMATCH[1]}"
-                  elif [[ "$line_content" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="fn"
-                    item_name="${BASH_REMATCH[1]}"
-                  elif [[ "$line_content" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="async fn"
-                    item_name="${BASH_REMATCH[1]}"
-                  elif [[ "$line_content" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="type"
-                    item_name="${BASH_REMATCH[1]}"
-                  elif [[ "$line_content" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="mod"
-                    item_name="${BASH_REMATCH[1]}"
-                  elif [[ "$line_content" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="const"
-                    item_name="${BASH_REMATCH[1]}"
-                  elif [[ "$line_content" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                    item_type="use"
-                    item_name="${BASH_REMATCH[1]}"
-                  else
-                    # Handle any other pub item
-                    item_type="item"
-                    item_name=$(echo "$line_content" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/' || echo "unknown")
-                  fi
+              source_dir = Path(sys.argv[1])
+              output_dir = Path(sys.argv[2])
+              
+              if not source_dir.is_dir():
+                  print(f"Error: Source directory does not exist: {source_dir}")
+                  return 1
                   
-                  # Add item to the wiki
-                  if [ -n "$item_name" ] && [ "$item_name" != "unknown" ]; then
-                    echo "### $item_type $item_name" >> "$output_file"
-                    echo "" >> "$output_file"
-                    
-                    # Format and add doc comments
-                    cat "$output_file.doc_block" | awk '{
-                      # Check if this line starts a new paragraph
-                      if ($0 ~ /^$/ && prev_empty == 0) {
-                        print "";  # Print a blank line for paragraph break
-                        prev_empty = 1;
-                      } 
-                      # Check if this is a list item
-                      else if ($0 ~ /^\* /) {
-                        # Ensure list items have a blank line before them if needed
-                        if (prev_empty == 0 && !first_line) {
-                          print "";
-                        }
-                        print $0;
-                        prev_empty = 0;
-                      }
-                      # Regular content line
-                      else if ($0 !~ /^$/) {
-                        print $0;
-                        prev_empty = 0;
-                      }
-                      first_line = 0;
-                    }' >> "$output_file"
-                    echo "" >> "$output_file"
-                    
-                    # Add code signature
-                    echo '```rust' >> "$output_file"
-                    echo "$line_content" >> "$output_file"
-                    
-                    # Extract more of the signature if needed
-                    if [[ ! "$line_content" =~ [;{][[:space:]]*$ ]]; then
-                      # Multi-line item, capture more
-                      local next_line=$((line_num + 1))
-                      local max_lines=10
-                      local count=0
+              if not output_dir.is_dir():
+                  print(f"Error: Output directory does not exist: {output_dir}")
+                  return 1
+              
+              # Process all Rust files
+              rust_files = list(source_dir.glob("**/*.rs"))
+              for file_path in sorted(rust_files):
+                  process_file(file_path, source_dir, output_dir)
+              
+              return 0
+          
+          def process_file(file_path, source_dir, output_dir):
+              """Process a single Rust file and extract documentation"""
+              # Create unique filename for wiki page
+              rel_path = file_path.relative_to(source_dir)
+              unique_name = str(rel_path).replace('/', '_').replace('.rs', '')
+              output_file = output_dir / f"{unique_name}.md"
+              
+              print(f"Processing {file_path} -> {output_file}")
+              
+              # Get file info
+              base_name = file_path.stem
+              dir_path = str(file_path.parent)
+              
+              with open(output_file, "w") as f:
+                  # Create header
+                  f.write(f"# {base_name} ({dir_path})\n\n")
+                  f.write(f"Path: `{file_path}`\n\n")
+                  
+                  # Extract module docs
+                  module_docs = extract_module_docs(file_path)
+                  if module_docs:
+                      f.write("## Module Documentation\n\n")
+                      f.write(module_docs)
+                      f.write("\n\n")
+                  
+                  # Extract public items
+                  items = extract_public_items(file_path)
+                  if items:
+                      f.write("## Table of Contents\n\n")
+                      for item_type, item_name, _, _ in items:
+                          f.write(f"* [{item_type} {item_name}](#{item_name.lower()})\n")
+                      f.write("\n")
                       
-                      while [ $count -lt $max_lines ]; do
-                        local next_content=$(sed -n "${next_line}p" "$file" || echo "")
-                        
-                        # Skip empty lines and comments
-                        if [[ "$next_content" =~ ^[[:space:]]*$ ]] || [[ "$next_content" =~ ^[[:space:]]*\/\/ ]]; then
-                          next_line=$((next_line + 1))
+                      f.write("## Public Items\n\n")
+                      for item_type, item_name, doc_comment, signature in items:
+                          f.write(f"### {item_type} {item_name}\n\n")
+                          if doc_comment:
+                              f.write(format_doc_comment(doc_comment))
+                              f.write("\n\n")
+                          f.write("```rust\n")
+                          f.write(signature)
+                          f.write("\n```\n\n")
+              
+              # Add link to Home.md
+              with open(output_dir / "Home.md", "a") as f:
+                  f.write(f"* [{unique_name}]({unique_name})\n")
+          
+          def extract_module_docs(file_path):
+              """Extract module-level documentation (//! comments)"""
+              module_docs = []
+              with open(file_path, "r") as f:
+                  for line in f:
+                      if re.match(r'^\s*//!', line):
+                          comment = re.sub(r'^\s*//!\s?', '', line).rstrip()
+                          module_docs.append(comment)
+              
+              return format_doc_comment("\n".join(module_docs)) if module_docs else ""
+          
+          def extract_public_items(file_path):
+              """Extract public items with their doc comments"""
+              items = []
+              
+              with open(file_path, "r") as f:
+                  content = f.read()
+              
+              # Split into lines
+              lines = content.split('\n')
+              i = 0
+              
+              while i < len(lines):
+                  # Skip empty lines
+                  if not lines[i].strip():
+                      i += 1
+                      continue
+                  
+                  # Look for doc comments
+                  if re.match(r'^\s*///', lines[i]):
+                      doc_lines = []
+                      start_line = i
+                      
+                      # Collect all doc lines
+                      while i < len(lines) and re.match(r'^\s*///', lines[i]):
+                          comment = re.sub(r'^\s*///\s?', '', lines[i]).rstrip()
+                          doc_lines.append(comment)
+                          i += 1
+                      
+                      # Skip whitespace
+                      while i < len(lines) and not lines[i].strip():
+                          i += 1
+                      
+                      # Check if followed by a public item
+                      if i < len(lines) and re.match(r'^\s*pub\s', lines[i]):
+                          pub_line = lines[i]
+                          
+                          # Extract item type and name
+                          item_type = "item"
+                          item_name = ""
+                          
+                          if "pub struct " in pub_line:
+                              item_type = "struct"
+                              match = re.search(r'struct\s+([a-zA-Z0-9_]+)', pub_line)
+                              if match:
+                                  item_name = match.group(1)
+                          elif "pub enum " in pub_line:
+                              item_type = "enum"
+                              match = re.search(r'enum\s+([a-zA-Z0-9_]+)', pub_line)
+                              if match:
+                                  item_name = match.group(1)
+                          elif "pub trait " in pub_line:
+                              item_type = "trait"
+                              match = re.search(r'trait\s+([a-zA-Z0-9_]+)', pub_line)
+                              if match:
+                                  item_name = match.group(1)
+                          elif "pub async fn " in pub_line:
+                              item_type = "async fn"
+                              match = re.search(r'async\s+fn\s+([a-zA-Z0-9_]+)', pub_line)
+                              if match:
+                                  item_name = match.group(1)
+                          elif "pub fn " in pub_line:
+                              item_type = "fn"
+                              match = re.search(r'fn\s+([a-zA-Z0-9_]+)', pub_line)
+                              if match:
+                                  item_name = match.group(1)
+                          
+                          # Extract signature
+                          signature_lines = [pub_line]
+                          sig_end = i + 1
+                          
+                          # For multi-line signatures
+                          if "{" in pub_line and "}" not in pub_line:
+                              braces = 1
+                              while sig_end < len(lines) and braces > 0:
+                                  line = lines[sig_end]
+                                  braces += line.count("{") - line.count("}")
+                                  signature_lines.append(line)
+                                  sig_end += 1
+                                  # Limit the amount we collect
+                                  if sig_end > i + 15:
+                                      signature_lines.append("    // ... implementation")
+                                      signature_lines.append("}")
+                                      break
+                          elif "{" not in pub_line and ";" not in pub_line:
+                              # Multi-line signature without body yet
+                              while sig_end < len(lines) and ";" not in lines[sig_end] and "{" not in lines[sig_end]:
+                                  signature_lines.append(lines[sig_end])
+                                  sig_end += 1
+                                  
+                                  # If we hit opening brace
+                                  if sig_end < len(lines) and "{" in lines[sig_end]:
+                                      signature_lines.append(lines[sig_end])
+                                      signature_lines.append("    // ... implementation")
+                                      signature_lines.append("}")
+                                      sig_end += 1
+                                      break
+                                  
+                                  # Limit the amount we collect
+                                  if sig_end > i + 10:
+                                      break
+                          
+                          signature = "\n".join(signature_lines)
+                          
+                          # Add the item to our list
+                          if item_name:
+                              items.append((item_type, item_name, "\n".join(doc_lines), signature))
+                          
+                          i = sig_end
                           continue
-                        fi
-                        
-                        echo "$next_content" >> "$output_file"
-                        count=$((count + 1))
-                        
-                        # Stop at end of signature
-                        if [[ "$next_content" =~ [;{][[:space:]]*$ ]]; then
-                          if [[ "$next_content" =~ [{][[:space:]]*$ ]]; then
-                            echo "    // ... implementation" >> "$output_file"
-                            echo "}" >> "$output_file"
-                          fi
-                          break
-                        fi
-                        
-                        next_line=$((next_line + 1))
-                      done
-                      
-                      # If we didn't find the end, add an ellipsis
-                      if [ $count -eq $max_lines ]; then
-                        echo "    // ..." >> "$output_file"
-                      fi
-                    fi
-                    
-                    echo '```' >> "$output_file"
-                    echo "" >> "$output_file"
-                  fi
-                fi
-              done < "$output_file.pub_items"
-            else
-              echo "No documented public items found." >> "$output_file"
-              echo "" >> "$output_file"
-            fi
-            
-            # Clean up
-            rm -f "$output_file.pub_items"
-            rm -f "$output_file.doc_block"
-          }
+                  
+                  i += 1
+              
+              return items
           
-          # Safely process a Rust file with error handling
-          function safe_process_rust_file() {
-            local file="$1"
-            local output_dir="$2"
-            
-            # Create unique filename for wiki page
-            local base_name=$(basename "$file" .rs)
-            local dir_path=$(dirname "$file")
-            local unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
-            local output_file="$output_dir/${unique_name}.md"
-            
-            echo "Processing $file"
-            
-            # Create page header
-            echo "# $base_name ($dir_path)" > "$output_file"
-            echo "" >> "$output_file"
-            echo "Path: \`$file\`" >> "$output_file"
-            echo "" >> "$output_file"
-            
-            # Extract documentation sections with error handling
-            extract_module_docs "$file" "$output_file" || echo "Warning: Error extracting module docs from $file"
-            generate_table_of_contents "$file" "$output_file" || echo "Warning: Error generating TOC for $file"
-            extract_documented_items "$file" "$output_file" || echo "Warning: Error extracting documented items from $file"
-            
-            # Add link to Home.md
-            echo "* [$unique_name](${unique_name})" >> "$output_dir/Home.md"
-            
-            echo "Completed processing $file -> $output_file"
-          }
+          def format_doc_comment(text):
+              """Format documentation with proper markdown"""
+              # Fix headers - ensure # headings start on their own line
+              text = re.sub(r'([^\n])# ([A-Z][a-zA-Z]+)', r'\1\n\n## \2', text)
+              
+              # Ensure proper spacing around lists
+              text = re.sub(r'([^\n])\* ', r'\1\n\n* ', text)
+              
+              # Fix spacing in paragraphs
+              text = re.sub(r'\.([A-Z])', r'. \1', text)
+              
+              # Ensure backticks for code references
+              text = re.sub(r'`([^`]+)`', r'`\1`', text)
+              
+              return text
           
-          # Main processing function
-          function process_all_rust_files() {
-            local source_dir="$1"
-            local output_dir="$2"
-            
-            # Find all Rust files
-            find "$source_dir" -name "*.rs" -type f | while read -r file; do
-              safe_process_rust_file "$file" "$output_dir" || echo "Error processing $file, continuing with next file"
-            done
-          }
-          
-          # Script entry point
-          if [ "$#" -lt 2 ]; then
-            print_usage
-            exit 1
-          fi
-          
-          source_dir="$1"
-          output_dir="$2"
-          
-          # Validate directories
-          if [ ! -d "$source_dir" ]; then
-            echo "Error: Source directory does not exist: $source_dir"
-            exit 1
-          fi
-          
-          if [ ! -d "$output_dir" ]; then
-            echo "Error: Output directory does not exist: $output_dir"
-            exit 1
-          fi
-          
-          # Process all Rust files
-          echo "Starting documentation extraction from $source_dir to $output_dir"
-          process_all_rust_files "$source_dir" "$output_dir"
-          echo "Documentation extraction complete!"
-          
-          # Return success
-          exit 0
+          if __name__ == "__main__":
+              sys.exit(main())
           EOF
           
           # Make script executable
-          chmod +x rustdoc_extract.sh
+          chmod +x extract_docs.py
 
       - name: Generate Wiki Documentation
         run: |
           # Run the doc extraction script
-          ./rustdoc_extract.sh src wiki-content
+          python3 extract_docs.py src wiki-content
 
       - name: Setup Git for Wiki
         run: |
