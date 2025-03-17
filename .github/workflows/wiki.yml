@@ -203,14 +203,11 @@ jobs:
                   in_doc_comment=1
                   doc_comments="$comment"
                 else
-                  doc_comments="$doc_comments
-$comment"
+                  doc_comments="$doc_comments$comment"
                 fi
               # Handle empty line in doc comments
               elif [[ "$line" =~ ^[[:space:]]*$ ]] && [ $in_doc_comment -eq 1 ]; then
-                doc_comments="$doc_comments
-
-"
+                doc_comments="$doc_comments"
               # Check for public item after doc comments
               elif [[ "$line" =~ ^[[:space:]]*pub[[:space:]] ]] && [ $in_doc_comment -eq 1 ]; then
                 # Extract item type and name
