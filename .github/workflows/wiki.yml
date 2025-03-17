@@ -10,7 +10,7 @@ on:
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
-  generate-docs:
+  extract-doc:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -18,10 +18,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup directories
+      - name: Create wiki directory
+        run: mkdir -p wiki-content
+
+      - name: Process all Rust files
         run: |
-          mkdir -p wiki-content
-          
           # Create Home.md
           echo "# ${GITHUB_REPOSITORY#*/} Documentation" > wiki-content/Home.md
           echo "" >> wiki-content/Home.md
@@ -30,45 +31,17 @@ jobs:
           echo "## Modules" >> wiki-content/Home.md
           echo "" >> wiki-content/Home.md
 
-      - name: Create basic extractor
-        run: |
-          cat > extract_docs.sh << 'EOF'
-          #!/bin/bash
-          
-          # Simple but reliable extractor for Rust documentation
-          
-          source_dir=$1
-          output_dir=$2
-          
-          if [ -z "$source_dir" ] || [ -z "$output_dir" ]; then
-            echo "Usage: $0 <source_dir> <output_dir>"
-            exit 1
-          fi
-          
-          if [ ! -d "$source_dir" ]; then
-            echo "Error: Source directory does not exist: $source_dir"
-            exit 1
-          fi
-          
-          if [ ! -d "$output_dir" ]; then
-            echo "Error: Output directory does not exist: $output_dir"
-            exit 1
-          fi
-          
-          # Process a single Rust file
-          process_file() {
-            local file="$1"
-            local output_dir="$2"
-            
+          # Very simple direct processing of all Rust files
+          find src -name "*.rs" -type f | while read -r file; do
             # Get file info
-            local base_name=$(basename "$file" .rs)
-            local dir_path=$(dirname "$file")
+            base_name=$(basename "$file" .rs)
+            dir_path=$(dirname "$file")
             
-            # Create unique name for wiki page
-            local unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
-            local output_file="$output_dir/${unique_name}.md"
+            # Create unique file name
+            unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
+            output_file="wiki-content/${unique_name}.md"
             
-            echo "Processing $file -> $output_file"
+            echo "Processing $file into $output_file"
             
             # Create file header
             echo "# $base_name ($dir_path)" > "$output_file"
@@ -76,68 +49,65 @@ jobs:
             echo "Path: \`$file\`" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Extract module docs (//!)
+            # Extract module docs
             grep -n "^[[:space:]]*//!" "$file" | sed 's/^[0-9]*://g' | sed 's/\/\/![[:space:]]*//' > "$output_file.module_docs"
             if [ -s "$output_file.module_docs" ]; then
               echo "## Module Documentation" >> "$output_file"
               echo "" >> "$output_file"
               cat "$output_file.module_docs" >> "$output_file"
               echo "" >> "$output_file"
-              echo "" >> "$output_file"
             fi
             rm -f "$output_file.module_docs"
             
-            # Extract all public items
-            PUBLIC_ITEMS=$(grep -n "^[[:space:]]*pub " "$file")
+            # Add all public items
+            extracted_items=0
             
-            if [ -n "$PUBLIC_ITEMS" ]; then
-              echo "## Table of Contents" >> "$output_file"
-              echo "" >> "$output_file"
+            # PROCESS ALL PUBLIC MODULES FIRST - GUARANTEED CAPTURE
+            echo "## Public Modules" >> "$output_file"
+            echo "" >> "$output_file"
+            
+            # Extract all pub mod declarations directly and explicitly
+            grep -n "^[[:space:]]*pub[[:space:]]\+mod[[:space:]]\+[a-zA-Z0-9_]\+[[:space:]]*;" "$file" | while read -r line_info; do
+              line=$(echo "$line_info" | cut -d: -f2-)
               
-              echo "$PUBLIC_ITEMS" | while read -r line_info; do
-                # Extract line content
-                line=$(echo "$line_info" | cut -d: -f2-)
+              # Extract module name directly using sed
+              mod_name=$(echo "$line" | sed -E 's/^[[:space:]]*pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+)[[:space:]]*;.*/\1/')
+              
+              if [ -n "$mod_name" ]; then
+                echo "### mod $mod_name" >> "$output_file"
+                echo "" >> "$output_file"
                 
-                # Try to determine item type and name
-                if [[ "$line" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="struct"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="enum"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="fn"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="async fn"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="trait"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="type"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="mod"
-                  item_name="${BASH_REMATCH[1]}"
-                elif [[ "$line" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                  item_type="use"
-                  item_name="${BASH_REMATCH[1]}"
+                # Try to find any doc comment above
+                line_num=$(echo "$line_info" | cut -d: -f1)
+                prev_line=$((line_num - 1))
+                doc_content=""
+                
+                # Check the line directly above for doc comment
+                if [ $prev_line -gt 0 ]; then
+                  prev_content=$(sed -n "${prev_line}p" "$file")
+                  if [[ "$prev_content" =~ ^[[:space:]]*\/\/\/ ]]; then
+                    doc_content=$(echo "$prev_content" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
+                    echo "$doc_content" >> "$output_file"
+                    echo "" >> "$output_file"
+                  fi
                 fi
                 
-                if [ -n "$item_name" ]; then
-                  echo "* [$item_type $item_name](#${item_name,,})" >> "$output_file"
-                fi
-              done
-              
-              echo "" >> "$output_file"
-              echo "## Public Items" >> "$output_file"
-              echo "" >> "$output_file"
-            fi
+                # Add the module signature
+                echo "```rust" >> "$output_file"
+                echo "$line" >> "$output_file"
+                echo "```" >> "$output_file"
+                echo "" >> "$output_file"
+                
+                extracted_items=$((extracted_items + 1))
+              fi
+            done
             
-            # Process each item
-            echo "$PUBLIC_ITEMS" | while read -r line_info; do
-              # Get line number and content
+            # Then do all other pub items
+            echo "## Other Public Items" >> "$output_file"
+            echo "" >> "$output_file"
+            
+            # Get all public items except modules
+            grep -n "^[[:space:]]*pub[[:space:]]\+" "$file" | grep -v "pub[[:space:]]\+mod" | while read -r line_info; do
               line_num=$(echo "$line_info" | cut -d: -f1)
               line=$(echo "$line_info" | cut -d: -f2-)
               
@@ -151,20 +121,20 @@ jobs:
               elif [[ "$line" =~ pub[[:space:]]+enum[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="enum"
                 item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="fn"
+              elif [[ "$line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="trait"
                 item_name="${BASH_REMATCH[1]}"
               elif [[ "$line" =~ pub[[:space:]]+async[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="async fn"
                 item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+trait[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="trait"
+              elif [[ "$line" =~ pub[[:space:]]+fn[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="fn"
                 item_name="${BASH_REMATCH[1]}"
               elif [[ "$line" =~ pub[[:space:]]+type[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="type"
                 item_name="${BASH_REMATCH[1]}"
-              elif [[ "$line" =~ pub[[:space:]]+mod[[:space:]]+([a-zA-Z0-9_]+) ]]; then
-                item_type="mod"
+              elif [[ "$line" =~ pub[[:space:]]+const[[:space:]]+([a-zA-Z0-9_]+) ]]; then
+                item_type="const"
                 item_name="${BASH_REMATCH[1]}"
               elif [[ "$line" =~ pub[[:space:]]+use[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                 item_type="use"
@@ -172,107 +142,53 @@ jobs:
               fi
               
               if [ -n "$item_type" ] && [ -n "$item_name" ]; then
-                # Check if there are doc comments above this item
-                doc_comments=""
-                doc_line_num=$((line_num - 1))
+                echo "### $item_type $item_name" >> "$output_file"
+                echo "" >> "$output_file"
                 
-                # Go backwards to collect doc comments
-                while [ $doc_line_num -gt 0 ]; do
-                  doc_line=$(sed -n "${doc_line_num}p" "$file")
-                  
+                # Check for doc comments above
+                doc_start=$((line_num - 1))
+                while [ $doc_start -gt 0 ]; do
+                  doc_line=$(sed -n "${doc_start}p" "$file")
                   if [[ "$doc_line" =~ ^[[:space:]]*\/\/\/ ]]; then
-                    # Extract the comment without ///
                     comment=$(echo "$doc_line" | sed 's/^[[:space:]]*\/\/\/[[:space:]]*//')
-                    doc_comments="$comment
-$doc_comments"
-                    doc_line_num=$((doc_line_num - 1))
-                  elif [[ "$doc_line" =~ ^[[:space:]]*$ ]]; then
-                    # Skip empty lines
-                    doc_line_num=$((doc_line_num - 1))
-                  elif [[ "$doc_line" =~ ^[[:space:]]*#\[ ]]; then
-                    # Skip attribute lines
-                    doc_line_num=$((doc_line_num - 1))
+                    echo "$comment" >> "$output_file.doc"
+                    doc_start=$((doc_start - 1))
+                  elif [[ "$doc_line" =~ ^[[:space:]]*$ ]] || [[ "$doc_line" =~ ^[[:space:]]*#\[ ]]; then
+                    # Skip empty lines and attributes
+                    doc_start=$((doc_start - 1))
                   else
-                    # Stop at any other content
                     break
                   fi
                 done
                 
-                # Write item header
-                echo "### $item_type $item_name" >> "$output_file"
-                echo "" >> "$output_file"
-                
-                # Format and write doc comments if any
-                if [ -n "$doc_comments" ]; then
-                  # Fix headers in comments (# Arguments -> ## Arguments)
-                  doc_comments=$(echo "$doc_comments" | sed 's/# \([A-Z][a-z]*\)/\n## \1/g')
-                  
-                  # Fix lists to ensure proper spacing
-                  doc_comments=$(echo "$doc_comments" | sed -z 's/\([^*]\)\n\* /\1\n\n* /g')
-                  
-                  # Write to file
-                  echo "$doc_comments" >> "$output_file"
+                # If we found doc comments, add them
+                if [ -f "$output_file.doc" ]; then
+                  # Reverse the order to get correct flow
+                  tac "$output_file.doc" > "$output_file.doc.reversed"
+                  cat "$output_file.doc.reversed" >> "$output_file"
                   echo "" >> "$output_file"
+                  rm -f "$output_file.doc" "$output_file.doc.reversed"
                 fi
                 
-                # Extract item signature
+                # Add signature
                 echo "```rust" >> "$output_file"
                 echo "$line" >> "$output_file"
-                
-                # For multi-line items
-                if ! [[ "$line" =~ \;$ ]]; then
-                  if [[ "$line" =~ \{$ ]]; then
-                    # If opening brace is on the same line
-                    echo "    // ... implementation" >> "$output_file"
-                    echo "}" >> "$output_file"
-                  else
-                    # For multi-line signatures
-                    next_line_num=$((line_num + 1))
-                    next_line=$(sed -n "${next_line_num}p" "$file")
-                    
-                    # Add a few more lines of signature if no brace or semicolon yet
-                    for i in {1..5}; do
-                      if [[ "$next_line" =~ [\;\{] ]]; then
-                        echo "$next_line" >> "$output_file"
-                        if [[ "$next_line" =~ \{$ ]]; then
-                          echo "    // ... implementation" >> "$output_file"
-                          echo "}" >> "$output_file"
-                        fi
-                        break
-                      else
-                        echo "$next_line" >> "$output_file"
-                        next_line_num=$((next_line_num + 1))
-                        next_line=$(sed -n "${next_line_num}p" "$file")
-                      fi
-                    done
-                  fi
-                fi
-                
                 echo "```" >> "$output_file"
                 echo "" >> "$output_file"
+                
+                extracted_items=$((extracted_items + 1))
               fi
             done
             
-            # Add link to Home.md
-            echo "* [$unique_name]($unique_name)" >> "$output_dir/Home.md"
+            # If no items were extracted, add a message
+            if [ "$extracted_items" -eq 0 ]; then
+              echo "No public items found in this file." >> "$output_file"
+              echo "" >> "$output_file"
+            fi
             
-            echo "Completed processing $file"
-          }
-          
-          # Find and process all Rust files
-          find "$source_dir" -name "*.rs" -type f | while read -r file; do
-            process_file "$file" "$output_dir"
+            # Add link to Home.md
+            echo "* [$unique_name](${unique_name})" >> wiki-content/Home.md
           done
-          
-          echo "Documentation extraction complete!"
-          EOF
-          
-          chmod +x extract_docs.sh
-
-      - name: Generate Wiki Documentation
-        run: |
-          # Run the doc extraction script
-          ./extract_docs.sh src wiki-content
 
       - name: Setup Git for Wiki
         run: |
