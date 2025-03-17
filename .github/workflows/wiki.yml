@@ -198,120 +198,7 @@ jobs:
                   fi
                 done
                 
-                # EXTRACT FULL DEFINITION
-                # Create a temporary file to store full item definition
-                temp_def_file="${output_file}.def.tmp"
-                
-                # Start with current line
-                echo "$item_line" > "$temp_def_file"
-                
-                # Determine how to extract based on item type
-                case "$item_type" in
-                  "mod")
-                    # For module, it's typically just one line with a semicolon
-                    ;;
-                  "struct"|"enum"|"trait")
-                    # These typically have a body with braces
-                    if ! [[ "$item_line" =~ \;$ ]]; then
-                      # Find the closing brace
-                      next_line_num=$((line_num + 1))
-                      brace_count=$(grep -o "{" <<< "$item_line" | wc -l)
-                      brace_count=$((brace_count - $(grep -o "}" <<< "$item_line" | wc -l)))
-                      
-                      # Continue until we find matching closing brace
-                      while [ $brace_count -gt 0 ] && [ $next_line_num -le $(wc -l < "$file") ]; do
-                        next_line=$(sed -n "${next_line_num}p" "$file")
-                        echo "$next_line" >> "$temp_def_file"
-                        
-                        # Update brace count
-                        brace_count=$((brace_count + $(grep -o "{" <<< "$next_line" | wc -l)))
-                        brace_count=$((brace_count - $(grep -o "}" <<< "$next_line" | wc -l)))
-                        
-                        next_line_num=$((next_line_num + 1))
-                        
-                        # Limit to 50 lines max to avoid excessive output
-                        if [ $((next_line_num - line_num)) -gt 50 ]; then
-                          echo "    // ... additional implementation" >> "$temp_def_file"
-                          echo "}" >> "$temp_def_file"
-                          break
-                        fi
-                      done
-                    fi
-                    ;;
-                  "fn"|"async fn")
-                    # Functions can end with a semicolon or have a body
-                    if ! [[ "$item_line" =~ \;$ ]]; then
-                      # Find the closing brace if it has a body
-                      next_line_num=$((line_num + 1))
-                      
-                      # If the function signature spans multiple lines
-                      while [ $next_line_num -le $(wc -l < "$file") ]; do
-                        next_line=$(sed -n "${next_line_num}p" "$file")
-                        echo "$next_line" >> "$temp_def_file"
-                        
-                        # If we found a semicolon, we're done
-                        if [[ "$next_line" =~ \;$ ]]; then
-                          break
-                        fi
-                        
-                        # If we found an opening brace, need to find matching closing brace
-                        if [[ "$next_line" =~ \{$ ]]; then
-                          echo "    // ... function body" >> "$temp_def_file"
-                          echo "}" >> "$temp_def_file"
-                          break
-                        fi
-                        
-                        next_line_num=$((next_line_num + 1))
-                        
-                        # Limit to reasonable size
-                        if [ $((next_line_num - line_num)) -gt 20 ]; then
-                          if ! [[ "$next_line" =~ [\;\{] ]]; then
-                            echo "    // ... function definition continues" >> "$temp_def_file"
-                          fi
-                          break
-                        fi
-                      done
-                    fi
-                    ;;
-                  "type"|"const")
-                    # These typically end with a semicolon
-                    if ! [[ "$item_line" =~ \;$ ]]; then
-                      next_line_num=$((line_num + 1))
-                      
-                      # Continue until semicolon
-                      while [ $next_line_num -le $(wc -l < "$file") ]; do
-                        next_line=$(sed -n "${next_line_num}p" "$file")
-                        echo "$next_line" >> "$temp_def_file"
-                        
-                        if [[ "$next_line" =~ \;$ ]]; then
-                          break
-                        fi
-                        
-                        next_line_num=$((next_line_num + 1))
-                        
-                        # Limit to reasonable size
-                        if [ $((next_line_num - line_num)) -gt 10 ]; then
-                          if ! [[ "$next_line" =~ \;$ ]]; then
-                            echo "    // ... definition continues" >> "$temp_def_file"
-                            echo ";" >> "$temp_def_file"
-                          fi
-                          break
-                        fi
-                      done
-                    fi
-                    ;;
-                esac
-                
-                # Output the code block with the definition
-                echo '```rust' >> "$output_file"
-                cat "$temp_def_file" >> "$output_file"
-                echo '```' >> "$output_file"
-                echo "" >> "$output_file"
-                
-                # Clean up temp file
-                rm -f "$temp_def_file"
-                
-                # Process and add doc comments
+                # Process and add doc comments first (if any)
                 if [ ${#doc_lines[@]} -gt 0 ]; then
                   # Process the documentation lines for formatting
                   current_section=""
@@ -362,6 +249,121 @@ jobs:
                     echo "" >> "$output_file"
                   fi
                 fi
+                
+                # EXTRACT FULL DEFINITION
+                # Create a temporary file to store full item definition
+                temp_def_file="${output_file}.def.tmp"
+                
+                # Start with current line
+                sed -n "${line_num}p" "$file" > "$temp_def_file"
+                
+                # Determine how to extract based on item type
+                case "$item_type" in
+                  "mod")
+                    # For module, it's typically just one line with a semicolon
+                    ;;
+                  "struct"|"enum"|"trait")
+                    # These typically have a body with braces
+                    if ! grep -q "\;$" "$temp_def_file"; then
+                      # Find the closing brace
+                      next_line_num=$((line_num + 1))
+                      brace_count=$(grep -o "{" < "$temp_def_file" | wc -l)
+                      brace_count=$((brace_count - $(grep -o "}" < "$temp_def_file" | wc -l)))
+                      
+                      # Continue until we find matching closing brace
+                      while [ $brace_count -gt 0 ] && [ $next_line_num -le $(wc -l < "$file") ]; do
+                        next_line=$(sed -n "${next_line_num}p" "$file")
+                        echo "$next_line" >> "$temp_def_file"
+                        
+                        # Update brace count
+                        brace_count=$((brace_count + $(grep -o "{" <<< "$next_line" | wc -l)))
+                        brace_count=$((brace_count - $(grep -o "}" <<< "$next_line" | wc -l)))
+                        
+                        next_line_num=$((next_line_num + 1))
+                        
+                        # Limit to 50 lines max to avoid excessive output
+                        if [ $((next_line_num - line_num)) -gt 50 ]; then
+                          echo "    // ... additional implementation" >> "$temp_def_file"
+                          echo "}" >> "$temp_def_file"
+                          break
+                        fi
+                      done
+                    fi
+                    ;;
+                  "fn"|"async fn")
+                    # Functions can end with a semicolon or have a body
+                    if ! grep -q "\;$" "$temp_def_file"; then
+                      # Find the closing brace if it has a body
+                      next_line_num=$((line_num + 1))
+                      
+                      # If the function signature spans multiple lines
+                      while [ $next_line_num -le $(wc -l < "$file") ]; do
+                        next_line=$(sed -n "${next_line_num}p" "$file")
+                        echo "$next_line" >> "$temp_def_file"
+                        
+                        # If we found a semicolon, we're done
+                        if [[ "$next_line" =~ \;$ ]]; then
+                          break
+                        fi
+                        
+                        # If we found an opening brace, need to find matching closing brace
+                        if [[ "$next_line" =~ \{$ ]]; then
+                          echo "    // ... function body" >> "$temp_def_file"
+                          echo "}" >> "$temp_def_file"
+                          break
+                        fi
+                        
+                        next_line_num=$((next_line_num + 1))
+                        
+                        # Limit to reasonable size
+                        if [ $((next_line_num - line_num)) -gt 20 ]; then
+                          if ! [[ "$next_line" =~ [\;\{] ]]; then
+                            echo "    // ... function definition continues" >> "$temp_def_file"
+                          fi
+                          break
+                        fi
+                      done
+                    fi
+                    ;;
+                  "type"|"const")
+                    # These typically end with a semicolon
+                    if ! grep -q "\;$" "$temp_def_file"; then
+                      next_line_num=$((line_num + 1))
+                      
+                      # Continue until semicolon
+                      while [ $next_line_num -le $(wc -l < "$file") ]; do
+                        next_line=$(sed -n "${next_line_num}p" "$file")
+                        echo "$next_line" >> "$temp_def_file"
+                        
+                        if [[ "$next_line" =~ \;$ ]]; then
+                          break
+                        fi
+                        
+                        next_line_num=$((next_line_num + 1))
+                        
+                        # Limit to reasonable size
+                        if [ $((next_line_num - line_num)) -gt 10 ]; then
+                          if ! [[ "$next_line" =~ \;$ ]]; then
+                            echo "    // ... definition continues" >> "$temp_def_file"
+                            echo ";" >> "$temp_def_file"
+                          fi
+                          break
+                        fi
+                      done
+                    fi
+                    ;;
+                esac
+                
+                # Output the code block with the definition
+                echo "#### Definition" >> "$output_file"
+                echo "" >> "$output_file"
+                echo '```rust' >> "$output_file"
+                cat "$temp_def_file" >> "$output_file"
+                echo '```' >> "$output_file"
+                echo "" >> "$output_file"
+                
+                # Clean up temp file
+                rm -f "$temp_def_file"
               fi
             done < "$output_file.items"
             
