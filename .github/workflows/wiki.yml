@@ -59,7 +59,8 @@ jobs:
           # This script processes Rust source files and extracts documentation comments,
           # generating markdown files suitable for a GitHub wiki.
           
-          set -e  # Exit on any error
+          # Exit on errors unless caught with ||
+          set -eo pipefail
           
           # Print how to use this script
           function print_usage() {
@@ -88,10 +89,10 @@ jobs:
               
               # Write to output
               echo "$comment" >> "$output_file.module_docs"
-            done
+            done || true  # Don't fail if grep finds nothing
             
             # If we found module docs, add them to the wiki page
-            if [ -s "$output_file.module_docs" ]; then
+            if [ -f "$output_file.module_docs" ] && [ -s "$output_file.module_docs" ]; then
               echo "## Module Documentation" >> "$output_file"
               echo "" >> "$output_file"
               cat "$output_file.module_docs" >> "$output_file"
@@ -111,10 +112,10 @@ jobs:
             echo "" >> "$output_file"
             
             # Create a temporary file with all public items
-            grep -n "^[[:space:]]*pub " "$file" > "$output_file.toc_items"
+            grep -n "^[[:space:]]*pub " "$file" > "$output_file.toc_items" || true
             
             # Process each item
-            if [ -s "$output_file.toc_items" ]; then
+            if [ -f "$output_file.toc_items" ] && [ -s "$output_file.toc_items" ]; then
               while read -r line_info; do
                 # Extract line number and content
                 line_num=$(echo "$line_info" | cut -d: -f1)
@@ -151,11 +152,11 @@ jobs:
                 else
                   # Handle any other pub item
                   item_type="item"
-                  item_name=$(echo "$line_content" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/')
+                  item_name=$(echo "$line_content" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/' || echo "unknown")
                 fi
                 
                 # If we identified the item, add it to TOC
-                if [ -n "$item_name" ]; then
+                if [ -n "$item_name" ] && [ "$item_name" != "unknown" ]; then
                   anchor=$(echo "$item_name" | tr '[:upper:]' '[:lower:]')
                   echo "* [$item_type $item_name](#$anchor)" >> "$output_file"
                 fi
@@ -180,14 +181,17 @@ jobs:
             echo "## Public Items" >> "$output_file"
             echo "" >> "$output_file"
             
+            # Create temporary file for all lines
+            sed -n '1,$p' "$file" > "$output_file.all_lines"
+            
             # Process the file line by line to match doc comments with items
-            local line_count=$(wc -l < "$file")
+            local line_count=$(wc -l < "$output_file.all_lines")
             local i=1
             local in_doc_comment=0
             local doc_comments=""
             
             while [ $i -le $line_count ]; do
-              local line=$(sed -n "${i}p" "$file")
+              local line=$(sed -n "${i}p" "$output_file.all_lines")
               
               # Check for doc comments
               if [[ "$line" =~ ^[[:space:]]*\/\/\/ ]]; then
@@ -199,14 +203,20 @@ jobs:
                   in_doc_comment=1
                   doc_comments="$comment"
                 else
-                  doc_comments="$doc_comments"
+                  doc_comments="$doc_comments
+$comment"
                 fi
               # Handle empty line in doc comments
               elif [[ "$line" =~ ^[[:space:]]*$ ]] && [ $in_doc_comment -eq 1 ]; then
-                doc_comments="$doc_comments"
+                doc_comments="$doc_comments
+
+"
               # Check for public item after doc comments
               elif [[ "$line" =~ ^[[:space:]]*pub[[:space:]] ]] && [ $in_doc_comment -eq 1 ]; then
                 # Extract item type and name
+                local item_type=""
+                local item_name=""
+                
                 if [[ "$line" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                   item_type="struct"
                   item_name="${BASH_REMATCH[1]}"
@@ -237,11 +247,11 @@ jobs:
                 else
                   # Handle any other pub item
                   item_type="item"
-                  item_name=$(echo "$line" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/')
+                  item_name=$(echo "$line" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/' || echo "unknown")
                 fi
                 
                 # Print header
-                if [ -n "$item_name" ]; then
+                if [ -n "$item_name" ] && [ "$item_name" != "unknown" ]; then
                   echo "### $item_type $item_name" >> "$output_file"
                   echo "" >> "$output_file"
                   
@@ -250,7 +260,7 @@ jobs:
                   echo "" >> "$output_file"
                   
                   # Extract signature
-                  extract_item_signature "$file" $i "$item_type" >> "$output_file"
+                  extract_item_signature "$output_file.all_lines" $i "$item_type" >> "$output_file" || true
                   echo "" >> "$output_file"
                 fi
                 
@@ -266,6 +276,9 @@ jobs:
               # Move to next line
               i=$((i + 1))
             done
+            
+            # Clean up temp file
+            rm -f "$output_file.all_lines"
           }
           
           # Extract signature for a Rust item
@@ -302,7 +315,11 @@ jobs:
               
               # Continue until we balance braces or hit max lines
               while [ $brace_count -gt 0 ] && [ $count -lt $max_lines ]; do
-                local next_line=$(sed -n "${line_num}p" "$file")
+                if [ $line_num -gt $(wc -l < "$file") ]; then
+                  break
+                fi
+                
+                local next_line=$(sed -n "${line_num}p" "$file" || echo "")
                 
                 # Skip doc comments
                 if [[ "$next_line" =~ ^[[:space:]]*\/\/\/ ]]; then
@@ -338,7 +355,11 @@ jobs:
               local line_num=$((start_line + 1))
               
               for ((j=0; j<max_additional; j++)); do
-                local next_line=$(sed -n "${line_num}p" "$file")
+                if [ $line_num -gt $(wc -l < "$file") ]; then
+                  break
+                fi
+                
+                local next_line=$(sed -n "${line_num}p" "$file" || echo "")
                 
                 # Skip doc comments
                 if [[ "$next_line" =~ ^[[:space:]]*\/\/\/ ]]; then
@@ -380,13 +401,19 @@ jobs:
             # Find all public items
             grep -n "^[[:space:]]*pub " "$file" > "$output_file.all_items" || true
             
-            if [ -s "$output_file.all_items" ]; then
+            if [ -f "$output_file.all_items" ] && [ -s "$output_file.all_items" ]; then
+              # Create a copy of the file for item extraction
+              cp "$file" "$output_file.source"
+              
               while read -r line_info; do
                 # Extract line number and content
                 line_num=$(echo "$line_info" | cut -d: -f1)
                 line_content=$(echo "$line_info" | cut -d: -f2-)
                 
                 # Determine item type
+                local item_type=""
+                local item_name=""
+                
                 if [[ "$line_content" =~ pub[[:space:]]+struct[[:space:]]+([a-zA-Z0-9_]+) ]]; then
                   item_type="struct"
                   item_name="${BASH_REMATCH[1]}"
@@ -417,17 +444,20 @@ jobs:
                 else
                   # Handle any other pub item
                   item_type="item"
-                  item_name=$(echo "$line_content" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/')
+                  item_name=$(echo "$line_content" | sed 's/^[[:space:]]*pub[[:space:]]*\([^{; ]*\).*/\1/' || echo "unknown")
                 fi
                 
                 # If we identified the item, extract signature
-                if [ -n "$item_name" ]; then
+                if [ -n "$item_name" ] && [ "$item_name" != "unknown" ]; then
                   echo "### $item_type $item_name" >> "$output_file"
                   echo "" >> "$output_file"
-                  extract_item_signature "$file" "$line_num" "$item_type" >> "$output_file"
+                  extract_item_signature "$output_file.source" "$line_num" "$item_type" >> "$output_file" || true
                   echo "" >> "$output_file"
                 fi
               done < "$output_file.all_items"
+              
+              # Clean up
+              rm -f "$output_file.source"
             else
               echo "No public items found." >> "$output_file"
               echo "" >> "$output_file"
@@ -436,12 +466,10 @@ jobs:
             rm -f "$output_file.all_items"
           }
           
-          # Main function to process a Rust file
-          function process_rust_file() {
+          # Safely process a Rust file with error handling
+          function safe_process_rust_file() {
             local file="$1"
             local output_dir="$2"
-            
-            echo "Processing $file"
             
             # Create unique filename for wiki page
             local base_name=$(basename "$file" .rs)
@@ -449,17 +477,19 @@ jobs:
             local unique_name=$(echo "${dir_path//\//_}_${base_name}" | sed 's/^src_//')
             local output_file="$output_dir/${unique_name}.md"
             
+            echo "Processing $file"
+            
             # Create page header
             echo "# $base_name ($dir_path)" > "$output_file"
             echo "" >> "$output_file"
             echo "Path: \`$file\`" >> "$output_file"
             echo "" >> "$output_file"
             
-            # Extract documentation sections
-            extract_module_docs "$file" "$output_file"
-            generate_table_of_contents "$file" "$output_file"
-            extract_documented_items "$file" "$output_file"
-            extract_all_public_items "$file" "$output_file"
+            # Extract documentation sections with error handling
+            extract_module_docs "$file" "$output_file" || echo "Warning: Error extracting module docs from $file"
+            generate_table_of_contents "$file" "$output_file" || echo "Warning: Error generating TOC for $file"
+            extract_documented_items "$file" "$output_file" || echo "Warning: Error extracting documented items from $file"
+            extract_all_public_items "$file" "$output_file" || echo "Warning: Error extracting all public items from $file"
             
             # Add link to Home.md
             echo "* [$unique_name](${unique_name})" >> "$output_dir/Home.md"
@@ -474,7 +504,7 @@ jobs:
             
             # Find all Rust files
             find "$source_dir" -name "*.rs" -type f | while read -r file; do
-              process_rust_file "$file" "$output_dir"
+              safe_process_rust_file "$file" "$output_dir" || echo "Error processing $file, continuing with next file"
             done
           }
           
@@ -502,6 +532,9 @@ jobs:
           echo "Starting documentation extraction from $source_dir to $output_dir"
           process_all_rust_files "$source_dir" "$output_dir"
           echo "Documentation extraction complete!"
+          
+          # Return success
+          exit 0
           EOF
           
           # Make script executable
