@@ -1,3 +1,10 @@
+//! Build management module for handling application builds.
+//!
+//! This module provides a REST API for managing builds, including:
+//! - Listing all builds with pagination
+//! - Listing builds for a specific application
+//! - Getting details of a specific build
+
 use crate::db::tables::Build;
 use crate::db::v1::queries as db;
 use rocket::http::Status;
@@ -5,7 +12,20 @@ use rocket::serde::json::Json;
 use rocket::{delete, get, http::ContentType, post, put, Data, State};
 use sqlx::MySql;
 
-// List all builds (Paginated)
+/// List all builds with pagination support.
+///
+/// This endpoint retrieves a paginated list of all builds in the system,
+/// allowing administrators to monitor and track build activities.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool
+/// * `page` - Optional page number for pagination (defaults to 1)
+/// * `per_page` - Optional number of items per page (defaults to 10)
+///
+/// # Returns
+///
+/// A JSON array of build objects
 #[get("/builds?<page>&<per_page>")]
 pub async fn list_builds(
     pool: &State<sqlx::Pool<MySql>>,
@@ -22,7 +42,21 @@ pub async fn list_builds(
     Json(builds)
 }
 
-// List builds for a specific app (paginated)
+/// List builds for a specific application with pagination support.
+///
+/// This endpoint retrieves a paginated list of builds for a specific application,
+/// allowing users to track the build history of an application.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool
+/// * `app_id` - ID of the application to list builds for
+/// * `page` - Optional page number for pagination (defaults to 1)
+/// * `per_page` - Optional number of items per page (defaults to 10)
+///
+/// # Returns
+///
+/// A JSON array of build objects for the specified application
 #[get("/apps/<app_id>/builds?<page>&<per_page>")]
 pub async fn list_builds_for_app(
     pool: &State<sqlx::Pool<MySql>>,
@@ -41,7 +75,19 @@ pub async fn list_builds_for_app(
     Json(builds)
 }
 
-// Get a build by ID
+/// Get a specific build by ID.
+///
+/// This endpoint retrieves detailed information about a specific build,
+/// which can be used to inspect the build status, logs, and other details.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool
+/// * `build_id` - ID of the build to retrieve
+///
+/// # Returns
+///
+/// A JSON object containing the build details
 #[get("/builds/<build_id>")]
 pub async fn get_build(pool: &State<sqlx::Pool<MySql>>, build_id: i64) -> Json<Build> {
     let build = db::build::get_build_by_id(pool, build_id).await.unwrap();

@@ -1,10 +1,10 @@
 -- Drop all tables first (in correct dependency order)
-DROP TABLE IF EXISTS metrics, allocations, instance_logs, audit_logs, api_keys, 
+DROP TABLE IF EXISTS host_creds, metrics, allocations, instance_logs, audit_logs, api_keys, 
     config_vars, deployment_logs, rollbacks, deployments, builds, tasks, 
     autoscaling_rules, health_checks, network_policies, service_bindings,
     routes, instances, domains, apps, spaces, orgmember, permissions_role, 
     role_user, permissions, roles, quotas, orgs, user_sessions, user_pii, user_meta, users, 
-    data_services, nodes, regions;
+    data_services, nodes, workers, regions;
 
 -- Create independent tables first (no foreign keys)
 
@@ -280,7 +280,7 @@ CREATE TABLE spaces (
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE nodes (
+CREATE TABLE workers (
     id BIGINT NOT NULL AUTO_INCREMENT,
     region_id BIGINT NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -307,9 +307,9 @@ CREATE TABLE nodes (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY unique_name_region (name, region_id),
-    KEY idx_nodes_region_id (region_id),
-    KEY idx_nodes_status (status),
-    KEY idx_nodes_instance_type (instance_type),
+    KEY idx_workers_region_id (region_id),
+    KEY idx_workers_status (status),
+    KEY idx_workers_instance_type (instance_type),
     FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -427,7 +427,7 @@ CREATE TABLE instances (
     KEY idx_instances_node_id (node_id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (allocation_id) REFERENCES allocations(id),
-    FOREIGN KEY (node_id) REFERENCES nodes(id)
+    FOREIGN KEY (node_id) REFERENCES workers(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE domains (
@@ -659,7 +659,7 @@ CREATE TABLE tasks (
     KEY idx_tasks_created_by (created_by),
     KEY idx_tasks_node_id (node_id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
-    FOREIGN KEY (node_id) REFERENCES nodes(id),
+    FOREIGN KEY (node_id) REFERENCES workers(id),
     FOREIGN KEY (created_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -739,6 +739,56 @@ CREATE TABLE network_policies (
     FOREIGN KEY (destination_app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (created_by) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Host credentials table for unified management of physical and virtual infrastructure
+CREATE TABLE host_creds (
+    -- Primary key and basic identification
+    host_id CHAR(36) PRIMARY KEY,
+    host_name VARCHAR(255) NOT NULL,
+    host_address VARCHAR(255) NOT NULL,
+    
+    -- Physical vs. Cloud classification
+    is_physical_node BOOLEAN NOT NULL,
+    provider_type VARCHAR(255),  -- 'aws', 'azure', 'gcp', 'on-prem', etc.
+    region_id BIGINT,           -- Reference to region this node exists in
+    
+    -- Authentication credentials - stored encrypted
+    -- For physical nodes: SSH credentials
+    -- For cloud providers: API credentials
+    auth_type VARCHAR(50) NOT NULL,  -- 'ssh-key', 'ssh-password', 'api-key', 'iam-role', etc.
+    username VARCHAR(255),
+    password_encrypted TEXT,
+    key_encrypted TEXT,
+    key_id VARCHAR(255),        -- For referring to externally stored keys
+    secret_encrypted TEXT,      -- For API secret keys
+    
+    -- Connection settings
+    port INTEGER,
+    ssh_key_path VARCHAR(512),  -- Optional: path to SSH key file
+    connection_timeout INTEGER DEFAULT 30,
+    
+    -- Resource capacity (-1 for unlimited [recommended for non-physical hosts])
+    cpu_cores INTEGER,
+    memory_gb INTEGER,
+    storage_gb INTEGER,
+    
+    -- Metadata
+    tags JSON,                  -- MySQL uses JSON instead of JSONB
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_connected_at TIMESTAMP NULL,
+    
+    -- Constraints and indexes
+    CONSTRAINT unique_host_name UNIQUE (host_name),
+    CONSTRAINT unique_host_address UNIQUE (host_address),
+    FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE  -- Foreign key syntax fixed
+);
+
+-- Create indexes for better performance
+CREATE INDEX idx_host_creds_physical ON host_creds (is_physical_node);
+CREATE INDEX idx_host_creds_provider ON host_creds (provider_type);
+CREATE INDEX idx_host_creds_region ON host_creds (region_id);
+
 
 -- Create monitoring and logging tables with optimized storage
 CREATE TABLE metrics (
