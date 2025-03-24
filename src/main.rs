@@ -14,6 +14,7 @@
 
 mod db;
 mod api;
+mod types;
 mod state;
 mod logger;
 mod leader;
