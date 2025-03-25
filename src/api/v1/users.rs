@@ -11,7 +11,7 @@ use sqlx::mysql::MySqlPool as Pool;
 
 #[post("/users/create", data = "<data>")]
 pub async fn handle_create_user(pool: &State<Pool>, data: String) -> Custom<String> {
-    let data = match serde_json::from_str::<serde_json::Value>(&data) {
+    let data = match serde_json5::from_str::<serde_json5::Value>(&data) {
         Ok(d) => d,
         Err(_) => return Custom(Status::BadRequest, String::from("Not a valid JSON object")),
     };
@@ -77,7 +77,7 @@ pub async fn handle_create_user(pool: &State<Pool>, data: String) -> Custom<Stri
 
 #[post("/users/login", data = "<data>")]
 pub async fn handle_login(pool: &State<Pool>, data: String) -> Custom<String> {
-    let data = match serde_json::from_str::<serde_json::Value>(&data) {
+    let data = match serde_json5::from_str::<serde_json5::Value>(&data) {
         Ok(d) => d,
         Err(_) => return Custom(Status::BadRequest, String::from("Not a valid JSON object")),
     };
