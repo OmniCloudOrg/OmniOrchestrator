@@ -145,7 +145,7 @@ impl ServerConfig {
         let config_path = "config.json";
         
         // Serialize the configuration to pretty-printed JSON
-        let config_content = match serde_json5::to_string_pretty(&self) {
+        let config_content = match serde_json::to_string_pretty(&self) {
             Ok(content) => content,
             Err(_) => return Err(ConfigError::ParseError),
         };
