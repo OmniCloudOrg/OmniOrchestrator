@@ -8,6 +8,11 @@ use rocket::post;
 use rocket::response::status::Custom;
 
 #[post("/platforms/init", data = "<data>")]
-pub fn recieve_cloud_config(data: Json<String>) {
+pub fn recieve_cloud_config(data: Json<serde_json::Value>) -> Json<serde_json::Value> {
     println!("Received data: {:#?}", data);
+    
+    Json(serde_json::json!({
+        "status": "success",
+        "message": "Configuration received successfully"
+    }))
 }
