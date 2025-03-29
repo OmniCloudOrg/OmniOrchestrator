@@ -70,6 +70,16 @@ pub fn routes() -> Vec<rocket::Route> {
         // update_region
         // deployments
         // list_deployments
-        recieve_cloud_config,
+
+        init_platform,
+        check_platform_status,
+        bootstrap_host,
+        configure_network,
+        setup_monitoring,
+        setup_backups,
+        get_host_services,
+        restart_service,
+        get_service_logs,
+        
         ]
 }
