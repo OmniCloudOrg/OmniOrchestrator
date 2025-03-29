@@ -17,6 +17,7 @@ use apps::*;
 use audit_log::*;
 use builds::*;
 use deploy::*;
+// use platforms::*;
 use platforms::*;
 //use deployments::*;
 use instances::*;
@@ -77,9 +78,6 @@ pub fn routes() -> Vec<rocket::Route> {
         configure_network,
         setup_monitoring,
         setup_backups,
-        get_host_services,
-        restart_service,
-        get_service_logs,
         
         ]
 }
