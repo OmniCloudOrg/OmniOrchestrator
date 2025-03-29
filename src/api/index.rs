@@ -108,33 +108,87 @@ pub fn collect_routes(rocket: &Rocket<Build>) {
 pub fn routes_ui() -> content::RawHtml<String> {
     let routes_collection = ROUTES_COLLECTION.lock().unwrap();
     let routes = routes_collection.get_routes();
-    
+
+    // Collect unique versions dynamically
+    let mut versions: Vec<String> = routes
+        .iter()
+        .filter_map(|route| {
+            let path = &route.path;
+            if let Some(start) = path.find("/api/v") {
+                let rest = &path[start + 6..];
+                let end = rest.find('/').unwrap_or(rest.len());
+                let version = &rest[..end];
+                if version.chars().all(|c| c.is_numeric()) {
+                    Some(format!("v{}", version))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    versions.sort();
+    versions.dedup();
+
+    // Add "All Versions" and "Unversioned" options
+    let mut version_options = String::from(
+        r#"
+        <option value="all">All Versions</option>
+        <option value="unversioned">Unversioned</option>
+    "#,
+    );
+
+    // Add detected versions dynamically
+    version_options.push_str(
+        &versions
+            .iter()
+            .map(|v| format!(r#"<option value="{}">{}</option>"#, v.to_lowercase(), v))
+            .collect::<String>(),
+    );
+
     // Start building the HTML for the table
     let mut route_rows = String::new();
-    
-    // First sort the routes for better presentation
+
+    // Sort routes for better presentation
     let mut sorted_routes = routes.clone();
     sorted_routes.sort_by(|a, b| a.path.cmp(&b.path));
-    
+
     // Create table rows
     for route in sorted_routes {
         // Sort methods for consistency
         let mut methods = route.methods.clone();
         methods.sort();
-        
+
         for method in methods {
             let method_class = method.to_lowercase();
-            // Escape angle brackets in the path to prevent HTML interpretation
             let escaped_path = escape_html_in_path(&route.path);
-            
+            let version = if let Some(start) = route.path.find("/api/v") {
+                let rest = &route.path[start + 6..];
+                let end = rest.find('/').unwrap_or(rest.len());
+                format!("v{}", &rest[..end])
+            } else {
+                "unversioned".to_string()
+            };
+
             route_rows.push_str(&format!(
-                "<tr><td class=\"method-col\"><span class=\"method {}\">{}</span></td><td class=\"path-col\"><a href=\"{}\" style=\"color: white; text-decoration: none;\">{}</a></td></tr>\n",
-                method_class, method, escaped_path, escaped_path
+                "<tr class=\"route-row\" data-method=\"{}\" data-path=\"{}\" data-version=\"{}\">
+                    <td class=\"method-col\"><span class=\"method {}\">{}</span></td>
+                    <td class=\"path-col\"><a href=\"{}\" style=\"color: white; text-decoration: none;\">{}</a></td>
+                </tr>\n",
+                method.to_lowercase(),
+                escaped_path.to_lowercase(),
+                version.to_lowercase(),
+                method_class,
+                method,
+                escaped_path,
+                escaped_path
             ));
         }
     }
-    
-    // Complete HTML with proper table structure
+
+    // Complete HTML with search, method, and version filters
     let html = format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -210,6 +264,31 @@ pub fn routes_ui() -> content::RawHtml<String> {
         .patch {{
             background-color: #9c42be;
         }}
+        /* Search and Filter Styles */
+        .search-container {{
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }}
+        #searchInput, #methodFilter, #versionFilter {{
+            padding: 10px;
+            width: calc(33.33% - 10px);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #f8f9fa;
+            color: #333;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }}
+        #searchInput:focus, #methodFilter:focus, #versionFilter:focus {{
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+        }}
+        option {{
+            padding: 10px;
+        }}
+        /* Dark Mode Styles */
         @media (prefers-color-scheme: dark) {{
             body {{
                 background-color: #1a1a1a;
@@ -229,6 +308,15 @@ pub fn routes_ui() -> content::RawHtml<String> {
                 color: #81a1c1;
                 border-bottom-color: #5e81ac;
             }}
+            #searchInput, #methodFilter, #versionFilter {{
+                background-color: #2d2d2d;
+                color: #e0e0e0;
+                border: 1px solid #444;
+            }}
+            #searchInput:focus, #methodFilter:focus, #versionFilter:focus {{
+                border-color: #81a1c1;
+                box-shadow: 0 0 5px rgba(94, 129, 172, 0.5);
+            }}
         }}
     </style>
 </head>
@@ -237,9 +325,26 @@ pub fn routes_ui() -> content::RawHtml<String> {
         <h1>Welcome to OmniOrchestrator</h1>
         <p>OmniOrchestrator is a distributed system for managing and orchestrating the OmniCloud platform. Please refer to the API documentation below to get started!</p>
     </div>
-    
+
     <div class="routes-section">
         <h2>Available Routes</h2>
+
+        <!-- Search Bar and Filters -->
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search routes by path..." onkeyup="filterRoutes()">
+            <select id="methodFilter" onchange="filterRoutes()">
+                <option value="all">All Methods</option>
+                <option value="get">GET</option>
+                <option value="post">POST</option>
+                <option value="put">PUT</option>
+                <option value="delete">DELETE</option>
+                <option value="patch">PATCH</option>
+            </select>
+            <select id="versionFilter" onchange="filterRoutes()">
+                {version_options}
+            </select>
+        </div>
+
         <table>
             <thead>
                 <tr>
@@ -247,14 +352,44 @@ pub fn routes_ui() -> content::RawHtml<String> {
                     <th>Path</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="routesTable">
                 {route_rows}
             </tbody>
         </table>
     </div>
+
+    <script>
+        function filterRoutes() {{
+            let input = document.getElementById('searchInput').value.toLowerCase();
+            let methodFilter = document.getElementById('methodFilter').value.toLowerCase();
+            let versionFilter = document.getElementById('versionFilter').value.toLowerCase();
+            let rows = document.querySelectorAll('.route-row');
+
+            rows.forEach(row => {{
+                let method = row.getAttribute('data-method').toLowerCase();
+                let path = row.getAttribute('data-path').toLowerCase();
+                let version = row.getAttribute('data-version').toLowerCase();
+                
+                // Match method, version, and path with filters
+                let methodMatch = methodFilter === 'all' || method === methodFilter;
+                let versionMatch = 
+                    versionFilter === 'all' || 
+                    (versionFilter === 'unversioned' && version === 'unversioned') || 
+                    version === versionFilter;
+                let pathMatch = path.includes(input);
+
+                // Show row if all conditions match
+                if (methodMatch && versionMatch && pathMatch) {{
+                    row.style.display = '';
+                }} else {{
+                    row.style.display = 'none';
+                }}
+            }});
+        }}
+    </script>
 </body>
 </html>"#
     );
-    
+
     content::RawHtml(html)
 }
