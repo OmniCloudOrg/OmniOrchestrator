@@ -12,39 +12,41 @@
 // various components.
 //-----------------------------------------------------------------------------
 
-mod db;
 mod api;
-mod types;
-mod state;
-mod logger;
-mod leader;
-mod config;
 mod cluster;
+mod config;
+mod db;
+mod leader;
+mod logger;
+mod state;
+mod types;
 
 // Import Third-party crates
-use std::fs::File;
-use rocket::Build;
-use anyhow::Result;
-use rocket::Rocket;
-use std::io::Write;
 use anyhow::anyhow;
-use reqwest::Client;
+use anyhow::Result;
 use colored::Colorize;
-use tokio::sync::RwLock;
+use env_logger::{Builder, Target};
+use lazy_static::lazy_static;
+use reqwest::Client;
+use rocket::serde::json::Json;
+use rocket::Build;
+use rocket::Rocket;
+use serde::{Deserialize, Serialize};
+use sqlx::mysql::MySqlPool;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
 use std::time::Duration;
 use std::{env, sync::Arc};
-use sqlx::mysql::MySqlPool;
-use lazy_static::lazy_static;
-use env_logger::{Builder, Target};
-use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
 
 // Import other pieces of modules for use
-use api::*; // We import this so we can mount the various routes for different API versions
-use crate::state::SharedState;
+use crate::cluster::{ClusterManager, NodeInfo};
 use crate::config::ServerConfig;
 use crate::config::SERVER_CONFIG;
 use crate::leader::LeaderElection;
-use crate::cluster::{ClusterManager, NodeInfo};
+use crate::state::SharedState;
+use api::*; // We import this so we can mount the various routes for different API versions
 
 #[macro_use]
 extern crate rocket;
@@ -52,9 +54,9 @@ extern crate rocket;
 /// Extension trait for mounting multiple routes to a Rocket instance
 trait RocketExt {
     /// Mount multiple route groups at once to simplify route registration
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `routes` - A vector of path and route pairs to mount
     fn mount_routes(self, routes: Vec<(&'static str, Vec<rocket::Route>)>) -> Self;
 }
@@ -69,6 +71,7 @@ impl RocketExt for Rocket<Build> {
         rocket
     }
 }
+
 
 /// Global singleton instance of the cluster manager
 /// Manages node discovery and peer connections
@@ -177,6 +180,7 @@ impl ClusterManager {
         }
     }
 }
+
 
 /// Health check endpoint to verify node status
 ///
@@ -347,10 +351,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let leader_election = LeaderElection::new(node_id, shared_state.clone());
 
     // Define routes to mount
-    let routes = vec![("/", routes![health_check]), ("/api/v1", api::v1::routes())];
+    let routes = vec![
+        ("/", routes![health_check, api::index::routes_ui, cluster_status]), 
+        ("/api/v1", api::v1::routes())
+    ];
 
-    // Build, configure and launch the Rocket server
-    let _rocket = rocket::build()
+    // Build Rocket instance with base configuration
+    let rocket_instance = rocket::build()
         .configure(rocket::Config {
             port,
             address: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
@@ -358,9 +365,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .manage(pool) // Add database pool to Rocket's state
         .manage(shared_state)
-        .manage(CLUSTER_MANAGER.clone())
-        .mount_routes(routes)
-        .launch()
-        .await?;
+        .manage(CLUSTER_MANAGER.clone());
+
+    // Mount routes to the Rocket instance
+    let rocket_with_routes = rocket_instance.mount_routes(routes);
+    
+    // Collect routes information before launch
+    api::index::collect_routes(&rocket_with_routes);
+    
+    // Launch server
+    let _rocket = rocket_with_routes.launch().await?;
+    
     Ok(())
 }
