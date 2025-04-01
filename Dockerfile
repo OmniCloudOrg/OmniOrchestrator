@@ -47,6 +47,10 @@ RUN adduser \
     --uid "${UID}" \
     appuser
 
+# Correct config file permissions
+COPY --chown=appuser:appuser ./config.json /config.json
+RUN chmod a+rwx /config.json
+
 USER appuser
 
 # Copy the executable from the "build" stage.

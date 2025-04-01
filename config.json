@@ -3,21 +3,21 @@
     "address":  "http://localhost",
     "highlight_sql": true,
     "instances":  [
-                      {
-                          "port":  8000,
-                          "address":  "http://localhost"
-                      },
-                      {
-                          "port":  8001,
-                          "address":  "http://localhost"
-                      },
-                      {
-                          "port":  8002,
-                          "address":  "http://localhost"
-                      },
-                      {
-                          "port":  8003,
-                          "address":  "http://localhost"
-                      }
-                  ]
+        {
+            "port":  8000,
+            "address":  "http://localhost"
+        },
+        {
+            "port":  8001,
+            "address":  "http://localhost"
+        },
+        {
+            "port":  8002,
+            "address":  "http://localhost"
+        },
+        {
+            "port":  8003,
+            "address":  "http://localhost"
+        }
+    ]
 }

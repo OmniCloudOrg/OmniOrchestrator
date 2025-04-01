@@ -19,7 +19,6 @@ mod db;
 mod leader;
 mod logger;
 mod state;
-mod types;
 
 // Import Third-party crates
 use anyhow::anyhow;
@@ -39,6 +38,8 @@ use std::io::Write;
 use std::time::Duration;
 use std::{env, sync::Arc};
 use tokio::sync::RwLock;
+
+
 
 // Import other pieces of modules for use
 use crate::cluster::{ClusterManager, NodeInfo};
@@ -244,12 +245,11 @@ async fn cluster_status(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = SERVER_CONFIG.port;
     println!("Starting server on port {}", port);
-    env::set_var("RUST_LOG", "trace");
 
     // Setup logging
-    let file = File::create(format!("cluster-{}.log", port))?;
+    // let file = File::create(format!("cluster-{}.log", port))?;
     Builder::new()
-        .target(Target::Pipe(Box::new(file)))
+        //.target(Target::Pipe(Box::new(file)))
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| {
             let style = buf.style();
