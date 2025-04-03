@@ -275,7 +275,7 @@ VALUES
 -- INSERT INTO spaces (org_id, name, description, status, created_at)
 
 
-INSERT INTO workers (region_id, name, provider_id, instance_type, status, cpu_total, cpu_available, cpu_reserved, memory_total, memory_available, memory_reserved, disk_total, disk_available, disk_reserved, network_in_capacity, network_out_capacity, kubernetes_version, labels, last_heartbeat, created_at)
+INSERT INTO workers (region_id, name, provider_id, instance_type, status, cpu_total, cpu_available, cpu_reserved, memory_total, memory_available, memory_reserved, disk_total, disk_available, disk_reserved, network_in_capacity, network_out_capacity, docker_version, labels, last_heartbeat, created_at)
 VALUES
 (1  , 'node-a1b2c3d4' , 'i-0123456789abcdef0' , 'c5.4xlarge' , 'active'       , 8  , 3  , 5  , 32768  , 12768 , 20000  , 512000  , 212000 , 300000  , 10000 , 10000 , '1.24.8' , JSON_OBJECT('role', 'worker', 'zone', 'zone-a')        , NOW() - INTERVAL 5 MINUTE   , '2022-01-15 10:30:00'),
 (1  , 'node-e5f6g7h8' , 'i-1234567890abcdef1' , 'm5.8xlarge' , 'active'       , 16 , 6  , 10 , 65536  , 25536 , 40000  , 1024000 , 424000 , 600000  , 10000 , 10000 , '1.24.8' , JSON_OBJECT('role', 'control-plane', 'zone', 'zone-a') , NOW() - INTERVAL 3 MINUTE   , '2022-01-20 14:45:00'),

@@ -11,6 +11,7 @@ pub mod permissions;
 pub mod regions;
 pub mod users;
 pub mod platforms;
+pub mod workers;
 //pub mod deployments;
 
 use apps::*;
@@ -25,6 +26,7 @@ use metadata::*;
 use permissions::*;
 use regions::*;
 use users::*;
+use workers::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -79,5 +81,7 @@ pub fn routes() -> Vec<rocket::Route> {
         setup_monitoring,
         setup_backups,
         
+        // workers
+        list_workers
         ]
 }

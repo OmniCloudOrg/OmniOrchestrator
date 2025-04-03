@@ -8,3 +8,4 @@ pub mod org;
 pub mod permission;
 pub mod region;
 pub mod user;
+pub mod worker;
