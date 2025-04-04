@@ -40,3 +40,34 @@ pub async fn list_workers(
     
     Ok(workers)
 }
+
+/// Retrieves a worker by its ID from the database.
+///
+/// This function fetches a worker from the database using its unique ID.
+/// 
+/// # Arguments
+/// 
+/// * `pool` - Database connection pool for executing the query
+/// * `worker_id` - Unique identifier of the worker to fetch
+/// 
+/// # Returns
+/// 
+/// * `Ok(Worker)` - Successfully retrieved worker
+/// * `Err(anyhow::Error)` - Failed to fetch worker
+/// 
+/// # Errors
+/// 
+/// * `sqlx::Error` - If the query fails or the worker is not found
+pub async fn get_worker_by_id(
+    pool: &sqlx::Pool<sqlx::MySql>,
+    worker_id: i64,
+) -> Result<Worker, sqlx::Error> {
+    let worker = sqlx::query_as::<_, Worker>(
+        "SELECT * FROM workers WHERE id = ?"
+    )
+    .bind(worker_id)
+    .fetch_one(pool)
+    .await?;
+    
+    Ok(worker)
+}

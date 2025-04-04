@@ -19,6 +19,7 @@ mod db;
 mod leader;
 mod logger;
 mod state;
+mod worker_autoscaler;
 
 // Import Third-party crates
 use anyhow::anyhow;
@@ -32,6 +33,9 @@ use rocket::Build;
 use rocket::Rocket;
 use serde::{Deserialize, Serialize};
 use sqlx::mysql::MySqlPool;
+use worker_autoscaler::create_default_cpu_memory_scaling_policy;
+use worker_autoscaler::WorkerAutoscaler;
+use worker_autoscaler::{VMTemplate, VMConfig, CloudDirector};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Write;
@@ -343,6 +347,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     log::error!("Failed to discover peers: {e}");
                 }
                 tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+            }
+        }
+    });
+
+    // Initialize worker autoscaler with default policy
+    let policy = create_default_cpu_memory_scaling_policy();
+    let mut autoscaler = WorkerAutoscaler::new(1, 1, policy);
+
+    // Add cloud director for managing VMs
+    let cloud_director = Arc::new(CloudDirector::new(
+        "cloud-1".to_string(),
+        "aws".to_string(), 
+        "us-east-1".to_string()
+    ));
+    autoscaler.add_director(cloud_director);
+
+    // Set up VM template for worker nodes
+    let mut vm_template = VMTemplate::default();
+    vm_template.base_name = "omni-worker".to_string();
+    vm_template.config = VMConfig {
+        cpu: 2,
+        memory: 4096, // 4GB
+        storage: 80,  // 80GB
+        options: HashMap::new()
+    };
+    autoscaler.set_vm_template(vm_template);
+
+    // Start discovery tasks
+    tokio::spawn({
+        let mut autoscaler = autoscaler;
+        async move {
+            // Sleep for 1.5 seconds before starting discovery
+            println!("Sleeping for 1.5 seconds before discovery...");
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            loop {
+                println!("Discovering nodes and VMs...");
+                if let Err(e) = autoscaler.discover_nodes().await {
+                    error!("Node discovery error: {}", e);
+                }
+                if let Err(e) = autoscaler.discover_vms().await {
+                    error!("VM discovery error: {}", e); 
+                }
+                let metrics: HashMap<String, f32> = HashMap::new(); // TODO: populate with actual metrics
+                if let Err(e) = autoscaler.check_scaling(&metrics) {
+                    error!("Worker scaling error: {}", e);
+                }
+                // Sleep for 30 seconds before next discovery
+                println!("Sleeping autoscaling thread for 3 seconds...");
+                tokio::time::sleep(Duration::from_secs(3)).await;
             }
         }
     });

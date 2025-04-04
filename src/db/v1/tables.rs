@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use serde_json::Value;
+use sqlx::types::Json;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct User {
@@ -141,6 +141,35 @@ pub struct AuditLog {
     pub resource_type: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "ENUM", rename_all = "snake_case")]
+pub enum WorkerStatus {
+    Active,
+    Provisioning,
+    Maintenance,
+    PoweredOff,
+    Unreachable,
+    Degraded,
+    Decommissioning,
+}
+
+// Default implementation for WorkerStatus
+impl Default for WorkerStatus {
+    fn default() -> Self {
+        WorkerStatus::Active
+    }
+}
+
+// Function to provide default status for serde
+fn default_status() -> WorkerStatus {
+    WorkerStatus::Active
+}
+
+// Function to provide default SSH port
+fn default_ssh_port() -> i32 {
+    22
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Worker {
     pub id: Option<i64>,
@@ -148,8 +177,7 @@ pub struct Worker {
     pub name: String,
     pub provider_id: Option<String>,
     pub instance_type: Option<String>,
-    #[serde(default = "default_status")]
-    pub status: WorkerStatus,
+    pub status: String,
     pub cpu_total: f64,
     pub cpu_available: f64,
     #[serde(default)]
@@ -170,31 +198,10 @@ pub struct Worker {
     pub ssh_port: i32,
     pub ssh_user: Option<String>,
     pub ssh_key: Option<String>,
-    pub labels: Option<Value>,
-    pub taints: Option<Value>,
-    pub annotations: Option<Value>,
+    pub labels: Option<Json<serde_json::Value>>,
+    pub taints: Option<Json<serde_json::Value>>,
+    pub annotations: Option<Json<serde_json::Value>>,
     pub last_heartbeat: Option<DateTime<Utc>>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
-#[serde(rename_all = "lowercase")]
-#[sqlx(type_name = "ENUM", rename_all = "lowercase")]
-pub enum WorkerStatus {
-    Active,
-    Provisioning,
-    Maintenance,
-    PoweredOff,
-    Unreachable,
-    Degraded,
-    Decommissioning,
-}
-
-fn default_status() -> WorkerStatus {
-    WorkerStatus::Active
-}
-
-fn default_ssh_port() -> i32 {
-    22
 }

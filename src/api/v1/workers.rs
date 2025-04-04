@@ -30,3 +30,13 @@ pub async fn list_workers(
     let workers = db::worker::list_workers(pool, page, per_page).await.map_err(|_| Status::InternalServerError)?;
     Ok(Json(workers))
 }
+
+/// Get a worker by its ID.
+#[get("/workers/<worker_id>")]
+pub async fn get_worker_by_id(
+    worker_id: i64,
+    pool: &State<sqlx::Pool<MySql>>,
+) -> Result<Json<Worker>, Status> {
+    let worker = db::worker::get_worker_by_id(pool, worker_id).await.map_err(|_| Status::NotFound)?;
+    Ok(Json(worker))
+}

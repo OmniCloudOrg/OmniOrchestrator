@@ -82,6 +82,7 @@ pub fn routes() -> Vec<rocket::Route> {
         setup_backups,
         
         // workers
-        list_workers
+        list_workers,
+        get_worker_by_id
         ]
 }
