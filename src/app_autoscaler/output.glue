@@ -1,0 +1,1263 @@
+$$--GLUE--$$
+# This is a GLUE file; an amalgamation of files across one or more paths designed to give project contexts to LLMs easily. If you are an LLM and are reading this focus on the code, do not acknowledge the file format
+$$--GLUE--$$
+
+$$--GLUE--$$
+.\director.rs
+$$--GLUE--$$
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use log::{info, error};
+use async_trait::async_trait;
+
+use super::error::AutoscalerError;
+use super::node_types::{Node, NodeType};
+use super::vm::{VM, VMState};
+
+/// Interface for a director that manages VM operations on nodes
+#[async_trait]
+pub trait Director: Send + Sync + std::fmt::Debug {
+    /// Get the unique ID of this director
+    async fn id(&self) -> String;
+    
+    /// Get the nodes managed by this director
+    async fn get_nodes(&self) -> Result<Vec<Node>, AutoscalerError>;
+    
+    /// Get information about a specific node
+    async fn get_node(&self, node_id: &str) -> Result<Node, AutoscalerError>;
+    
+    /// Create a new VM on a specific node
+    async fn create_vm(&self, node_id: &str, name: &str, cpu: u32, memory: u32, storage: u32) 
+        -> Result<VM, AutoscalerError>;
+    
+    /// Terminate a VM
+    async fn terminate_vm(&self, vm_id: &str) -> Result<(), AutoscalerError>;
+    
+    /// Get information about a specific VM
+    async fn get_vm(&self, vm_id: &str) -> Result<VM, AutoscalerError>;
+    
+    /// Get all VMs managed by this director
+    async fn get_vms(&self) -> Result<Vec<VM>, AutoscalerError>;
+    
+    /// Get metrics for a specific VM
+    async fn get_vm_metrics(&self, vm_id: &str) -> Result<HashMap<String, f32>, AutoscalerError>;
+}
+
+/// Implementation of a cloud director (AWS, Azure, GCP)
+#[derive(Debug)]
+pub struct CloudDirector {
+    /// Unique ID of this director
+    id: String,
+    /// Name of the cloud provider
+    provider: String,
+    /// Region for this cloud provider
+    region: String,
+    /// Simulated nodes for this director
+    nodes: Arc<Mutex<HashMap<String, Node>>>,
+    /// Simulated VMs for this director
+    vms: Arc<Mutex<HashMap<String, VM>>>,
+}
+
+impl CloudDirector {
+    /// Create a new cloud director
+    pub fn new(id: String, provider: String, region: String) -> Self {
+        let mut nodes = HashMap::new();
+        
+        // Create a single "infinite" capacity cloud node
+        let node_id = format!("{}-{}-node", provider, region);
+        let node = Node::new_cloud(
+            node_id.clone(),
+            format!("{} {} Default Node", provider, region),
+            id.clone(),
+        );
+        
+        nodes.insert(node_id, node);
+        
+        Self {
+            id,
+            provider,
+            region,
+            nodes: Arc::new(Mutex::new(nodes)),
+            vms: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+}
+
+#[async_trait]
+impl Director for CloudDirector {
+    async fn id(&self) -> String {
+        self.id.clone()
+    }
+    
+    async fn get_nodes(&self) -> Result<Vec<Node>, AutoscalerError> {
+        let nodes = self.nodes.lock().unwrap();
+        Ok(nodes.values().cloned().collect())
+    }
+    
+    async fn get_node(&self, node_id: &str) -> Result<Node, AutoscalerError> {
+        let nodes = self.nodes.lock().unwrap();
+        nodes.get(node_id).cloned().ok_or_else(|| 
+            AutoscalerError::NodeNotFound(format!("Node {} not found", node_id)))
+    }
+    
+    async fn create_vm(&self, node_id: &str, name: &str, cpu: u32, memory: u32, storage: u32) 
+        -> Result<VM, AutoscalerError> {
+        // Verify the node exists
+        let mut nodes = self.nodes.lock().unwrap();
+        let node = nodes.get_mut(node_id).ok_or_else(|| 
+            AutoscalerError::NodeNotFound(format!("Node {} not found", node_id)))?;
+        
+        // Reserve capacity on the node
+        node.reserve_capacity(cpu, memory, storage)?;
+        
+        // Create a new VM
+        let vm_id = format!("{}-{}", node_id, uuid::Uuid::new_v4());
+        let vm = VM::new(
+            vm_id.clone(),
+            name.to_string(),
+            node_id.to_string(),
+            cpu,
+            memory,
+            storage,
+        );
+        
+        // Store the VM
+        let mut vms = self.vms.lock().unwrap();
+        vms.insert(vm_id, vm.clone());
+        
+        // Simulate API call to cloud provider
+        info!("Cloud Director {} creating VM {} on node {}", self.id, vm.id, node_id);
+        
+        // In a real implementation, this would make API calls to the cloud provider
+        
+        Ok(vm)
+    }
+    
+    async fn terminate_vm(&self, vm_id: &str) -> Result<(), AutoscalerError> {
+        // Find the VM
+        let mut vms = self.vms.lock().unwrap();
+        let vm = vms.get_mut(vm_id).ok_or_else(|| 
+            AutoscalerError::VMNotFound(format!("VM {} not found", vm_id)))?;
+        
+        // Update VM state
+        vm.state = VMState::Terminating;
+        vm.updated_at = Instant::now();
+        
+        // Simulate API call to cloud provider
+        info!("Cloud Director {} terminating VM {}", self.id, vm_id);
+        
+        // Release capacity on the node
+        let mut nodes = self.nodes.lock().unwrap();
+        if let Some(node) = nodes.get_mut(&vm.node_id) {
+            node.release_capacity(vm.cpu, vm.memory, vm.storage);
+        }
+        
+        // In a real implementation, this would make API calls to the cloud provider
+        
+        // Mark VM as terminated
+        vm.state = VMState::Terminated;
+        
+        Ok(())
+    }
+    
+    async fn get_vm(&self, vm_id: &str) -> Result<VM, AutoscalerError> {
+        let vms = self.vms.lock().unwrap();
+        vms.get(vm_id).cloned().ok_or_else(|| 
+            AutoscalerError::VMNotFound(format!("VM {} not found", vm_id)))
+    }
+    
+    async fn get_vms(&self) -> Result<Vec<VM>, AutoscalerError> {
+        let vms = self.vms.lock().unwrap();
+        Ok(vms.values().cloned().collect())
+    }
+    
+    async fn get_vm_metrics(&self, vm_id: &str) -> Result<HashMap<String, f32>, AutoscalerError> {
+        // Verify the VM exists
+        let vms = self.vms.lock().unwrap();
+        let _vm = vms.get(vm_id).ok_or_else(|| 
+            AutoscalerError::VMNotFound(format!("VM {} not found", vm_id)))?;
+        
+        // Simulate gathering metrics
+        // In a real implementation, this would make API calls to the cloud provider
+        let mut metrics = HashMap::new();
+        metrics.insert("cpu_utilization".to_string(), 50.0 + (rand::random::<f32>() * 30.0 - 15.0));
+        metrics.insert("memory_utilization".to_string(), 60.0 + (rand::random::<f32>() * 20.0 - 10.0));
+        
+        Ok(metrics)
+    }
+}
+$$--GLUE--$$
+.\error.rs
+$$--GLUE--$$
+use thiserror::Error;
+
+/// Errors that can occur during autoscaling operations
+#[derive(Error, Debug)]
+pub enum AutoscalerError {
+    #[error("Invalid metric value: {0}")]
+    InvalidMetricValue(String),
+    
+    #[error("Failed to apply scaling decision: {0}")]
+    ScalingFailed(String),
+    
+    #[error("Metric not found: {0}")]
+    MetricNotFound(String),
+    
+    #[error("Insufficient node capacity: {0}")]
+    InsufficientCapacity(String),
+    
+    #[error("Director communication failed: {0}")]
+    DirectorError(String),
+    
+    #[error("Node not found: {0}")]
+    NodeNotFound(String),
+    
+    #[error("VM not found: {0}")]
+    VMNotFound(String),
+}
+$$--GLUE--$$
+.\metrics.rs
+$$--GLUE--$$
+use std::collections::HashMap;
+use async_trait::async_trait;
+use serde::{Serialize, Deserialize};
+
+use super::error::AutoscalerError;
+
+/// Interface for collecting metrics from VMs and nodes
+#[async_trait]
+pub trait MetricsCollector: Send + Sync + std::fmt::Debug {
+    /// Collect metrics from a specific VM
+    async fn collect_vm_metrics(&self, vm_id: &str) -> Result<HashMap<String, f32>, AutoscalerError>;
+    
+    /// Collect metrics from a specific node
+    async fn collect_node_metrics(&self, node_id: &str) -> Result<HashMap<String, f32>, AutoscalerError>;
+    
+    /// Collect aggregate metrics for all VMs and nodes
+    async fn collect_aggregate_metrics(&self) -> Result<HashMap<String, f32>, AutoscalerError>;
+}
+
+/// Possible threshold types for metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MetricThreshold {
+    Float(f32),
+    Integer(i64),
+    Boolean(bool),
+}
+
+/// Represents a scaling action to be taken
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScalingAction {
+    ScaleUp,
+    ScaleDown,
+    NoAction,
+}
+$$--GLUE--$$
+.\mod.rs
+$$--GLUE--$$
+pub mod error;
+pub mod node_types;
+pub mod vm;
+pub mod director;
+pub mod metrics;
+pub mod policy;
+pub mod worker_autoscaler;
+
+// Re-export commonly used types
+pub use error::AutoscalerError;
+pub use node_types::{Node, NodeType};
+pub use vm::{VM, VMState, VMConfig, VMTemplate};
+pub use director::{Director, CloudDirector};
+pub use metrics::{MetricsCollector, MetricThreshold, ScalingAction};
+pub use policy::ScalingPolicy;
+pub use worker_autoscaler::WorkerAutoscaler;
+pub use policy::create_default_cpu_memory_scaling_policy;
+$$--GLUE--$$
+.\node_types.rs
+$$--GLUE--$$
+use std::collections::HashMap;
+use serde::{Serialize, Deserialize};
+use super::AutoscalerError;
+
+/// Types of nodes that can host VMs
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum NodeType {
+    /// Physical server with capacity constraints
+    Physical,
+    /// Cloud provider (AWS, Azure, GCP) with "infinite" capacity
+    Cloud,
+    /// Edge node with limited resources
+    Edge,
+}
+
+/// Represents a physical or cloud node that can host VMs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Node {
+    /// Unique identifier for the node
+    pub id: String,
+    /// Human-readable name for the node
+    pub name: String,
+    /// Type of node (physical, cloud, etc.)
+    pub node_type: NodeType,
+    /// Total CPU cores available on this node
+    pub total_cpu: u32,
+    /// Total memory in MB available on this node
+    pub total_memory: u32,
+    /// Total storage in GB available on this node
+    pub total_storage: u32,
+    /// CPU cores currently allocated to VMs
+    pub allocated_cpu: u32,
+    /// Memory in MB currently allocated to VMs
+    pub allocated_memory: u32,
+    /// Storage in GB currently allocated to VMs
+    pub allocated_storage: u32,
+    /// Whether the node is online and available
+    pub online: bool,
+    /// The director responsible for this node
+    pub director_id: String,
+    /// Additional properties specific to this node
+    pub properties: HashMap<String, String>,
+}
+
+impl Node {
+    /// Create a new node with the specified capacity
+    pub fn new(id: String, name: String, node_type: NodeType, director_id: String, 
+               total_cpu: u32, total_memory: u32, total_storage: u32) -> Self {
+        Self {
+            id,
+            name,
+            node_type,
+            total_cpu,
+            total_memory,
+            total_storage,
+            allocated_cpu: 0,
+            allocated_memory: 0,
+            allocated_storage: 0,
+            online: true,
+            director_id,
+            properties: HashMap::new(),
+        }
+    }
+    
+    /// Create a new cloud node with "infinite" capacity
+    pub fn new_cloud(id: String, name: String, director_id: String) -> Self {
+        Self {
+            id,
+            name,
+            node_type: NodeType::Cloud,
+            // High values to represent "infinite" capacity
+            total_cpu: u32::MAX / 2,
+            total_memory: u32::MAX / 2,
+            total_storage: u32::MAX / 2,
+            allocated_cpu: 0,
+            allocated_memory: 0,
+            allocated_storage: 0,
+            online: true,
+            director_id,
+            properties: HashMap::new(),
+        }
+    }
+    
+    /// Check if the node has enough capacity for the specified resources
+    pub fn has_capacity(&self, cpu: u32, memory: u32, storage: u32) -> bool {
+        // Cloud nodes always have capacity
+        if self.node_type == NodeType::Cloud {
+            return true;
+        }
+        
+        self.allocated_cpu + cpu <= self.total_cpu &&
+        self.allocated_memory + memory <= self.total_memory &&
+        self.allocated_storage + storage <= self.total_storage
+    }
+    
+    /// Reserve capacity on this node
+    pub fn reserve_capacity(&mut self, cpu: u32, memory: u32, storage: u32) -> Result<(), AutoscalerError> {
+        if !self.has_capacity(cpu, memory, storage) {
+            return Err(AutoscalerError::InsufficientCapacity(format!(
+                "Node {} does not have enough capacity for CPU:{}, Memory:{}MB, Storage:{}GB",
+                self.id, cpu, memory, storage
+            )));
+        }
+        
+        self.allocated_cpu += cpu;
+        self.allocated_memory += memory;
+        self.allocated_storage += storage;
+        
+        Ok(())
+    }
+    
+    /// Release capacity on this node
+    pub fn release_capacity(&mut self, cpu: u32, memory: u32, storage: u32) {
+        self.allocated_cpu = self.allocated_cpu.saturating_sub(cpu);
+        self.allocated_memory = self.allocated_memory.saturating_sub(memory);
+        self.allocated_storage = self.allocated_storage.saturating_sub(storage);
+    }
+    
+    /// Get the percentage of CPU capacity in use
+    pub fn cpu_utilization(&self) -> f32 {
+        if self.total_cpu == 0 {
+            return 0.0;
+        }
+        (self.allocated_cpu as f32 / self.total_cpu as f32) * 100.0
+    }
+    
+    /// Get the percentage of memory capacity in use
+    pub fn memory_utilization(&self) -> f32 {
+        if self.total_memory == 0 {
+            return 0.0;
+        }
+        (self.allocated_memory as f32 / self.total_memory as f32) * 100.0
+    }
+    
+    /// Get the percentage of storage capacity in use
+    pub fn storage_utilization(&self) -> f32 {
+        if self.total_storage == 0 {
+            return 0.0;
+        }
+        (self.allocated_storage as f32 / self.total_storage as f32) * 100.0
+    }
+}
+$$--GLUE--$$
+.\policy.rs
+$$--GLUE--$$
+use std::collections::HashMap;
+use std::time::Duration;
+use serde::{Serialize, Deserialize};
+
+use super::metrics::MetricThreshold;
+
+/// Configuration for scaling operations
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScalingPolicy {
+    /// The maximum number of worker nodes allowed in the cluster
+    pub max_worker_count: usize,
+    /// The minimum number of worker nodes allowed in the cluster
+    pub min_worker_count: usize,
+    /// The cooldown period between scaling actions
+    pub cooldown_period: Duration,
+    /// Custom metrics and their thresholds for scaling decisions
+    pub metrics_thresholds: HashMap<String, MetricThreshold>,
+    /// Number of workers to add during scale up
+    pub scale_up_increment: usize,
+    /// Number of workers to remove during scale down
+    pub scale_down_increment: usize,
+    /// Time to wait before considering a scale down action
+    pub scale_down_delay: Duration,
+    /// Maximum percentage of workers that can be scaled down at once
+    pub max_scale_down_percentage: f32,
+    /// Whether to enable automatic scaling
+    pub autoscaling_enabled: bool,
+}
+
+impl Default for ScalingPolicy {
+    fn default() -> Self {
+        Self {
+            max_worker_count: 10,
+            min_worker_count: 1,
+            cooldown_period: Duration::from_secs(300), // 5 minutes
+            metrics_thresholds: HashMap::new(),
+            scale_up_increment: 1,
+            scale_down_increment: 1,
+            scale_down_delay: Duration::from_secs(600), // 10 minutes
+            max_scale_down_percentage: 0.25, // 25%
+            autoscaling_enabled: true,
+        }
+    }
+}
+
+// Example of a configuration function
+pub fn create_default_cpu_memory_scaling_policy() -> ScalingPolicy {
+    let mut policy = ScalingPolicy::default();
+    
+    let mut thresholds = HashMap::new();
+    thresholds.insert("cpu_utilization".to_string(), MetricThreshold::Float(70.0));
+    thresholds.insert("memory_utilization".to_string(), MetricThreshold::Float(80.0));
+    
+    policy.metrics_thresholds = thresholds;
+    policy
+}
+$$--GLUE--$$
+.\vm.rs
+$$--GLUE--$$
+use std::collections::HashMap;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
+
+/// Represents a VM managed by the autoscaler
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VM {
+    /// Unique identifier for the VM
+    pub id: String,
+    /// Human-readable name for the VM
+    pub name: String,
+    /// ID of the node hosting this VM
+    pub node_id: String,
+    /// CPU cores allocated to this VM
+    pub cpu: u32,
+    /// Memory in MB allocated to this VM
+    pub memory: u32,
+    /// Storage in GB allocated to this VM
+    pub storage: u32,
+    /// Current state of the VM
+    pub state: VMState,
+    /// When the VM was created (as milliseconds since UNIX epoch)
+    #[serde(with = "timestamp_serde")]
+    pub created_at: Instant,
+    /// Last time the VM state was updated (as milliseconds since UNIX epoch)
+    #[serde(with = "timestamp_serde")]
+    pub updated_at: Instant,
+    /// Additional properties specific to this VM
+    pub properties: HashMap<String, String>,
+}
+
+mod timestamp_serde {
+    use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(instant: &Instant, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let duration = instant.duration_since(Instant::now()) + SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or(Duration::from_secs(0));
+        serializer.serialize_u64(duration.as_millis() as u64)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Instant, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let millis = u64::deserialize(deserializer)?;
+        let duration = Duration::from_millis(millis);
+        let system_now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or(Duration::from_secs(0));
+        Ok(Instant::now() - (system_now - duration))
+    }
+}
+
+impl VM {
+    /// Create a new VM
+    pub fn new(id: String, name: String, node_id: String, cpu: u32, memory: u32, storage: u32) -> Self {
+        let now = Instant::now();
+        Self {
+            id,
+            name,
+            node_id,
+            cpu,
+            memory,
+            storage,
+            state: VMState::Creating,
+            created_at: now,
+            updated_at: now,
+            properties: HashMap::new(),
+        }
+    }
+}
+
+/// Possible states for a VM
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VMState {
+    /// VM is being created
+    Creating,
+    /// VM is running
+    Running,
+    /// VM is stopped
+    Stopped,
+    /// VM is being terminated
+    Terminating,
+    /// VM has been terminated
+    Terminated,
+    /// VM is in error state
+    Error,
+}
+
+/// Configuration for VM creation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VMConfig {
+    /// CPU cores for each VM
+    pub cpu: u32,
+    /// Memory in MB for each VM
+    pub memory: u32,
+    /// Storage in GB for each VM
+    pub storage: u32,
+    /// Additional configuration options
+    pub options: HashMap<String, String>,
+}
+
+impl Default for VMConfig {
+    fn default() -> Self {
+        Self {
+            cpu: 2,
+            memory: 4096, // 4 GB
+            storage: 80,  // 80 GB
+            options: HashMap::new(),
+        }
+    }
+}
+
+/// Template for creating new VMs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VMTemplate {
+    /// Base name for VMs created from this template
+    pub base_name: String,
+    /// VM configuration
+    pub config: VMConfig,
+    /// Additional tags to apply to VMs
+    pub tags: HashMap<String, String>,
+}
+
+impl Default for VMTemplate {
+    fn default() -> Self {
+        Self {
+            base_name: "worker".to_string(),
+            config: VMConfig::default(),
+            tags: HashMap::new(),
+        }
+    }
+}
+$$--GLUE--$$
+.\worker_autoscaler.rs
+$$--GLUE--$$
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use log::{info, warn, error, debug};
+
+use super::error::AutoscalerError;
+use super::node_types::{Node, NodeType};
+use super::vm::{VM, VMState, VMConfig, VMTemplate};
+use super::director::Director;
+use super::metrics::{MetricsCollector, MetricThreshold, ScalingAction};
+use super::policy::ScalingPolicy;
+
+/// Implementation of the worker autoscaler
+#[derive(Debug)]
+pub struct WorkerAutoscaler {
+    /// The current number of worker nodes in the cluster
+    pub current_worker_count: usize,
+    /// The desired number of worker nodes in the cluster
+    pub desired_worker_count: usize,
+    /// The scaling policy to be used for autoscaling
+    pub scaling_policy: ScalingPolicy,
+    /// The last time a scaling action was performed
+    pub last_scaling_time: Instant,
+    /// The last time metrics were evaluated
+    pub last_evaluation_time: Instant,
+    /// Time when scale down evaluation started
+    pub scale_down_evaluation_start: Option<Instant>,
+    /// History of scaling actions
+    scaling_history: Vec<(Instant, ScalingAction)>,
+    /// Directors managing the nodes
+    directors: HashMap<String, Arc<dyn Director>>,
+    /// VMs running on nodes, by VM ID
+    vms: HashMap<String, VM>,
+    /// Node resource information
+    nodes: HashMap<String, Node>,
+    /// Default VM configuration
+    default_vm_config: VMConfig,
+    /// Default node preference for new VMs
+    preferred_node_type: NodeType,
+    /// VM template for creating new VMs
+    vm_template: VMTemplate,
+    /// Metrics collector for gathering VM and node metrics
+    metrics_collector: Option<Arc<dyn MetricsCollector>>,
+}
+
+impl WorkerAutoscaler {
+    /// Creates a new instance of the WorkerAutoscaler.
+    ///
+    /// Initializes the autoscaler with the current number of workers, desired number of workers,
+    /// and the scaling policy to be used for autoscaling.
+    ///
+    /// # Arguments
+    ///
+    /// * `current_worker_count` - The current number of worker nodes in the cluster.
+    /// * `desired_worker_count` - The desired number of worker nodes in the cluster.
+    /// * `scaling_policy` - The scaling policy to be used for autoscaling.
+    pub fn new(current_worker_count: usize, desired_worker_count: usize, scaling_policy: ScalingPolicy) -> Self {
+        info!("Initializing WorkerAutoscaler with current_count={}, desired_count={}, policy={:?}", 
+             current_worker_count, desired_worker_count, scaling_policy);
+        
+        Self {
+            current_worker_count,
+            desired_worker_count,
+            scaling_policy,
+            last_scaling_time: Instant::now(),
+            last_evaluation_time: Instant::now(),
+            scale_down_evaluation_start: None,
+            scaling_history: Vec::with_capacity(100),
+            directors: HashMap::new(),
+            vms: HashMap::new(),
+            nodes: HashMap::new(),
+            default_vm_config: VMConfig::default(),
+            preferred_node_type: NodeType::Cloud, // Default to cloud nodes
+            vm_template: VMTemplate::default(),
+            metrics_collector: None,
+        }
+    }
+    
+    /// Registers a new director with the autoscaler.
+    ///
+    /// Directors are responsible for managing VMs and nodes in different environments.
+    ///
+    /// # Arguments
+    /// * `director` - The director implementation to add
+    pub fn add_director(&mut self, director: Arc<dyn Director>) {
+        let director_id = futures::executor::block_on(director.id());
+        info!("Adding director {} to autoscaler", director_id);
+        self.directors.insert(director_id, director);
+    }
+    
+    /// Configures the metrics collector for gathering performance metrics.
+    ///
+    /// # Arguments
+    /// * `collector` - The metrics collector implementation to use
+    pub fn set_metrics_collector(&mut self, collector: Arc<dyn MetricsCollector>) {
+        info!("Setting metrics collector for autoscaler");
+        self.metrics_collector = Some(collector);
+    }
+    
+    /// Sets the VM template to use when creating new worker nodes.
+    ///
+    /// # Arguments
+    /// * `template` - The template containing VM configuration details
+    pub fn set_vm_template(&mut self, template: VMTemplate) {
+        info!("Setting VM template: {:?}", template);
+        self.vm_template = template;
+    }
+    
+    /// Configures the preferred type of node (e.g., Cloud, Edge) for new VMs.
+    ///
+    /// # Arguments
+    /// * `node_type` - The preferred node type to use
+    pub fn set_preferred_node_type(&mut self, node_type: NodeType) {
+        info!("Setting preferred node type: {:?}", node_type);
+        self.preferred_node_type = node_type;
+    }
+    
+    /// Queries all registered directors to discover available nodes.
+    ///
+    /// Updates the internal node registry with the discovered nodes.
+    ///
+    /// # Returns
+    /// * `Result<(), AutoscalerError>` - Success or error if discovery fails
+    pub async fn discover_nodes(&mut self) -> Result<(), AutoscalerError> {
+        info!("Discovering nodes from all directors");
+        
+        for (director_id, director) in &self.directors {
+            info!("Discovering nodes from director {}", director_id);
+            
+            match director.get_nodes().await {
+                Ok(nodes) => {
+                    for node in nodes {
+                        info!("Found node {} ({}) from director {}", node.id, node.name, director_id);
+                        self.nodes.insert(node.id.clone(), node);
+                    }
+                },
+                Err(err) => {
+                    error!("Failed to discover nodes from director {}: {}", director_id, err);
+                }
+            }
+        }
+        
+        info!("Discovered {} nodes from directors", self.nodes.len());
+        Ok(())
+    }
+    
+    /// Queries all registered directors to discover running VMs.
+    ///
+    /// Updates the internal VM registry and current worker count.
+    ///
+    /// # Returns
+    /// * `Result<(), AutoscalerError>` - Success or error if discovery fails
+    pub async fn discover_vms(&mut self) -> Result<(), AutoscalerError> {
+        info!("Discovering VMs from all directors");
+        self.vms.clear();
+        
+        for (director_id, director) in &self.directors {
+            info!("Discovering VMs from director {}", director_id);
+            
+            match director.get_vms().await {
+                Ok(vms) => {
+                    for vm in vms {
+                        if vm.state == VMState::Running {
+                            info!("Found VM {} ({}) on node {}", vm.id, vm.name, vm.node_id);
+                            self.vms.insert(vm.id.clone(), vm);
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("Failed to discover VMs from director {}: {}", director_id, err);
+                }
+            }
+        }
+        
+        // Update current worker count based on discovered VMs
+        self.current_worker_count = self.vms
+            .values()
+            .filter(|vm| vm.state == VMState::Running)
+            .count();
+            
+        info!("Discovered {} running VMs from directors", self.current_worker_count);
+        Ok(())
+    }
+
+    /// Locates a node with sufficient resources to host a new VM.
+    ///
+    /// # Arguments
+    /// * `cpu` - Required CPU cores
+    /// * `memory` - Required memory in MB
+    /// * `storage` - Required storage in GB
+    ///
+    /// # Returns
+    /// * `Option<String>` - ID of suitable node if found
+    async fn find_available_node(&self, cpu: u32, memory: u32, storage: u32) -> Option<String> {
+        // First, try to find a node of the preferred type
+        for (node_id, node) in &self.nodes {
+            if node.node_type == self.preferred_node_type && node.online && node.has_capacity(cpu, memory, storage) {
+                return Some(node_id.clone());
+            }
+        }
+        
+        // If no preferred node is available, try any node
+        for (node_id, node) in &self.nodes {
+            if node.online && node.has_capacity(cpu, memory, storage) {
+                return Some(node_id.clone());
+            }
+        }
+        
+        None
+    }
+    
+    /// Retrieves the director responsible for managing a specific node.
+    ///
+    /// # Arguments
+    /// * `node_id` - ID of the node
+    ///
+    /// # Returns
+    /// * `Option<Arc<dyn Director>>` - Reference to responsible director if found
+    fn get_node_director(&self, node_id: &str) -> Option<Arc<dyn Director>> {
+        let node = self.nodes.get(node_id)?;
+        self.directors.get(&node.director_id).cloned()
+    }
+
+    /// Increases the number of worker nodes by creating new VMs.
+    ///
+    /// Follows scaling policy limits and resource availability constraints.
+    ///
+    /// # Returns
+    /// * `Result<usize, AutoscalerError>` - Number of workers added or error
+    pub async fn scale_up(&mut self) -> Result<usize, AutoscalerError> {
+        let old_count = self.current_worker_count;
+        let increment = self.scaling_policy.scale_up_increment;
+        let target_count = std::cmp::min(
+            old_count + increment,
+            self.scaling_policy.max_worker_count
+        );
+        
+        let to_add = target_count - old_count;
+        
+        if to_add == 0 {
+            info!("Already at maximum worker count ({}), not scaling up", old_count);
+            return Ok(0);
+        }
+        
+        info!("Scaling up from {} to {} workers (adding {})", 
+              old_count, target_count, to_add);
+        
+        let mut added = 0;
+        
+        // Create new VMs
+        for i in 0..to_add {
+            let vm_name = format!("{}-{}", self.vm_template.base_name, uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or(""));
+            
+            // Find a node with available capacity
+            let node_id = match self.find_available_node(
+                self.vm_template.config.cpu,
+                self.vm_template.config.memory,
+                self.vm_template.config.storage
+            ).await {
+                Some(id) => id,
+                None => {
+                    warn!("No nodes with available capacity, stopped scaling up after adding {} VMs", added);
+                    break;
+                }
+            };
+            
+            // Get the director for this node
+            let director = match self.get_node_director(&node_id) {
+                Some(director) => director,
+                None => {
+                    error!("Director not found for node {}, cannot create VM", node_id);
+                    continue;
+                }
+            };
+            
+            // Request VM creation from the director
+            info!("Creating VM {} on node {} (VM {}/{})", 
+                  vm_name, node_id, i + 1, to_add);
+                  
+            match director.create_vm(
+                &node_id,
+                &vm_name,
+                self.vm_template.config.cpu,
+                self.vm_template.config.memory,
+                self.vm_template.config.storage
+            ).await {
+                Ok(vm) => {
+                    info!("Created VM {} successfully", vm.id);
+                    self.vms.insert(vm.id.clone(), vm);
+                    added += 1;
+                },
+                Err(err) => {
+                    error!("Failed to create VM on node {}: {}", node_id, err);
+                }
+            }
+        }
+        
+        // Update current worker count
+        self.current_worker_count = old_count + added;
+        
+        info!("Scaled up from {} to {} workers (added {})", 
+              old_count, self.current_worker_count, added);
+        
+        self.last_scaling_time = Instant::now();
+        self.scale_down_evaluation_start = None;
+        self.scaling_history.push((Instant::now(), ScalingAction::ScaleUp));
+        
+        // Trim history if needed
+        if self.scaling_history.len() > 100 {
+            self.scaling_history.remove(0);
+        }
+        
+        Ok(added)
+    }
+
+    /// Decreases the number of worker nodes by terminating VMs.
+    ///
+    /// Follows scaling policy limits and selects oldest VMs for termination.
+    ///
+    /// # Returns
+    /// * `Result<usize, AutoscalerError>` - Number of workers removed or error
+    pub async fn scale_down(&mut self) -> Result<usize, AutoscalerError> {
+        let old_count = self.current_worker_count;
+        
+        // Calculate the maximum number of workers that can be removed based on percentage
+        let max_removal_by_percentage = 
+            (old_count as f32 * self.scaling_policy.max_scale_down_percentage).floor() as usize;
+        
+        let max_removal = std::cmp::min(
+            self.scaling_policy.scale_down_increment,
+            max_removal_by_percentage
+        );
+        
+        let target_count = std::cmp::max(
+            old_count.saturating_sub(max_removal),
+            self.scaling_policy.min_worker_count
+        );
+        
+        let to_remove = old_count - target_count;
+        
+        if to_remove == 0 {
+            info!("Already at minimum worker count ({}), not scaling down", old_count);
+            return Ok(0);
+        }
+        
+        info!("Scaling down from {} to {} workers (removing {})", 
+              old_count, target_count, to_remove);
+              
+        // Find candidates for termination (sort by creation time, oldest first)
+        let mut candidates: Vec<_> = self.vms
+            .values()
+            .cloned()
+            .filter(|vm| vm.state == VMState::Running)
+            .collect();
+            
+        candidates.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+        
+        // Limit to the number we want to remove
+        candidates.truncate(to_remove);
+        
+        let mut removed = 0;
+        
+        // Terminate the selected VMs
+        for vm in &candidates {
+            // Find the director for this VM's node
+            let director = match self.get_node_director(&vm.node_id) {
+                Some(director) => director,
+                None => {
+                    error!("Director not found for node {}, cannot terminate VM {}", 
+                          vm.node_id, vm.id);
+                    continue;
+                }
+            };
+            
+            // Request VM termination
+            info!("Terminating VM {} on node {} (VM {}/{})", 
+                 vm.id, vm.node_id, removed + 1, to_remove);
+                 
+            match director.terminate_vm(&vm.id).await {
+                Ok(_) => {
+                    info!("Terminated VM {} successfully", vm.id);
+                    // Remove from our list
+                    self.vms.remove(&vm.id);
+                    removed += 1;
+                },
+                Err(err) => {
+                    error!("Failed to terminate VM {}: {}", vm.id, err);
+                }
+            }
+        }
+        
+        // Update current worker count
+        self.current_worker_count = old_count - removed;
+        
+        info!("Scaled down from {} to {} workers (removed {})", 
+              old_count, self.current_worker_count, removed);
+        
+        self.last_scaling_time = Instant::now();
+        self.scale_down_evaluation_start = None;
+        self.scaling_history.push((Instant::now(), ScalingAction::ScaleDown));
+        
+        // Trim history if needed
+        if self.scaling_history.len() > 100 {
+            self.scaling_history.remove(0);
+        }
+        
+        Ok(removed)
+    }
+
+    /// Evaluates metrics to determine if scaling up is needed.
+    ///
+    /// # Arguments
+    /// * `current_metrics` - Current system metrics
+    ///
+    /// # Returns
+    /// * `Result<Option<String>, AutoscalerError>` - Name of triggering metric if scaling needed
+    fn should_scale_up(&self, current_metrics: &HashMap<String, f32>) -> Result<Option<String>, AutoscalerError> {
+        for (metric, threshold) in &self.scaling_policy.metrics_thresholds {
+            match current_metrics.get(metric) {
+                Some(value) => {
+                    let should_scale = match threshold {
+                        MetricThreshold::Float(thresh) => *value > *thresh,
+                        MetricThreshold::Integer(thresh) => *value > *thresh as f32,
+                        MetricThreshold::Boolean(thresh) => *thresh && *value > 0.5,
+                    };
+                    
+                    if should_scale {
+                        debug!("Scale up condition met: {} = {} exceeds threshold {:?}", 
+                              metric, value, threshold);
+                        return Ok(Some(metric.clone()));
+                    }
+                },
+                None => {
+                    warn!("Metric not found in current metrics: {}", metric);
+                    // Continue checking other metrics instead of failing
+                }
+            }
+        }
+        
+        Ok(None)
+    }
+
+    /// Evaluates metrics to determine if scaling down is needed.
+    ///
+    /// # Arguments
+    /// * `current_metrics` - Current system metrics
+    ///
+    /// # Returns
+    /// * `Result<Option<String>, AutoscalerError>` - Name of triggering metric if scaling needed
+    fn should_scale_down(&self, current_metrics: &HashMap<String, f32>) -> Result<Option<String>, AutoscalerError> {
+        for (metric, threshold) in &self.scaling_policy.metrics_thresholds {
+            match current_metrics.get(metric) {
+                Some(value) => {
+                    let should_scale = match threshold {
+                        MetricThreshold::Float(thresh) => *value < *thresh * 0.7, // Add buffer to prevent flapping
+                        MetricThreshold::Integer(thresh) => *value < *thresh as f32 * 0.7,
+                        MetricThreshold::Boolean(thresh) => !*thresh && *value < 0.3,
+                    };
+                    
+                    if should_scale {
+                        debug!("Scale down condition met: {} = {} below threshold {:?}", 
+                              metric, value, threshold);
+                        return Ok(Some(metric.clone()));
+                    }
+                },
+                None => {
+                    warn!("Metric not found in current metrics: {}", metric);
+                    // Continue checking other metrics instead of failing
+                }
+            }
+        }
+        
+        Ok(None)
+    }
+
+    /// Retrieves the recent scaling operations history.
+    ///
+    /// # Returns
+    /// * `&[(Instant, ScalingAction)]` - List of timestamps and scaling actions
+    pub fn get_scaling_history(&self) -> &[(Instant, ScalingAction)] {
+        &self.scaling_history
+    }
+    
+
+    /// Calculates current autoscaling statistics and metrics.
+    ///
+    /// # Returns
+    /// * `HashMap<String, f32>` - Map of statistic names to values
+    pub fn get_scaling_stats(&self) -> HashMap<String, f32> {
+        let mut stats = HashMap::new();
+        
+        // Calculate time since last scaling action
+        stats.insert(
+            "time_since_last_scaling_secs".to_string(), 
+            self.last_scaling_time.elapsed().as_secs() as f32
+        );
+        
+        // Calculate time since last evaluation
+        stats.insert(
+            "time_since_last_evaluation_secs".to_string(), 
+            self.last_evaluation_time.elapsed().as_secs() as f32
+        );
+        
+        // Calculate current utilization percentage 
+        stats.insert(
+            "worker_utilization_percentage".to_string(),
+            (self.current_worker_count as f32 / self.scaling_policy.max_worker_count as f32) * 100.0
+        );
+        
+        // Count recent scaling actions
+        let now = Instant::now();
+        let one_hour_ago = now - Duration::from_secs(3600);
+        
+        let scale_ups_last_hour = self.scaling_history
+            .iter()
+            .filter(|(time, action)| *time >= one_hour_ago && *action == ScalingAction::ScaleUp)
+            .count() as f32;
+            
+        let scale_downs_last_hour = self.scaling_history
+            .iter()
+            .filter(|(time, action)| *time >= one_hour_ago && *action == ScalingAction::ScaleDown)
+            .count() as f32;
+            
+        stats.insert("scale_ups_last_hour".to_string(), scale_ups_last_hour);
+        stats.insert("scale_downs_last_hour".to_string(), scale_downs_last_hour);
+        
+        stats
+    }
+
+
+    /// Evaluates current metrics and determines if scaling is needed.
+    ///
+    /// Considers cooldown periods and scaling limits when making decisions.
+    ///
+    /// # Arguments
+    /// * `current_metrics` - Current system metrics
+    ///
+    /// # Returns
+    /// * `Result<ScalingAction, AutoscalerError>` - Required scaling action or error
+    pub fn check_scaling(&mut self, current_metrics: &HashMap<String, f32>) -> Result<ScalingAction, AutoscalerError> {
+        // Don't scale if autoscaling is disabled
+        if !self.scaling_policy.autoscaling_enabled {
+            return Ok(ScalingAction::NoAction);
+        }
+
+        // Don't scale if we're in cooldown period
+        if self.last_scaling_time.elapsed() < self.scaling_policy.cooldown_period {
+            return Ok(ScalingAction::NoAction);
+        }
+
+        // Check if we need to scale up
+        if let Some(_metric) = self.should_scale_up(current_metrics)? {
+            if self.current_worker_count < self.scaling_policy.max_worker_count {
+                // Reset scale down evaluation
+                self.scale_down_evaluation_start = None;
+                return Ok(ScalingAction::ScaleUp);
+            }
+        }
+
+        // Check if we need to scale down
+        if let Some(_metric) = self.should_scale_down(current_metrics)? {
+            // Start scale down evaluation if not already started
+            if self.scale_down_evaluation_start.is_none() {
+                self.scale_down_evaluation_start = Some(Instant::now());
+                return Ok(ScalingAction::NoAction);
+            }
+
+            // Check if we've waited long enough
+            if self.scale_down_evaluation_start.unwrap().elapsed() >= self.scaling_policy.scale_down_delay {
+                if self.current_worker_count > self.scaling_policy.min_worker_count {
+                    return Ok(ScalingAction::ScaleDown);
+                }
+            }
+        } else {
+            // Reset scale down evaluation if metrics no longer indicate need to scale down
+            self.scale_down_evaluation_start = None;
+        }
+
+        Ok(ScalingAction::NoAction)
+    }
+}
+
+// Example of how to use the autoscaler with custom metrics
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_autoscaler_scaling_up() {
+        let mut policy = ScalingPolicy::default();
+        policy.max_worker_count = 5;
+        policy.min_worker_count = 1;
+        policy.cooldown_period = Duration::from_secs(0); // No cooldown for testing
+        
+        // Set up CPU threshold
+        let mut thresholds = HashMap::new();
+        thresholds.insert("cpu_utilization".to_string(), MetricThreshold::Float(70.0));
+        policy.metrics_thresholds = thresholds;
+        
+        let mut autoscaler = WorkerAutoscaler::new(1, 1, policy);
+        
+        // Test with CPU above threshold
+        let mut metrics = HashMap::new();
+        metrics.insert("cpu_utilization".to_string(), 75.0);
+        
+        let result = autoscaler.check_scaling(&metrics).unwrap();
+        assert_eq!(result, ScalingAction::ScaleUp);
+    }
+    
+    #[test]
+    fn test_autoscaler_scaling_down() {
+        let mut policy = ScalingPolicy::default();
+        policy.max_worker_count = 5;
+        policy.min_worker_count = 1;
+        policy.cooldown_period = Duration::from_secs(0); // No cooldown for testing
+        policy.scale_down_delay = Duration::from_secs(0); // No delay for testing
+        
+        // Set up CPU threshold
+        let mut thresholds = HashMap::new();
+        thresholds.insert("cpu_utilization".to_string(), MetricThreshold::Float(30.0));
+        policy.metrics_thresholds = thresholds;
+        
+        let mut autoscaler = WorkerAutoscaler::new(3, 3, policy);
+        
+        // Test with CPU below threshold
+        let mut metrics = HashMap::new();
+        metrics.insert("cpu_utilization".to_string(), 20.0);
+        
+        // First call starts the evaluation
+        let result = autoscaler.check_scaling(&metrics).unwrap();
+        assert_eq!(result, ScalingAction::NoAction);
+        
+        // Force scale down evaluation to start
+        autoscaler.scale_down_evaluation_start = Some(Instant::now() - Duration::from_secs(1));
+        
+        // Second call should scale down
+        let result = autoscaler.check_scaling(&metrics).unwrap();
+        assert_eq!(result, ScalingAction::ScaleDown);
+    }
+}
