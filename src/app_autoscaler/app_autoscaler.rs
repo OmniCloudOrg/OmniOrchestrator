@@ -150,7 +150,7 @@ impl AppAutoscaler {
     ///
     /// # Returns
     /// * `Result<(), AutoscalerError>` - Success or error if discovery fails
-    pub async fn discover_instances(&mut self) -> Result<(), AutoscalerError> {
+    pub async fn discover_app_instances(&mut self) -> Result<(), AutoscalerError> {
         info!("Discovering app instances from all agents");
         self.instances.clear();
         

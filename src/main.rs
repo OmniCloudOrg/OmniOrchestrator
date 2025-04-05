@@ -20,6 +20,7 @@ mod leader;
 mod logger;
 mod state;
 mod worker_autoscaler;
+mod app_autoscaler;
 
 // Import Third-party crates
 use anyhow::anyhow;
@@ -395,6 +396,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 // Sleep for 30 seconds before next discovery
                 println!("Sleeping autoscaling thread for 3 seconds...");
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            }
+        }
+    });
+
+    // initialize the app autoscalar
+    let app_policy = app_autoscaler::policy::create_default_cpu_memory_scaling_policy();
+    let app_autoscaler = app_autoscaler::app_autoscaler::AppAutoscaler::new(
+        1, // min instances
+        10, // max instances
+        app_policy,
+    );
+
+    // Spawn a task to run the app autoscaler discovery and scaling loop
+    tokio::spawn({
+        let mut app_autoscaler = app_autoscaler;
+        async move {
+            // Sleep for 1.5 seconds before starting discovery
+            println!("Sleeping for 1.5 seconds before app autoscaler discovery...");
+            tokio::time::sleep(Duration::from_millis(1500)).await;
+            loop {
+                println!("Discovering app instances...");
+                if let Err(e) = app_autoscaler.discover_app_instances().await {
+                    error!("App instance discovery error: {}", e);
+                }
+
+                let metrics: HashMap<String, f32> = HashMap::new(); // TODO: populate with actual metrics
+                if let Err(e) = app_autoscaler.check_scaling(&metrics) {
+                    error!("App scaling error: {}", e);
+                }
+                
+                // Sleep for 30 seconds before next discovery
+                println!("Sleeping app autoscaling thread for 3 seconds...");
                 tokio::time::sleep(Duration::from_secs(3)).await;
             }
         }
