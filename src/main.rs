@@ -21,7 +21,6 @@ mod cluster;
 mod config;
 mod db;
 mod leader;
-mod logger;
 mod state;
 mod worker_autoscaler;
 mod app_autoscaler;
@@ -30,34 +29,37 @@ mod app_autoscaler;
 // | IMPORTS     |
 // +-------------+
 // Third-party dependencies
-use anyhow::anyhow;
-use anyhow::Result;
-use colored::Colorize;         // For colorful terminal output
-use env_logger::{Builder, Target};
-use lazy_static::lazy_static;
-use reqwest::Client;
-use rocket::serde::json::Json;
 use rocket::Build;
+use anyhow::anyhow;
 use rocket::Rocket;
-use serde::{Deserialize, Serialize};
-use sqlx::mysql::MySqlPool;
-use worker_autoscaler::create_default_cpu_memory_scaling_policy;
-use worker_autoscaler::WorkerAutoscaler;
-use worker_autoscaler::{VMTemplate, VMConfig, CloudDirector};
-use std::collections::HashMap;
-use std::fs::File;
+use anyhow::Result;
 use std::io::Write;
+use reqwest::Client;
+use colored::Colorize;
+use env_logger::Builder;
+use tokio::sync::RwLock;
 use std::time::Duration;
 use std::{env, sync::Arc};
-use tokio::sync::RwLock;
+use sqlx::mysql::MySqlPool;
+use lazy_static::lazy_static;
+use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use worker_autoscaler::WorkerAutoscaler;
+use worker_autoscaler::{VMTemplate, VMConfig, CloudDirector};
+use worker_autoscaler::create_default_cpu_memory_scaling_policy;
 
 // Internal imports
-use crate::cluster::{ClusterManager, NodeInfo};
+use crate::state::SharedState;
 use crate::config::ServerConfig;
 use crate::config::SERVER_CONFIG;
 use crate::leader::LeaderElection;
-use crate::state::SharedState;
-use api::*; // Import all API routes
+use crate::cluster::{ClusterManager, NodeInfo};
+
+// We ignore this import as it always says
+// unused even when that is not the case
+#[allow(unused_imports)]
+// Import all API routes
+use api::*;
 
 #[macro_use]
 extern crate rocket;
@@ -89,8 +91,8 @@ impl RocketExt for Rocket<Build> {
 // +-------------+
 // | GLOBALS     |
 // +-------------+
-/// Global singleton instance of the cluster manager
-/// Manages node discovery and peer connections
+// Global singleton instance of the cluster manager
+// Manages node discovery and peer connections
 lazy_static! {
     static ref CLUSTER_MANAGER: Arc<RwLock<ClusterManager>> = {
         let state = format!("{}:{}", SERVER_CONFIG.address, SERVER_CONFIG.port);
@@ -177,7 +179,7 @@ impl ClusterManager {
     ///
     /// Result indicating success or failure of the connection attempt
     async fn connect_to_peer(&self, client: &Client, node_address: &str) -> Result<()> {
-        let health_url = format!("http://{}/health", node_address);
+        let health_url = format!("{}/health", node_address);
         log::debug!("Checking health at: {}", health_url);
         
         let response = client
@@ -294,7 +296,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //.target(Target::Pipe(Box::new(file)))
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| {
-            let style = buf.style();
+            let _style = buf.style();
             // Get default style
             let style = buf.default_level_style(record.level());
             writeln!(
@@ -509,7 +511,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize and start leader election
     log::info!("{}", "Initializing leader election process".green());
-    let leader_election = LeaderElection::new(node_id, shared_state.clone());
+    let _leader_election = LeaderElection::new(node_id, shared_state.clone());
     log::info!("{}", "✓ Leader election initialized".green());
 
     // ====================== SERVER STARTUP ======================
