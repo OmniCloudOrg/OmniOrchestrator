@@ -1,17 +1,21 @@
-//-----------------------------------------------------------------------------
+//=============================================================================
 // OmniOrchestrator - A distributed system for managing and orchestrating
-//-----------------------------------------------------------------------------
+//=============================================================================
 // Maintained by: Tristan J. Poland, Maxine Deandrade, Caznix, Haywood Spartian
 // and the OmniCloud community.
-//-----------------------------------------------------------------------------
+//=============================================================================
 // This is the entry point for the OmniOrchestrator server application.
-// It is responsible of managing the entirity of the OmniCloud platform
-// and its various components, including the database, API, and cluster
-// management. It also handles bootstrapping when a new platform is created
-// and provides a load balanced API for interacting with the platform's
-// various components.
-//-----------------------------------------------------------------------------
+// It manages the entirety of the OmniCloud platform and its components:
+//    - Database
+//    - API
+//    - Cluster Management
+//    - Bootstrapping
+//    - Load Balancing
+//=============================================================================
 
+// +-------------+
+// | MODULES     |
+// +-------------+
 mod api;
 mod cluster;
 mod config;
@@ -22,10 +26,13 @@ mod state;
 mod worker_autoscaler;
 mod app_autoscaler;
 
-// Import Third-party crates
+// +-------------+
+// | IMPORTS     |
+// +-------------+
+// Third-party dependencies
 use anyhow::anyhow;
 use anyhow::Result;
-use colored::Colorize;
+use colored::Colorize;         // For colorful terminal output
 use env_logger::{Builder, Target};
 use lazy_static::lazy_static;
 use reqwest::Client;
@@ -44,19 +51,20 @@ use std::time::Duration;
 use std::{env, sync::Arc};
 use tokio::sync::RwLock;
 
-
-
-// Import other pieces of modules for use
+// Internal imports
 use crate::cluster::{ClusterManager, NodeInfo};
 use crate::config::ServerConfig;
 use crate::config::SERVER_CONFIG;
 use crate::leader::LeaderElection;
 use crate::state::SharedState;
-use api::*; // We import this so we can mount the various routes for different API versions
+use api::*; // Import all API routes
 
 #[macro_use]
 extern crate rocket;
 
+// +-------------+
+// | EXTENSIONS  |
+// +-------------+
 /// Extension trait for mounting multiple routes to a Rocket instance
 trait RocketExt {
     /// Mount multiple route groups at once to simplify route registration
@@ -71,14 +79,16 @@ impl RocketExt for Rocket<Build> {
     fn mount_routes(self, routes: Vec<(&'static str, Vec<rocket::Route>)>) -> Self {
         let mut rocket = self;
         for (path, routes) in routes {
-            println!("Mounting routes at {}", path);
+            log::info!("{}", format!("Mounting routes at {}", path).green());
             rocket = rocket.mount(path, routes);
         }
         rocket
     }
 }
 
-
+// +-------------+
+// | GLOBALS     |
+// +-------------+
 /// Global singleton instance of the cluster manager
 /// Manages node discovery and peer connections
 lazy_static! {
@@ -93,6 +103,9 @@ lazy_static! {
     };
 }
 
+// +-------------+
+// | MODELS      |
+// +-------------+
 /// Message format for cluster status API responses
 #[derive(Debug, Serialize, Deserialize)]
 struct ClusterStatusMessage {
@@ -111,6 +124,9 @@ struct ApiResponse {
     message: ClusterStatusMessage,
 }
 
+// +-------------+
+// | METHODS     |
+// +-------------+
 impl ClusterManager {
     /// Discovers and connects to peer nodes in the cluster
     ///
@@ -124,11 +140,13 @@ impl ClusterManager {
     /// Result indicating success or failure of the discovery process
     pub async fn discover_peers(&self, config: &ServerConfig, my_port: u16) -> Result<()> {
         let client = Client::new();
+        log::info!("{}", "Starting peer discovery...".cyan());
 
         for instance in &config.instances {
             let string = format!("{:#?}", instance);
-            println!("discovered: {}", string.blue().bold());
+            log::info!("{}", format!("Discovered: {}", string).blue().bold());
             if instance.port == my_port {
+                log::debug!("Skipping self-connection at port {}", my_port);
                 continue;
             }
 
@@ -136,14 +154,15 @@ impl ClusterManager {
             let node_uri = format!("{}", node_address);
 
             match self.connect_to_peer(&client, &node_uri.clone()).await {
-                Ok(_) => log::info!("Successfully connected to peer: {}", node_uri),
+                Ok(_) => log::info!("{}", format!("Successfully connected to peer: {}", node_uri).green()),
                 Err(e) => {
-                    log::warn!("Failed to connect to peer: {} {}", node_uri, e);
+                    log::warn!("{}", format!("Failed to connect to peer: {} {}", node_uri, e).yellow());
                     self.remove_node(node_uri.into()).await;
                 }
             }
         }
 
+        log::info!("{}", "Peer discovery completed".cyan());
         Ok(())
     }
 
@@ -159,6 +178,8 @@ impl ClusterManager {
     /// Result indicating success or failure of the connection attempt
     async fn connect_to_peer(&self, client: &Client, node_address: &str) -> Result<()> {
         let health_url = format!("http://{}/health", node_address);
+        log::debug!("Checking health at: {}", health_url);
+        
         let response = client
             .get(&health_url)
             .timeout(Duration::from_secs(5))
@@ -180,6 +201,7 @@ impl ClusterManager {
             };
 
             self.register_node(node_info).await;
+            log::debug!("Node registered: {}", node_address);
             Ok(())
         } else {
             Err(anyhow!("Node health check failed"))
@@ -187,7 +209,9 @@ impl ClusterManager {
     }
 }
 
-
+// +-------------+
+// | ENDPOINTS   |
+// +-------------+
 /// Health check endpoint to verify node status
 ///
 /// # Returns
@@ -195,6 +219,7 @@ impl ClusterManager {
 /// JSON response with basic health status
 #[get("/health")]
 async fn health_check() -> rocket::serde::json::Json<ApiResponse> {
+    log::debug!("Health check endpoint called");
     rocket::serde::json::Json(ApiResponse {
         status: "ok".to_string(),
         message: ClusterStatusMessage {
@@ -219,17 +244,22 @@ async fn cluster_status(
     state: &rocket::State<Arc<RwLock<SharedState>>>,
     cluster: &rocket::State<Arc<RwLock<ClusterManager>>>,
 ) -> rocket::serde::json::Json<ApiResponse> {
+    log::debug!("Cluster status endpoint called");
     let state = state.read().await;
     let nodes = cluster.read().await;
+
+    let role = if state.is_leader {
+        "leader".to_string()
+    } else {
+        "follower".to_string()
+    };
+    
+    log::info!("{}", format!("Current node role: {}", role).cyan());
 
     let response = ApiResponse {
         status: "ok".to_string(),
         message: ClusterStatusMessage {
-            node_roles: if state.is_leader {
-                "leader".to_string()
-            } else {
-                "follower".to_string()
-            },
+            node_roles: role,
             cluster_nodes: nodes.get_nodes().await,
         },
     };
@@ -237,6 +267,9 @@ async fn cluster_status(
     rocket::serde::json::Json(response)
 }
 
+// +-------------+
+// | MAIN        |
+// +-------------+
 /// Main entry point for the OmniOrchestrator server
 ///
 /// Initializes the server components in the following order:
@@ -248,8 +281,12 @@ async fn cluster_status(
 /// 6. API route mounting and server start
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // ====================== INITIALIZATION ======================
     let port = SERVER_CONFIG.port;
-    println!("Starting server on port {}", port);
+    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_cyan());
+    println!("{}", "║               OMNI ORCHESTRATOR SERVER STARTING               ║".bright_cyan());
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_cyan());
+    println!("{}", format!("⇒ Starting server on port {}", port).green());
 
     // Setup logging
     // let file = File::create(format!("cluster-{}.log", port))?;
@@ -269,20 +306,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .init();
 
+    log::info!("{}", "Logger initialized successfully".green());
+
+    // ====================== DATABASE SETUP ======================
+    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_blue());
+    println!("{}", "║                    DATABASE CONNECTION                        ║".bright_blue());
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_blue());
+    
     // Initialize database pool
-    println!("Connecting to database...");
     let database_url = env::var("DATABASE_URL")
         .unwrap_or_else(|_| "mysql://root:root@localhost:4001/omni".to_string());
 
-    println!("Database URL: {}", database_url);
-    println!("Initializing database connection pool...");
+    log::info!("{}", format!("Database URL: {}", database_url).blue());
+    log::info!("{}", "Initializing database connection pool...".blue());
+    
     let pool = MySqlPool::connect(&database_url)
         .await
         .expect("Failed to connect to MySQL database");
+    log::info!("{}", "✓ Database connection established".green());
 
     // Initialize metadata system properly with mutex protection
-    println!("Initializing metadata system...");
+    log::info!("{}", "Initializing metadata system...".blue());
     db::v1::queries::metadata::initialize_metadata_system(&pool).await?;
+    log::info!("{}", "✓ Metadata system initialized".green());
 
     // Check database schema version and update if necessary
     let target_version = "1";
@@ -291,19 +337,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "0".to_string());
 
     if current_version != target_version {
-        println!("Current schema version: {}", current_version);
-        println!("Target schema version: {}", target_version);
-        println!("Type 'confirm' to update schema version:");
+        log::warn!("{}", format!("Schema version mismatch! Current: {}, Target: {}", current_version, target_version).yellow());
+        println!("{}", "Type 'confirm' to update schema version:".yellow());
 
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
 
         if input.trim() == "confirm" {
             // Initialize database schema
-            println!("Initializing database schema...");
+            log::info!("{}", "Initializing database schema...".blue());
             match db::init_schema(1, &pool).await {
                 Ok(_) => {
-                    println!("Database schema initialized");
+                    log::info!("{}", "✓ Database schema initialized".green());
                     db::v1::queries::metadata::set_meta_value(
                         &pool,
                         "omni_schema_version",
@@ -312,28 +357,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .await
                     .expect("Failed to set meta value")
                 }
-                Err(e) => println!("Failed to initialize database schema: {:?}", e),
+                Err(e) => log::error!("{}", format!("Failed to initialize database schema: {:?}", e).red()),
             };
 
             // Initialize sample data for the schema
-            println!("initializing sample data...");
+            log::info!("{}", "Initializing sample data...".blue());
             match db::sample_data(&pool).await {
-                Ok(_) => println!("Sample data initialized"),
-                Err(e) => println!("Failed to initialize sample data: {:?}", e),
+                Ok(_) => log::info!("{}", "✓ Sample data initialized".green()),
+                Err(e) => log::error!("{}", format!("Failed to initialize sample data: {:?}", e).red()),
             };
         } else {
-            println!("Schema update cancelled");
+            log::warn!("{}", "Schema update cancelled".yellow());
             return Ok(());
         }
+    } else {
+        log::info!("{}", format!("Schema version check: OK (version {})", current_version).green());
     }
+
+    // ====================== CLUSTER SETUP ======================
+    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_magenta());
+    println!("{}", "║                     CLUSTER MANAGEMENT                        ║".bright_magenta());
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_magenta());
 
     // Initialize node state and cluster management
     let node_id: Arc<str> =
         format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
+    log::info!("{}", format!("Node ID: {}", node_id).magenta());
+    
     let shared_state: Arc<RwLock<SharedState>> =
         Arc::new(RwLock::new(SharedState::new(node_id.clone())));
 
     // Start peer discovery in background task
+    log::info!("{}", "Starting peer discovery background task".magenta());
     tokio::task::spawn({
         let cluster_manager = CLUSTER_MANAGER.clone();
         let server_config = SERVER_CONFIG.clone();
@@ -345,18 +400,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .discover_peers(&server_config, port)
                     .await
                 {
-                    log::error!("Failed to discover peers: {e}");
+                    log::error!("{}", format!("Failed to discover peers: {e}").red());
                 }
                 tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
             }
         }
     });
 
+    // ====================== AUTOSCALER SETUP ======================
+    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_yellow());
+    println!("{}", "║                    AUTOSCALER SETUP                           ║".bright_yellow());
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_yellow());
+
     // Initialize worker autoscaler with default policy
+    log::info!("{}", "Creating worker autoscaler with default policy".yellow());
     let policy = create_default_cpu_memory_scaling_policy();
     let mut autoscaler = WorkerAutoscaler::new(1, 1, policy);
 
     // Add cloud director for managing VMs
+    log::info!("{}", "Adding cloud director (AWS/us-east-1)".yellow());
     let cloud_director = Arc::new(CloudDirector::new(
         "cloud-1".to_string(),
         "aws".to_string(), 
@@ -365,6 +427,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     autoscaler.add_director(cloud_director);
 
     // Set up VM template for worker nodes
+    log::info!("{}", "Setting up VM template for worker nodes".yellow());
     let mut vm_template = VMTemplate::default();
     vm_template.base_name = "omni-worker".to_string();
     vm_template.config = VMConfig {
@@ -374,76 +437,95 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         options: HashMap::new()
     };
     autoscaler.set_vm_template(vm_template);
+    log::info!("{}", "✓ Worker autoscaler configured".green());
 
     // Start discovery tasks
+    log::info!("{}", "Starting worker autoscaler discovery tasks".yellow());
     tokio::spawn({
         let mut autoscaler = autoscaler;
         async move {
             // Sleep for 1.5 seconds before starting discovery
-            println!("Sleeping for 1.5 seconds before discovery...");
+            log::debug!("Sleeping for 1.5 seconds before discovery...");
             tokio::time::sleep(Duration::from_millis(1500)).await;
             loop {
-                println!("Discovering nodes and VMs...");
+                log::info!("{}", "Discovering nodes and VMs...".yellow());
                 if let Err(e) = autoscaler.discover_nodes().await {
-                    error!("Node discovery error: {}", e);
+                    log::error!("{}", format!("Node discovery error: {}", e).red());
                 }
                 if let Err(e) = autoscaler.discover_vms().await {
-                    error!("VM discovery error: {}", e); 
+                    log::error!("{}", format!("VM discovery error: {}", e).red()); 
                 }
                 let metrics: HashMap<String, f32> = HashMap::new(); // TODO: populate with actual metrics
                 if let Err(e) = autoscaler.check_scaling(&metrics) {
-                    error!("Worker scaling error: {}", e);
+                    log::error!("{}", format!("Worker scaling error: {}", e).red());
                 }
-                // Sleep for 30 seconds before next discovery
-                println!("Sleeping autoscaling thread for 3 seconds...");
+                // Sleep for 3 seconds before next discovery
+                log::debug!("Sleeping autoscaling thread for 3 seconds...");
                 tokio::time::sleep(Duration::from_secs(3)).await;
             }
         }
     });
 
-    // initialize the app autoscalar
+    // Initialize the app autoscaler
+    log::info!("{}", "Creating application autoscaler with default policy".yellow());
     let app_policy = app_autoscaler::policy::create_default_cpu_memory_scaling_policy();
     let app_autoscaler = app_autoscaler::app_autoscaler::AppAutoscaler::new(
         1, // min instances
         10, // max instances
         app_policy,
     );
+    log::info!("{}", "✓ Application autoscaler configured".green());
 
     // Spawn a task to run the app autoscaler discovery and scaling loop
+    log::info!("{}", "Starting application autoscaler discovery tasks".yellow());
     tokio::spawn({
         let mut app_autoscaler = app_autoscaler;
         async move {
             // Sleep for 1.5 seconds before starting discovery
-            println!("Sleeping for 1.5 seconds before app autoscaler discovery...");
+            log::debug!("Sleeping for 1.5 seconds before app autoscaler discovery...");
             tokio::time::sleep(Duration::from_millis(1500)).await;
             loop {
-                println!("Discovering app instances...");
+                log::info!("{}", "Discovering app instances...".yellow());
                 if let Err(e) = app_autoscaler.discover_app_instances().await {
-                    error!("App instance discovery error: {}", e);
+                    log::error!("{}", format!("App instance discovery error: {}", e).red());
                 }
 
                 let metrics: HashMap<String, f32> = HashMap::new(); // TODO: populate with actual metrics
                 if let Err(e) = app_autoscaler.check_scaling(&metrics) {
-                    error!("App scaling error: {}", e);
+                    log::error!("{}", format!("App scaling error: {}", e).red());
                 }
                 
-                // Sleep for 30 seconds before next discovery
-                println!("Sleeping app autoscaling thread for 3 seconds...");
+                // Sleep for 3 seconds before next discovery
+                log::debug!("Sleeping app autoscaling thread for 3 seconds...");
                 tokio::time::sleep(Duration::from_secs(3)).await;
             }
         }
     });
 
+    // ====================== LEADER ELECTION ======================
+    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_green());
+    println!("{}", "║                      LEADER ELECTION                          ║".bright_green());
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_green());
+
     // Initialize and start leader election
+    log::info!("{}", "Initializing leader election process".green());
     let leader_election = LeaderElection::new(node_id, shared_state.clone());
+    log::info!("{}", "✓ Leader election initialized".green());
+
+    // ====================== SERVER STARTUP ======================
+    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_cyan());
+    println!("{}", "║                      SERVER STARTUP                           ║".bright_cyan());
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_cyan());
 
     // Define routes to mount
+    log::info!("{}", "Defining API routes".cyan());
     let routes = vec![
         ("/", routes![health_check, api::index::routes_ui, cluster_status]), 
         ("/api/v1", api::v1::routes())
     ];
 
     // Build Rocket instance with base configuration
+    log::info!("{}", "Building Rocket instance".cyan());
     let rocket_instance = rocket::build()
         .configure(rocket::Config {
             port,
@@ -455,12 +537,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .manage(CLUSTER_MANAGER.clone());
 
     // Mount routes to the Rocket instance
+    log::info!("{}", "Mounting API routes".cyan());
     let rocket_with_routes = rocket_instance.mount_routes(routes);
     
     // Collect routes information before launch
     api::index::collect_routes(&rocket_with_routes);
     
     // Launch server
+    log::info!("{}", "🚀 LAUNCHING SERVER...".bright_cyan().bold());
     let _rocket = rocket_with_routes.launch().await?;
     
     Ok(())
