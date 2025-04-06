@@ -694,6 +694,50 @@ AND (p.resource_type = 'organization'
 -- 20. Populate instance logs (simplified)
 -- 21. Populate metrics (simplified)
 -- 22. Populate network policies (simplified)
+
+-- Insert notifications
+INSERT INTO notifications (user_id, org_id, app_id, notification_type, message, read_status, created_at)
+VALUES
+(1  , 1 , 1    , 'info'    , 'Application api-backend has been deployed successfully'             , 1 , '2024-02-28 09:15:00'),
+(1  , 1 , 1    , 'warning' , 'High CPU usage detected in application api-backend'                 , 0 , '2024-02-28 10:30:00'),
+(2  , 1 , 2    , 'success' , 'Application web-frontend deployment completed'                      , 1 , '2024-02-28 11:45:00'),
+(3  , 1 , 3    , 'error'   , 'Application auth-service build failed'                              , 1 , '2024-02-28 13:20:00'),
+(4  , 1 , 4    , 'info'    , 'New version of worker-jobs is available'                            , 0 , '2024-02-28 14:45:00'),
+(5  , 2 , 9    , 'success' , 'Database backup completed for data-analytics'                       , 1 , '2024-02-28 15:30:00'),
+(5  , 2 , 10   , 'warning' , 'Memory usage approaching limit in ml-processor'                     , 0 , '2024-02-28 16:15:00'),
+(8  , 3 , 16   , 'info'    , 'Auto-scaling event triggered for code-service'                      , 0 , '2024-02-28 17:00:00'),
+(14 , 5 , 27   , 'success' , 'AI model training completed successfully'                           , 1 , '2024-02-28 18:30:00'),
+(14 , 5 , 28   , 'error'   , 'Service binding failed for data-processor'                          , 0 , '2024-02-28 19:45:00'),
+(1  , 1 , 1    , 'warning' , 'SSL certificate expiring in 30 days for api-backend'                , 0 , '2024-02-29 09:00:00'),
+(2  , 1 , 2    , 'info'    , 'New security update available for web-frontend'                     , 0 , '2024-02-29 10:15:00'),
+(3  , 1 , 3    , 'success' , 'Database migration completed successfully for auth-service'         , 1 , '2024-02-29 11:30:00'),
+(5  , 2 , 9    , 'error'   , 'Failed to connect to external service in data-analytics'            , 0 , '2024-02-29 12:45:00'),
+(8  , 3 , 16   , 'warning' , 'Unusual traffic pattern detected in code-service'                   , 0 , '2024-02-29 14:00:00'),
+(1  , 1 , NULL , 'info'    , 'Organization quota usage at 80%'                                    , 0 , '2024-02-29 15:15:00'),
+(5  , 2 , NULL , 'warning' , 'Billing cycle ending in 3 days'                                     , 1 , '2024-02-29 16:30:00'),
+(8  , 3 , NULL , 'info'    , 'New feature available: Advanced Monitoring'                         , 0 , '2024-02-29 17:45:00'),
+(14 , 5 , NULL , 'success' , 'Organization backup policy updated'                                 , 1 , '2024-02-29 19:00:00'),
+(1  , 1 , 1    , 'info'    , 'Performance optimization recommendations available for api-backend' , 0 , '2024-03-01 09:15:00');
+
+-- Insert backups
+INSERT INTO backups (app_id, backup_type, backup_status, backup_url, backup_size, backup_duration, created_at)
+VALUES
+(1  , 'automatic' , 'completed'   , 's3://backups/api-backend/20240228/backup.zip'   , 1572864000  , 300  , '2024-02-28 00:00:00'),
+(2  , 'automatic' , 'completed'   , 's3://backups/web-frontend/20240228/backup.zip'  , 2147483648  , 420  , '2024-02-28 01:00:00'),
+(3  , 'manual'    , 'completed'   , 's3://backups/auth-service/20240228/backup.zip'  , 1073741824  , 240  , '2024-02-28 10:15:00'),
+(9  , 'automatic' , 'completed'   , 's3://backups/data-analytics/20240228/backup.zip', 5368709120  , 900  , '2024-02-28 02:00:00'),
+(10 , 'automatic' , 'completed'   , 's3://backups/ml-processor/20240228/backup.zip'  , 10737418240 , 1200 , '2024-02-28 03:00:00'),
+(16 , 'manual'    , 'completed'   , 's3://backups/code-service/20240228/backup.zip'  , 3221225472  , 600  , '2024-02-28 14:30:00'),
+(27 , 'automatic' , 'completed'   , 's3://backups/ai-engine/20240228/backup.zip'     , 8589934592  , 1080 , '2024-02-28 04:00:00'),
+(1  , 'automatic' , 'completed'   , 's3://backups/api-backend/20240229/backup.zip'   , 1610612736  , 320  , '2024-02-29 00:00:00'),
+(2  , 'automatic' , 'completed'   , 's3://backups/web-frontend/20240229/backup.zip'  , 2252341248  , 440  , '2024-02-29 01:00:00'),
+(9  , 'automatic' , 'failed'      , NULL                                             , NULL        , NULL , '2024-02-29 02:00:00'),
+(10 , 'automatic' , 'completed'   , 's3://backups/ml-processor/20240229/backup.zip'  , 11811160064 , 1250 , '2024-02-29 03:00:00'),
+(27 , 'automatic' , 'completed'   , 's3://backups/ai-engine/20240229/backup.zip'     , 9663676416  , 1100 , '2024-02-29 04:00:00'),
+(1  , 'automatic' , 'in_progress' , NULL                                             , NULL        , NULL , '2024-03-01 00:00:00'),
+(2  , 'automatic' , 'pending'     , NULL                                             , NULL        , NULL , '2024-03-01 01:00:00'),
+(3  , 'manual'    , 'completed'   , 's3://backups/auth-service/20240301/backup.zip'  , 1342177280  , 280  , '2024-03-01 10:30:00');
+
 -- Re-enable foreign key checks and unique checks
 SET FOREIGN_KEY_CHECKS = 1;
 SET UNIQUE_CHECKS = 1;

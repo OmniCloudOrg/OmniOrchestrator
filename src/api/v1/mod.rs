@@ -15,20 +15,20 @@ pub mod workers;
 pub mod cli;
 //pub mod deployments;
 
+use cli::*;
 use apps::*;
-use audit_log::*;
+use users::*;
 use builds::*;
 use deploy::*;
-// use platforms::*;
-use platforms::*;
-//use deployments::*;
-use instances::*;
-use metadata::*;
-use permissions::*;
-use regions::*;
-use users::*;
 use workers::*;
-use cli::*;
+use regions::*;
+use metadata::*;
+use audit_log::*;
+use platforms::*;
+use instances::*;
+use permissions::*;
+// use platforms::*;
+// use deployments::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -89,5 +89,7 @@ pub fn routes() -> Vec<rocket::Route> {
 
         // CLI
         cli::backup::list_backups,
+        cli::backup::list_backups_by_app_id,
+        cli::backup::get_backup,
         ]
 }
