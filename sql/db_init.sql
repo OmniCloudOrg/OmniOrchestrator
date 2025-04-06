@@ -938,3 +938,47 @@ CREATE TABLE audit_logs (
 --     PARTITION p_2025_q4 VALUES LESS THAN (TO_DAYS('2026-01-01')),
 --     PARTITION p_future VALUES LESS THAN MAXVALUE
 -- );
+
+CREATE TABLE notifications (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id BIGINT,
+    org_id BIGINT,
+    app_id BIGINT,
+    notification_type ENUM('info', 'warning', 'error', 'success') DEFAULT 'info',
+    message TEXT NOT NULL,
+    read_status TINYINT(1) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_notifications_user_id (user_id),
+    KEY idx_notifications_org_id (org_id),
+    KEY idx_notifications_app_id (app_id),
+    KEY idx_notifications_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE backups (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    app_id BIGINT NOT NULL,
+    backup_type ENUM('manual', 'automatic') DEFAULT 'automatic',
+    backup_status ENUM('pending', 'in_progress', 'completed', 'failed') DEFAULT 'pending',
+    backup_url VARCHAR(255),
+    backup_size BIGINT,
+    backup_duration INT COMMENT 'in seconds',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY idx_backups_app_id (app_id),
+    KEY idx_backups_status (backup_status),
+    KEY idx_backups_created_at (created_at),
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
+)
+
+-- CREATE TABLE user_settings (
+--     id BIGINT NOT NULL AUTO_INCREMENT,
+--     user_id BIGINT NOT NULL,
+--     setting_key VARCHAR(255) NOT NULL,
+--     setting_value TEXT,
+--     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+--     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+--     PRIMARY KEY (id),
+--     UNIQUE KEY unique_user_setting (user_id, setting_key),
+--     KEY idx_user_settings_user_id (user_id)
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

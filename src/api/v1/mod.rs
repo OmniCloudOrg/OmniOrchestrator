@@ -12,6 +12,7 @@ pub mod regions;
 pub mod users;
 pub mod platforms;
 pub mod workers;
+pub mod cli;
 //pub mod deployments;
 
 use apps::*;
@@ -27,6 +28,7 @@ use permissions::*;
 use regions::*;
 use users::*;
 use workers::*;
+use cli::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -83,6 +85,9 @@ pub fn routes() -> Vec<rocket::Route> {
         
         // workers
         list_workers,
-        get_worker_by_id
+        get_worker_by_id,
+
+        // CLI
+        cli::backup::list_backups,
         ]
 }

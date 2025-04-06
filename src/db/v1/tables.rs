@@ -205,3 +205,27 @@ pub struct Worker {
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct Notification {
+    pub id: i64,
+    pub user_id: Option<i64>,
+    pub org_id: Option<i64>,
+    pub app_id: Option<i64>,
+    pub notification_type: String, // enum: 'info', 'warning', 'error', 'success'
+    pub message: String,
+    pub read_status: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct Backup {
+    pub id: i64,
+    pub app_id: i64,
+    pub backup_type: String, // enum: 'manual', 'automatic'
+    pub backup_status: String, // enum: 'pending', 'in_progress', 'completed', 'failed'
+    pub backup_url: Option<String>,
+    pub backup_size: Option<i64>,
+    pub backup_duration: Option<i32>, // in seconds
+    pub created_at: DateTime<Utc>,
+}

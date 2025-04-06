@@ -9,3 +9,4 @@ pub mod permission;
 pub mod region;
 pub mod user;
 pub mod worker;
+pub mod backup;
