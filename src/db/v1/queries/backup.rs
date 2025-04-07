@@ -82,8 +82,52 @@ pub async fn get_backup_by_id(
     Ok(backup)
 }
 
-// Create a new backup
-// This function creates a new app backup in the database
-//
+/// Create a new backup
+/// This function creates a new app backup in the database
+pub async fn create_backup(
+    pool: &State<sqlx::Pool<MySql>>,
+    backup: &Backup,
+) -> Result<Backup, sqlx::Error> {
+    let created_backup = sqlx::query_as::<_, Backup>(
+        "INSERT INTO backups (
+            name, description, created_at, created_by, backup_type, status, format_version,
+            source_environment, encryption_method, encryption_key_id, size_bytes, has_system_core,
+            has_directors, has_orchestrators, has_network_config, has_app_definitions, has_volume_data,
+            included_apps, included_services, last_validated_at, last_restored_at, restore_target_environment,
+            restore_status, storage_location, manifest_path, metadata
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        )
+        RETURNING *",
+    )
+    .bind(backup.name.clone())
+    .bind(backup.description.clone())
+    .bind(backup.created_at)
+    .bind(backup.created_by.clone())
+    .bind(backup.backup_type.clone())
+    .bind(backup.status.clone())
+    .bind(backup.format_version.clone())
+    .bind(backup.source_environment.clone())
+    .bind(backup.encryption_method.clone())
+    .bind(backup.encryption_key_id)
+    .bind(backup.size_bytes)
+    .bind(backup.has_system_core)
+    .bind(backup.has_directors)
+    .bind(backup.has_orchestrators)
+    .bind(backup.has_network_config)
+    .bind(backup.has_app_definitions)
+    .bind(backup.has_volume_data)
+    .bind(backup.included_apps.clone())
+    .bind(backup.included_services.clone())
+    .bind(backup.last_validated_at)
+    .bind(backup.last_restored_at)
+    .bind(backup.restore_target_environment.clone())
+    .bind(backup.restore_status.clone())
+    .bind(backup.storage_location.clone())
+    .bind(backup.manifest_path.clone())
+    .bind(backup.metadata.clone())
+    .fetch_one(&**pool)
+    .await?;
 
-// TODO: Implement the create_backup function to insert a new backup record into the database
+    Ok(created_backup)
+}
