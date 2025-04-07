@@ -719,24 +719,13 @@ VALUES
 (14 , 5 , NULL , 'success' , 'Organization backup policy updated'                                 , 1 , '2024-02-29 19:00:00'),
 (1  , 1 , 1    , 'info'    , 'Performance optimization recommendations available for api-backend' , 0 , '2024-03-01 09:15:00');
 
--- Insert backups
-INSERT INTO backups (app_id, backup_type, backup_status, backup_url, backup_size, backup_duration, created_at)
+INSERT INTO backups (id, name, description, created_at, created_by, backup_type, status, format_version, source_environment, encryption_method, encryption_key_id, size_bytes, has_system_core, has_directors, has_orchestrators, has_network_config, has_app_definitions, has_volume_data, included_apps, included_services, last_validated_at, storage_location, manifest_path, metadata)
 VALUES
-(1  , 'automatic' , 'completed'   , 's3://backups/api-backend/20240228/backup.zip'   , 1572864000  , 300  , '2024-02-28 00:00:00'),
-(2  , 'automatic' , 'completed'   , 's3://backups/web-frontend/20240228/backup.zip'  , 2147483648  , 420  , '2024-02-28 01:00:00'),
-(3  , 'manual'    , 'completed'   , 's3://backups/auth-service/20240228/backup.zip'  , 1073741824  , 240  , '2024-02-28 10:15:00'),
-(9  , 'automatic' , 'completed'   , 's3://backups/data-analytics/20240228/backup.zip', 5368709120  , 900  , '2024-02-28 02:00:00'),
-(10 , 'automatic' , 'completed'   , 's3://backups/ml-processor/20240228/backup.zip'  , 10737418240 , 1200 , '2024-02-28 03:00:00'),
-(16 , 'manual'    , 'completed'   , 's3://backups/code-service/20240228/backup.zip'  , 3221225472  , 600  , '2024-02-28 14:30:00'),
-(27 , 'automatic' , 'completed'   , 's3://backups/ai-engine/20240228/backup.zip'     , 8589934592  , 1080 , '2024-02-28 04:00:00'),
-(1  , 'automatic' , 'completed'   , 's3://backups/api-backend/20240229/backup.zip'   , 1610612736  , 320  , '2024-02-29 00:00:00'),
-(2  , 'automatic' , 'completed'   , 's3://backups/web-frontend/20240229/backup.zip'  , 2252341248  , 440  , '2024-02-29 01:00:00'),
-(9  , 'automatic' , 'failed'      , NULL                                             , NULL        , NULL , '2024-02-29 02:00:00'),
-(10 , 'automatic' , 'completed'   , 's3://backups/ml-processor/20240229/backup.zip'  , 11811160064 , 1250 , '2024-02-29 03:00:00'),
-(27 , 'automatic' , 'completed'   , 's3://backups/ai-engine/20240229/backup.zip'     , 9663676416  , 1100 , '2024-02-29 04:00:00'),
-(1  , 'automatic' , 'in_progress' , NULL                                             , NULL        , NULL , '2024-03-01 00:00:00'),
-(2  , 'automatic' , 'pending'     , NULL                                             , NULL        , NULL , '2024-03-01 01:00:00'),
-(3  , 'manual'    , 'completed'   , 's3://backups/auth-service/20240301/backup.zip'  , 1342177280  , 280  , '2024-03-01 10:30:00');
+(1, 'Weekly-Platform-Backup-20250401', 'Weekly full platform backup for disaster recovery', '2025-04-01 03:15:00', 'backup-system', 'PLATFORM',    'AVAILABLE', '3.2', 'production' , 'AES-256-GCM', 101, 52947834880, TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  TRUE, NULL        , NULL        , '2025-04-01 05:30:22', 's3://omnicloud-backups/platform/2025-04-01/',                  's3://omnicloud-backups/platform/2025-04-01/manifest.json', '{"retention_days": 30, "priority": "high", "verification_score": 100}'),
+(2, 'CRM-App-Backup-20250405',         'Daily backup of the CRM application',               '2025-04-05 01:30:00', 'app-scheduler', 'APPLICATION', 'AVAILABLE', '3.2', 'production' , 'AES-256-GCM', 101, 8589934592,  FALSE, FALSE, FALSE, FALSE, TRUE,  TRUE, '[1,2,3]'   , NULL        , '2025-04-05 02:15:10', 's3://omnicloud-backups/applications/crm/2025-04-05/',          's3://omnicloud-backups/applications/crm/2025-04-05/manifest.json', '{"retention_days": 14, "priority": "medium", "app_version": "v2.3.1"}'),
+(3, 'Partial-Backend-Backup-20250406', 'Partial backup of backend services only',           '2025-04-06 00:15:00', 'admin',         'PARTIAL',     'AVAILABLE', '3.2', 'production' , 'AES-256-GCM', 101, 21474836480, FALSE, TRUE,  TRUE,  TRUE,  TRUE,  TRUE, '[5,6,7,8]' , '[12,15,18]', '2025-04-06 01:45:33', 's3://omnicloud-backups/partial/backend/2025-04-06/',           's3://omnicloud-backups/partial/backend/2025-04-06/manifest.json', '{"retention_days": 7, "priority": "medium", "scope": "backend-services"}'),
+(4, 'Database-Only-Backup-20250406',   'Database-only backup for the analytics platform',   '2025-04-06 04:30:00', 'db-scheduler',  'APPLICATION', 'AVAILABLE', '3.2', 'production' , 'AES-256-GCM', 101, 5368709120,  FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, '[11]'      , NULL        , '2025-04-06 05:10:45', 's3://omnicloud-backups/applications/analytics-db/2025-04-06/', 's3://omnicloud-backups/applications/analytics-db/2025-04-06/manifest.json', '{"retention_days": 30, "priority": "high", "db_version": "PostgreSQL 16.2"}'),
+(5, 'Dev-Environment-Backup-20250403', 'Full backup of development environment',            '2025-04-03 22:00:00', 'dev-team',      'PLATFORM',    'AVAILABLE', '3.2', 'development', 'AES-256-GCM', 102, 32212254720, TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  TRUE, NULL        , NULL        , '2025-04-03 23:30:17', 's3://omnicloud-backups/platform/dev/2025-04-03/',              's3://omnicloud-backups/platform/dev/2025-04-03/manifest.json', '{"retention_days": 10, "priority": "low", "purpose": "pre-release-snapshot"}');
 
 -- Re-enable foreign key checks and unique checks
 SET FOREIGN_KEY_CHECKS = 1;

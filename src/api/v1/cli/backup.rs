@@ -6,11 +6,11 @@ use crate::db::v1::tables::Backup;
 use crate::db::v1::queries::{self as db};
 
 /// List all backups
-#[get("/backups?<page>&<page_size>")]
-pub async fn list_backups(pool: &State<sqlx::Pool<MySql>>, page: Option<i64>, page_size: Option<i64>) -> Json<Vec<Backup>> {
+#[get("/backups?<page>&<per_page>")]
+pub async fn list_backups(pool: &State<sqlx::Pool<MySql>>, page: Option<i64>, per_page: Option<i64>) -> Json<Vec<Backup>> {
     let page = page.unwrap_or(1);
-    let page_size = page_size.unwrap_or(10);
-    let backups = db::backup::list_backups_paginated(pool, page, page_size).await.unwrap_or_else(|_| vec![]);
+    let per_page = per_page.unwrap_or(10);
+    let backups = db::backup::list_backups_paginated(pool, page, per_page).await.unwrap_or_else(|_| vec![]);
 
     Json(backups)
 }

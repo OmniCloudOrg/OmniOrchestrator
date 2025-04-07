@@ -1,5 +1,5 @@
 -- Drop all tables first (in correct dependency order)
-DROP TABLE IF EXISTS host_creds, metrics, allocations, instance_logs, audit_logs, api_keys, 
+DROP TABLE IF EXISTS backups, notifications, host_creds, metrics, allocations, instance_logs, audit_logs, api_keys, 
     config_vars, deployment_logs, rollbacks, deployments, builds, tasks, 
     autoscaling_rules, health_checks, network_policies, service_bindings,
     routes, instances, domains, apps, spaces, orgmember, permissions_role, 
@@ -956,20 +956,53 @@ CREATE TABLE notifications (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE backups (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    app_id BIGINT NOT NULL,
-    backup_type ENUM('manual', 'automatic') DEFAULT 'automatic',
-    backup_status ENUM('pending', 'in_progress', 'completed', 'failed') DEFAULT 'pending',
-    backup_url VARCHAR(255),
-    backup_size BIGINT,
-    backup_duration INT COMMENT 'in seconds',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_backups_app_id (app_id),
-    KEY idx_backups_status (backup_status),
-    KEY idx_backups_created_at (created_at),
-    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
-)
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(255) NOT NULL,
+    backup_type ENUM('PLATFORM', 'APPLICATION', 'PARTIAL') NOT NULL,
+    status ENUM('CREATING', 'AVAILABLE', 'RESTORING', 'FAILED', 'DELETED') NOT NULL DEFAULT 'CREATING',
+    
+    -- Core metadata (always required)
+    format_version VARCHAR(50) NOT NULL,
+    source_environment VARCHAR(255) NOT NULL,
+    encryption_method VARCHAR(100),
+    encryption_key_id INT,
+    size_bytes BIGINT,
+    
+    -- Platform backup components (optional for app backups)
+    has_system_core BOOLEAN DEFAULT FALSE,
+    has_directors BOOLEAN DEFAULT FALSE,
+    has_orchestrators BOOLEAN DEFAULT FALSE,
+    has_network_config BOOLEAN DEFAULT FALSE,
+    
+    -- Application backup components
+    has_app_definitions BOOLEAN DEFAULT FALSE,
+    has_volume_data BOOLEAN DEFAULT FALSE,
+    
+    -- Partial backup filters (stored as JSON strings in MySQL)
+    included_apps TEXT,
+    included_services TEXT,
+    
+    -- Recovery metadata
+    last_validated_at TIMESTAMP NULL,
+    last_restored_at TIMESTAMP NULL,
+    restore_target_environment VARCHAR(255),
+    restore_status VARCHAR(50),
+    
+    -- Storage information
+    storage_location TEXT NOT NULL,
+    manifest_path TEXT NOT NULL,
+    
+    -- Additional metadata as JSON
+    metadata JSON
+);
+
+-- Index for faster queries
+CREATE INDEX idx_backups_type ON backups(backup_type);
+CREATE INDEX idx_backups_status ON backups(status);
+CREATE INDEX idx_backups_created_at ON backups(created_at);
 
 -- CREATE TABLE user_settings (
 --     id BIGINT NOT NULL AUTO_INCREMENT,
