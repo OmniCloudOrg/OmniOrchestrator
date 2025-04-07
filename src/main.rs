@@ -16,14 +16,16 @@
 // +-------------+
 // | MODULES     |
 // +-------------+
-mod api;
-mod cluster;
-mod config;
 mod db;
-mod leader;
+mod api;
 mod state;
-mod worker_autoscaler;
+mod leader;
+mod config;
+mod backup;
+mod network;
+mod cluster;
 mod app_autoscaler;
+mod worker_autoscaler;
 
 // +-------------+
 // | IMPORTS     |
