@@ -88,8 +88,9 @@ pub fn routes() -> Vec<rocket::Route> {
         get_worker_by_id,
 
         // CLI
-        cli::backup::list_backups,
-        cli::backup::list_backups_by_app_id,
         cli::backup::get_backup,
+        cli::backup::list_backups,
+        cli::backup::create_backup,
+        cli::backup::list_backups_by_app_id,
         ]
 }
