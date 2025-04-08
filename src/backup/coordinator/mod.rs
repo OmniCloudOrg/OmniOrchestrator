@@ -1,5 +1,3 @@
-// backup/coordinator/mod.rs
-//
 // Main module file for the OmniCloud backup coordinator system
 
 mod types;
