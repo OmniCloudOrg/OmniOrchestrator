@@ -43,13 +43,8 @@ pub async fn create_backup(
 ) -> Result<Json<Backup>, rocket::http::Status> {
     let mut backup = Backup::new(); // Create a new instance of Backup to ensure defaults are set
 
-    if let Some(metadata) = new_backup.0.metadata.clone() {
-        backup.update_metadata(metadata); // Update the metadata if any is provided
-    } else {
-        // Return a 400 Bad Request error if no metadata is provided
-        return Err(rocket::http::Status::BadRequest);
-    }
-
+    let metadata = new_backup.0.metadata.clone().unwrap_or_default();
+    backup.update_metadata(metadata); // Update the metadata with provided or default value
     match db::backup::create_backup(pool, &backup).await {
         Ok(inserted_backup) => Ok(Json(inserted_backup)),
         Err(_) => {
