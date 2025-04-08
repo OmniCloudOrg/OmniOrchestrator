@@ -88,7 +88,7 @@ pub async fn create_backup(
     pool: &State<sqlx::Pool<MySql>>,
     backup: &Backup,
 ) -> Result<Backup, sqlx::Error> {
-    let created_backup = sqlx::query_as::<_, Backup>(
+    sqlx::query(
         "INSERT INTO backups (
             name, description, created_at, created_by, backup_type, status, format_version,
             source_environment, encryption_method, encryption_key_id, size_bytes, has_system_core,
@@ -97,8 +97,7 @@ pub async fn create_backup(
             restore_status, storage_location, manifest_path, metadata
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
-        RETURNING *",
+        )",
     )
     .bind(backup.name.clone())
     .bind(backup.description.clone())
@@ -126,8 +125,18 @@ pub async fn create_backup(
     .bind(backup.storage_location.clone())
     .bind(backup.manifest_path.clone())
     .bind(backup.metadata.clone())
-    .fetch_one(&**pool)
+    .execute(&**pool)
     .await?;
 
+    let last_insert_id: i64 = sqlx::query_scalar("SELECT LAST_INSERT_ID()")
+        .fetch_one(&**pool)
+        .await?;
+
+    let created_backup = sqlx::query_as::<_, Backup>(
+        "SELECT * FROM backups WHERE id = ?",
+    )
+    .bind(last_insert_id)
+    .fetch_one(&**pool)
+    .await?;
     Ok(created_backup)
 }
