@@ -34,3 +34,22 @@ pub async fn get_backup(pool: &State<sqlx::Pool<MySql>>, backup_id: &str) -> Jso
 
     Json(backup)
 }
+
+/// Create a new backup
+#[post("/backups", format = "json", data = "<new_backup>")]
+pub async fn create_backup(
+    pool: &State<sqlx::Pool<MySql>>,
+    new_backup: Json<Backup>,
+) -> Result<Json<Backup>, rocket::http::Status> {
+    let mut backup = Backup::new(); // Create a new instance of Backup to ensure defaults are set
+
+    let metadata = new_backup.0.metadata.clone().unwrap_or_default();
+    backup.update_metadata(metadata); // Update the metadata with provided or default value
+    match db::backup::create_backup(pool, &backup).await {
+        Ok(inserted_backup) => Ok(Json(inserted_backup)),
+        Err(_) => {
+            // Return a 500 Internal Server Error if the database operation fails
+            Err(rocket::http::Status::InternalServerError)
+        }
+    }
+}

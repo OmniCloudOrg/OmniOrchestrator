@@ -29,6 +29,7 @@ mysql = "25.0.1"
 once_cell = "1.20.2"
 sqlx = { version = "0.8.3", features = ["runtime-tokio", "macros", "mysql", "time", "chrono"] }
 tracing = { version = "0.1.41", features = ["log"] }
+hadris-iso = "0.0.1"
 
 [profile.dev]
 codegen-units = 32
