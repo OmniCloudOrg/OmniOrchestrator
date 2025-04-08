@@ -434,7 +434,7 @@ impl BackupRecovery {
             "directors" => vec!["director"],
             "orchestrators" => vec!["orchestrator"],
             "network" => vec!["network-config"],
-            "application_definitions" => vec!["app-definitions"],
+            "application_definitions" => vec!["app_definitions"],
             "volume_data" => vec!["volume-data"],
             "finalization" => vec!["finalization"],
             _ => vec![],
@@ -1019,7 +1019,7 @@ impl BackupRecovery {
         
         let app_catalog_node = &app_catalog_nodes[0];
         let node_id = app_catalog_node.id.clone();
-        let component_type = "app-definitions";
+        let component_type = "app_definitions";
         
         // Register the recovery job
         let job = RecoveryJobStatus {

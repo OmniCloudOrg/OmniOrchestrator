@@ -146,7 +146,7 @@ impl BackupCoordinator {
                 "director" => has_directors = true,
                 "orchestrator" => has_orchestrators = true,
                 "network-config" => has_network_config = true,
-                "app-definitions" => has_app_definitions = true,
+                "app_definitions" => has_app_definitions = true,
                 "volume-data" => has_volume_data = true,
                 _ => {}
             }

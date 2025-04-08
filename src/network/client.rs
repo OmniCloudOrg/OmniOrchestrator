@@ -202,7 +202,7 @@ impl NetworkClient {
             "director" => 256 * 1024 * 1024,    // 256 MB
             "orchestrator" => 384 * 1024 * 1024, // 384 MB
             "network-config" => 128 * 1024 * 1024, // 128 MB
-            "app-definitions" => 256 * 1024 * 1024, // 256 MB
+            "app_definitions" => 256 * 1024 * 1024, // 256 MB
             _ if component_type.starts_with("volume-data") => 1024 * 1024 * 1024, // 1 GB
             _ => 64 * 1024 * 1024, // 64 MB default
         };

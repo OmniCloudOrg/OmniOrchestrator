@@ -24,7 +24,7 @@ pub async fn backup_app_definitions(
     backup_jobs: Arc<Mutex<Vec<BackupJobStatus>>>,
     status_tx: mpsc::Sender<BackupJobStatus>,
 ) -> Result<()> {
-    let component_type = "app-definitions";
+    let component_type = "app_definitions";
     let node_id = node.id.clone();
     
     // Register the backup job
