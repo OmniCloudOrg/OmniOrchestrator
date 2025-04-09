@@ -103,24 +103,32 @@ type AppStore = Arc<RwLock<HashMap<String, Application>>>;
 ///
 /// # Arguments
 ///
-/// * `page` - Page number for pagination
-/// * `per_page` - Number of items per page
+/// * `page` - Required page number for pagination
+/// * `per_page` - Required number of items per page
 /// * `pool` - Database connection pool
 ///
 /// # Returns
 ///
-/// A JSON array of applications
+/// A JSON array of applications or an error if pagination parameters are missing
 #[get("/apps?<page>&<per_page>")]
 pub async fn list_apps(
-    page: i64,
-    per_page: i64,
+    page: Option<i64>,
+    per_page: Option<i64>,
     pool: &State<sqlx::Pool<MySql>>,
-) -> Json<Vec<App>> {
-    let apps = db::app::list_apps(pool, page, per_page).await.unwrap();
-    println!("Found {} apps", apps.len());
-    let apps_vec: Vec<App> = apps.into_iter().collect();
-    println!("Returning {} apps", apps_vec.len());
-    Json(apps_vec)
+) -> Result<Json<Vec<App>>, (Status, Json<Value>)> {
+    match (page, per_page) {
+        (Some(p), Some(pp)) => {
+            let apps = db::app::list_apps(pool, p, pp).await.unwrap();
+            Ok(Json(apps.into_iter().collect()))
+        }
+        _ => Err((
+            Status::BadRequest,
+            Json(json!({
+                "error": "Missing pagination parameters",
+                "message": "Please provide both 'page' and 'per_page' parameters"
+            }))
+        ))
+    }
 }
 
 /// Get a specific application by ID.

@@ -7,6 +7,9 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use std::time::Duration;
 use lazy_static::lazy_static;
+use ssh2::Session;
+use std::net::TcpStream;
+use std::io::Read;
 
 use super::utils::{update_host_status, update_host_services};
 use super::super::state::GLOBAL_CONFIGS;
@@ -104,9 +107,36 @@ async fn deploy_platform(cloud_name: String, config: CloudConfig) {
     }
 }
 
-async fn simulate_host_bootstrap(cloud_name: String, host: SshHost) {
+async fn simulate_host_bootstrap(cloud_name: String, host: SshHost) -> Result<(), ssh2::Error> {
     let host_name = host.name.clone();
     let is_bastion = host.is_bastion;
+
+    let tcp = TcpStream::connect(format!("{}:{}", host.hostname, host.port))
+        .map_err(|_| ssh2::Error::from_errno(ssh2::ErrorCode::Session(0)))?;
+    
+    // Create a new SSH session
+    let mut session = Session::new()?;
+    session.set_tcp_stream(tcp);
+    
+    // Handshake with the server
+    session.handshake()?;
+    
+    // Authenticate
+    session.userauth_password(&host.username, "ubuntu")
+        .map_err(|_| ssh2::Error::from_errno(ssh2::ErrorCode::Session(0)))?;
+    
+    // Execute a command
+    let mut channel = session.channel_session()?;
+    channel.exec("echo Hello, World!")?;
+    
+    // Read the output
+    let mut output = String::new();
+    channel.read_to_string(&mut output)
+        .map_err(|_| ssh2::Error::from_errno(ssh2::ErrorCode::Session(0)))?;
+    
+    // Close the channel
+    channel.wait_close()?;
+    println!("Output: {}", output);
     
     // Update host status to in-progress
     update_host_status(&cloud_name, &host_name, "in_progress", "Establishing SSH connection", 0, None, false);
@@ -196,6 +226,8 @@ async fn simulate_host_bootstrap(cloud_name: String, host: SshHost) {
     
     // Mark host as completed
     update_host_status(&cloud_name, &host_name, "completed", "Bootstrap completed", 100, None, true);
+    
+    Ok(())
 }
 
 async fn simulate_network_configuration(cloud_name: String) {
