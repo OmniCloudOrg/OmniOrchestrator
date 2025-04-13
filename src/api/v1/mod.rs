@@ -34,6 +34,7 @@ pub fn routes() -> Vec<rocket::Route> {
     routes![
         // apps
         get_app,
+        count_apps,
         list_apps,
         create_app,
         release,

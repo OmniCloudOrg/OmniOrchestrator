@@ -131,6 +131,13 @@ pub async fn list_apps(
     }
 }
 
+/// Count the total number of applications.
+#[get("/apps/count")]
+pub async fn count_apps(pool: &State<sqlx::Pool<MySql>>) -> Json<i64> {
+    let count = db::app::count_apps(pool).await.unwrap();
+    Json(count)
+}
+
 /// Get a specific application by ID.
 ///
 /// # Arguments

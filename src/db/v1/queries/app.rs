@@ -45,6 +45,19 @@ pub async fn list_apps(pool: &Pool<MySql>, page: i64, per_page: i64) -> anyhow::
     }
 }
 
+/// Counts the total number of applications in the database.
+///
+/// This function retrieves the total count of applications, which can be useful
+/// for pagination or reporting purposes.
+pub async fn count_apps(pool: &Pool<MySql>) -> anyhow::Result<i64> {
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM apps")
+        .fetch_one(pool)
+        .await
+        .context("Failed to count apps")?;
+
+    Ok(count)
+}
+
 /// Retrieves a specific application by its unique identifier.
 ///
 /// This function fetches a single application record matching the provided ID.
