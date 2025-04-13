@@ -1,4 +1,5 @@
 # Planned routes for OmniOrchestrator
+The goal of this document is to outline the kinds of data we need to be able to fetch on each page, and secion of the dashboard from the API.
 
 ---
 ## Dashboard homepage
