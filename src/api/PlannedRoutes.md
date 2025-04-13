@@ -11,10 +11,10 @@ The goal of this document is to outline the kinds of data we need to be able to 
 
 ### Top Cards
 - [x] Total applications
-- [ ] Total Running Instances
-- [ ] Avg platform CPU usage
-- [ ] Monthly total platform cost
-- [ ] Platform health statistics
+- [x] Total Running Instances
+- [ ] Avg platform CPU usage (We need help from @AbleTheAbove 's metrics system here)
+- [ ] Monthly total platform cost (We need help from @AbleTheAbove 's metrics system here)
+- [ ] Platform health statistics (We need help from @AbleTheAbove 's metrics system here)
 - [ ] API Gateway status (To be replaced with Proxy health)
 - [ ] Database clusters health (Omni's internal DB and all DBs it manages)
 

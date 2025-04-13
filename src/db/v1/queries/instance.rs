@@ -36,6 +36,19 @@ pub async fn list_instances(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<V
     Ok(instances)
 }
 
+/// Counts the total number of instances across all applications.
+/// 
+/// This function returns the total count of instances in the database.
+/// It's useful for monitoring overall resource allocation and usage.
+pub async fn count_instances(pool: &Pool<MySql>) -> anyhow::Result<i64> {
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM instances")
+        .fetch_one(pool)
+        .await
+        .context("Failed to count instances")?;
+
+    Ok(count)
+}
+
 /// Retrieves a specific instance by its unique identifier.
 ///
 /// This function fetches detailed information about a single compute instance.

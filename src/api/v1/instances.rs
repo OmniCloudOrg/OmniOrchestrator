@@ -16,6 +16,14 @@ pub async fn list_instances(pool: &State<sqlx::Pool<MySql>>, app_id: i64) -> Jso
     Json(instances_vec)
 }
 
+/// Count all instances across all applications
+#[get("/instances/count")]
+pub async fn count_instances(pool: &State<sqlx::Pool<MySql>>) -> Json<i64> {
+    let count = db::instance::count_instances(pool).await.unwrap();
+    println!("Found {} instances", count);
+    Json(count)
+}
+
 // Get an instance by ID
 #[get("/instances/<instance_id>")]
 pub async fn get_instance(pool: &State<sqlx::Pool<MySql>>, instance_id: i64) -> Json<Instance> {

@@ -46,6 +46,7 @@ pub fn routes() -> Vec<rocket::Route> {
         update_app,
         // instances
         list_instances,
+        count_instances,
         get_instance,
         // deploy
         deploy_permissions,
