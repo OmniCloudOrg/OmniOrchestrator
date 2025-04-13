@@ -1,5 +1,6 @@
 # Planned routes for OmniOrchestrator
 
+---
 ## Dashboard homepage
 
 ### Top Cards
@@ -49,6 +50,8 @@ A list of recent builds of your services, container images, and VM images across
 
 ### Recent Activity
 Recent Activity a summery of all recent audit items at info level or higher
+
+---
 
 ### Applications Page
 A searchable, filterable grid of all applications, and stacks running on your platform.
@@ -124,3 +127,6 @@ If applicable this card tracks the ammount of requests that hit the cach vs the 
 
 #### Application -> Settings
 The apps settings tab
+
+---
+
