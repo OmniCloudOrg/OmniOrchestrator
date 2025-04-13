@@ -144,4 +144,3 @@ If applicable this card tracks the ammount of requests that hit the cach vs the 
 The apps settings tab
 
 ---
-
