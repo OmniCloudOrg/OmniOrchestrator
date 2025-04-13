@@ -12,10 +12,10 @@ pub mod regions;
 pub mod users;
 pub mod platforms;
 pub mod workers;
-pub mod cli;
+pub mod control;
 //pub mod deployments;
 
-use cli::*;
+use control::*;
 use apps::*;
 use users::*;
 use builds::*;
@@ -90,9 +90,9 @@ pub fn routes() -> Vec<rocket::Route> {
         get_worker_by_id,
 
         // CLI
-        cli::backup::get_backup,
-        cli::backup::list_backups,
-        cli::backup::create_backup,
-        cli::backup::list_backups_by_app_id,
+        control::backup::get_backup,
+        control::backup::list_backups,
+        control::backup::create_backup,
+        control::backup::list_backups_by_app_id,
         ]
 }
