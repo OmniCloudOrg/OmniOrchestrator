@@ -1,4 +1,4 @@
-use super::super::tables::Region;
+use super::super::tables::{Region, ProviderRegion};
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 
@@ -34,25 +34,30 @@ pub async fn list_regions(
     limit: Option<i64>,
     offset: Option<i64>,
 ) -> anyhow::Result<Vec<Region>> {
-    let mut query_builder =
-        sqlx::QueryBuilder::new("SELECT * FROM regions ORDER BY created_at DESC");
+    let regions = sqlx::query_as::<_, Region>(
+        "SELECT * FROM regions ORDER BY created_at DESC LIMIT ? OFFSET ?",
+    )
+    .bind(limit.unwrap_or(100))
+    .bind(offset.unwrap_or(0))
+    .fetch_all(pool)
+    .await
+    .context("Failed to fetch regions")?;
 
-    if limit.is_some() || offset.is_some() {
-        query_builder.push(" LIMIT ");
-        query_builder.push_bind(limit.unwrap_or(100));
+    Ok(regions)
+}
 
-        if offset.is_some() {
-            query_builder.push(" OFFSET ");
-            query_builder.push_bind(offset.unwrap());
-        }
-    }
-
-    let query = query_builder.build_query_as::<Region>();
-
-    let regions = query
-        .fetch_all(pool)
-        .await
-        .context("Failed to fetch regions")?;
+pub async fn list_provider_regions(
+    pool: &Pool<MySql>,
+) -> anyhow::Result<Vec<ProviderRegion>> {
+    let regions = sqlx::query_as::<_, ProviderRegion>(
+        "SELECT regions.*, providers.name AS provider_name, providers_regions.status AS binding_status 
+         FROM regions 
+         JOIN providers ON regions.provider = providers.id 
+         JOIN providers_regions ON regions.id = providers_regions.region_id AND providers.id = providers_regions.provider_id",
+    )
+    .fetch_all(pool)
+    .await
+    .context("Failed to fetch provider regions")?;
 
     Ok(regions)
 }

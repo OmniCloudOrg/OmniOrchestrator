@@ -70,6 +70,7 @@ pub fn routes() -> Vec<rocket::Route> {
         list_builds_for_app,
         get_build,
         list_regions,
+        list_provider_regions,
         // regions
         // get_region,
         // delete_region,

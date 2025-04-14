@@ -4,7 +4,7 @@ DROP TABLE IF EXISTS backups, notifications, host_creds, metrics, allocations, i
     autoscaling_rules, health_checks, network_policies, service_bindings,
     routes, instances, domains, apps, spaces, orgmember, permissions_role, 
     role_user, permissions, roles, quotas, orgs, user_sessions, user_pii, user_meta, users, 
-    data_services, nodes, workers, regions;
+    data_services, nodes, workers, regions, providers, providers_regions;
 
 -- Create independent tables first (no foreign keys)
 
@@ -103,6 +103,21 @@ CREATE TABLE roles (
     UNIQUE KEY unique_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE allocations (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    cpu DOUBLE NOT NULL,
+    memory DOUBLE NOT NULL, -- in MB
+    uplink DOUBLE NOT NULL, -- in Mbps
+    downlink DOUBLE NOT NULL, -- in Mbps
+    disk DOUBLE NOT NULL, -- in MB
+    price_per_hour DECIMAL(10,4) DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE permissions (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
@@ -132,21 +147,32 @@ CREATE TABLE regions (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
-    provider VARCHAR(255) NOT NULL,
-    provider_region VARCHAR(100),
+    provider BIGINT NOT NULL,
     location VARCHAR(255),
     coordinates POINT,
-    status ENUM('active', 'maintenance', 'offline', 'deprecated') DEFAULT 'active',
     is_public TINYINT(1) DEFAULT 1,
     class VARCHAR(50) DEFAULT 'primary',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
+    ForEIGN KEY (provider) REFERENCES providers(id) ON DELETE CASCADE,
     UNIQUE KEY unique_name (name),
     -- Spatial index removed
-    INDEX idx_regions_status (status),
     INDEX idx_regions_provider (provider),
     INDEX idx_regions_class (class)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE providers_regions (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    provider_id BIGINT NOT NULL,
+    region_id BIGINT NOT NULL,
+    status ENUM('active', 'maintenance', 'offline', 'deprecated') DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_provider_region (provider_id, region_id),
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+    FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE orgs (
@@ -167,21 +193,6 @@ CREATE TABLE orgs (
     INDEX idx_orgs_status (status),
     INDEX idx_orgs_plan (plan),
     INDEX idx_orgs_deleted_at (deleted_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE allocations (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    name VARCHAR(100) NOT NULL,
-    cpu DOUBLE NOT NULL,
-    memory DOUBLE NOT NULL, -- in MB
-    uplink DOUBLE NOT NULL, -- in Mbps
-    downlink DOUBLE NOT NULL, -- in Mbps
-    disk DOUBLE NOT NULL, -- in MB
-    price_per_hour DECIMAL(10,4) DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY unique_name (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Create tables with single foreign key dependencies

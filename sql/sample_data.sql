@@ -5,7 +5,6 @@
 -- Disable foreign key checks temporarily for faster inserts
 SET FOREIGN_KEY_CHECKS = 0;
 SET UNIQUE_CHECKS = 0;
-SET @OLD_SQL_MODE = @@SQL_MODE;
 SET SQL_MODE = '';
 
 -- Set variables for scale (adjust as needed)
@@ -102,20 +101,38 @@ VALUES
 ('monitoring_admin' , 'Monitoring administrator'                  , 0 , 'organization'),
 ('backup_operator'  , 'Backup and restore operator'               , 0 , 'organization');
 
-
-
-INSERT INTO regions (name, display_name, provider, provider_region, location, coordinates, status, is_public, class)
+INSERT INTO providers (name, display_name, provider_type, status) 
 VALUES
-('us-east-1'      , 'US East (N. Virginia)'    , 'aws' , 'us-east-1'      , 'Northern Virginia, USA'   , POINT(-77.47, 39.06)  , 'active' , 1 , 'standard'),
-('us-west-1'      , 'US West (N. California)'  , 'aws' , 'us-west-1'      , 'Northern California, USA' , POINT(-121.97, 37.35) , 'active' , 1 , 'standard'),
-('us-west-2'      , 'US West (Oregon)'         , 'aws' , 'us-west-2'      , 'Oregon, USA'              , POINT(-122.67, 45.52) , 'active' , 1 , 'premium'),
-('eu-west-1'      , 'EU West (Ireland)'        , 'aws' , 'eu-west-1'      , 'Dublin, Ireland'          , POINT(-6.26, 53.34)   , 'active' , 1 , 'standard'),
-('us-central1'    , 'US Central (Iowa)'        , 'gcp' , 'us-central1'    , 'Iowa, USA'                , POINT(-93.63, 41.88)  , 'active' , 1 , 'premium'),
-('europe-west4'   , 'EU West (Netherlands)'    , 'gcp' , 'europe-west4'   , 'Eemshaven, Netherlands'   , POINT(6.83, 53.44)    , 'active' , 1 , 'standard'),
-('eu-central-1'   , 'EU Central (Frankfurt)'   , 'aws' , 'eu-central-1'   , 'Frankfurt, Germany'       , POINT(8.68, 50.11)    , 'active' , 1 , 'premium'),
-('ap-southeast-1' , 'Asia Pacific (Singapore)' , 'aws' , 'ap-southeast-1' , 'Singapore'                , POINT(103.85, 1.29)   , 'active' , 1 , 'standard'),
-('ap-northeast-1' , 'Asia Pacific (Tokyo)'     , 'aws' , 'ap-northeast-1' , 'Tokyo, Japan'             , POINT(139.69, 35.69)  , 'active' , 1 , 'standard'),
-('ap-southeast-2' , 'Asia Pacific (Sydney)'    , 'aws' , 'ap-southeast-2' , 'Sydney, Australia'        , POINT(151.21, -33.87) , 'active' , 1 , 'standard');
+('aws', 'Amazon Web Services', 'cloud', 'active'),
+('gcp', 'Google Cloud Platform', 'cloud', 'active'),
+('azure', 'Microsoft Azure', 'cloud', 'active');
+
+INSERT INTO regions (name, display_name, provider, location, coordinates, is_public, class)
+VALUES
+('us-east-1'      , 'US East (N. Virginia)'    , 1 , 'Northern Virginia, USA'   , POINT(-77.47, 39.06)  , 1 , 'standard'),
+('us-west-1'      , 'US West (N. California)'  , 1 , 'Northern California, USA' , POINT(-121.97, 37.35) , 1 , 'standard'),
+('us-west-2'      , 'US West (Oregon)'         , 1 , 'Oregon, USA'              , POINT(-122.67, 45.52) , 1 , 'premium'),
+('eu-west-1'      , 'EU West (Ireland)'        , 1 , 'Dublin, Ireland'          , POINT(-6.26, 53.34)   , 1 , 'standard'),
+('us-central1'    , 'US Central (Iowa)'        , 2 , 'Iowa, USA'                , POINT(-93.63, 41.88)  , 1 , 'premium'),
+('europe-west4'   , 'EU West (Netherlands)'    , 2 , 'Eemshaven, Netherlands'   , POINT(6.83, 53.44)    , 1 , 'standard'),
+('eu-central-1'   , 'EU Central (Frankfurt)'   , 1 , 'Frankfurt, Germany'       , POINT(8.68, 50.11)    , 1 , 'premium'),
+('ap-southeast-1' , 'Asia Pacific (Singapore)' , 1 , 'Singapore'                , POINT(103.85, 1.29)   , 1 , 'standard'),
+('ap-northeast-1' , 'Asia Pacific (Tokyo)'     , 1 , 'Tokyo, Japan'             , POINT(139.69, 35.69)  , 1 , 'standard'),
+('ap-southeast-2' , 'Asia Pacific (Sydney)'    , 1 , 'Sydney, Australia'        , POINT(151.21, -33.87) , 1 , 'standard');
+
+INSERT INTO providers_regions (provider_id, region_id, status)
+VALUES
+(1, 1, 'active'),
+(1, 2, 'active'),
+(1, 3, 'active'),
+(1, 4, 'active'),
+(2, 5, 'active'),
+(2, 6, 'active'),
+(1, 7, 'active'),
+(1, 8, 'active'),
+(1, 9, 'active'),
+(1, 10, 'active');
+
 
 INSERT INTO users (email, email_verified, password, salt, password_changed_at, login_attempts, two_factor_enabled, active, status, created_at, last_login_at)
 VALUES
@@ -143,7 +160,7 @@ VALUES
 ('user19@protonmail.com'    , 1 , SHA2('password19', 256) , SHA2('salt19', 256) , '2023-09-16 10:45:00' , 0 , 0 , 1 , 'active'   , '2023-01-16 12:15:00' , '2024-03-07 08:30:00'),
 ('developer20@icloud.com'   , 1 , SHA2('password20', 256) , SHA2('salt20', 256) , '2023-10-21 12:15:00' , 0 , 1 , 1 , 'active'   , '2023-02-21 14:30:00' , '2024-03-08 10:45:00'),
 ('user21@example.com'       , 0 , SHA2('password21', 256) , SHA2('salt21', 256) , '2023-11-15 08:30:00' , 3 , 0 , 1 , 'pending'  , '2022-05-12 14:20:00' , NULL),
-('developer22@gmail.com'    , 1 , SHA2('password22', 256) , SHA2('salt22', 256) , '2023-12-20 10:45:00' , 1 , 1 , 0 , 'inactive' , '2022-06-14 16:40:00' , '2023-12-29 11:30:00'),
+('developer22@gmail.com'    , 1 , SHA2('password22', 256) , SHA2('salt22', 256) , '2023-12-20 10:45:00' , 1 , 1 , 0 , 'suspended' , '2022-06-14 16:40:00' , '2023-12-29 11:30:00'),
 ('admin23@company.com'      , 1 , SHA2('password23', 256) , SHA2('salt23', 256) , '2024-01-25 12:15:00' , 0 , 1 , 1 , 'active'   , '2022-07-17 09:30:00' , '2024-03-01 08:45:00'),
 ('test24@techops.co'        , 1 , SHA2('password24', 256) , SHA2('salt24', 256) , '2024-02-10 14:20:00' , 0 , 0 , 1 , 'active'   , '2022-08-22 11:10:00' , '2024-03-02 10:20:00'),
 ('user25@yahoo.com'         , 1 , SHA2('password25', 256) , SHA2('salt25', 256) , '2024-03-15 09:30:00' , 0 , 0 , 1 , 'active'   , '2022-09-27 15:45:00' , '2024-03-03 14:30:00');
@@ -161,13 +178,6 @@ VALUES
 (3 , 'Europe/London'    , 'en' , 'system' , JSON_OBJECT('email', 1, 'push', 1, 'deployment', 1, 'billing', 1, 'marketing', 1) , 'https://example.com/profile/3.jpg' , NULL                                                                      , 1),
 (4 , 'Asia/Tokyo'       , 'ja' , 'light'  , JSON_OBJECT('email', 1, 'push', 0, 'deployment', 1, 'billing', 1, 'marketing', 0) , NULL                                , NULL                                                                      , 1),
 (5 , 'Australia/Sydney' , 'en' , 'dark'   , JSON_OBJECT('email', 1, 'push', 1, 'deployment', 1, 'billing', 1, 'marketing', 0) , 'https://example.com/profile/5.jpg' , JSON_OBJECT('widgets', JSON_ARRAY('deployments', 'metrics'))              , 1);
-
-INSERT INTO user_meta (user_id, timezone, language, theme, onboarding_completed)
-VALUES
-(@USER_COUNT + 1 , 'UTC' , 'en' , 'dark'  , 1),
-(@USER_COUNT + 2 , 'UTC' , 'en' , 'light' , 1),
-(@USER_COUNT + 3 , 'UTC' , 'en' , 'light' , 1);
-
 INSERT INTO user_pii (user_id, first_name, last_name, full_name, identity_verified)
 VALUES
 (1 , 'John'    , 'Smith'    , 'John Smith'       , 1),
@@ -292,7 +302,7 @@ VALUES
 (7  , 'node-w9x0y1z2' , 'i-2345678901abcdefc' , 'i3.8xlarge' , 'active'       , 32 , 8  , 24 , 131072 , 31072 , 100000 , 2048000 , 448000 , 1600000 , 10000 , 10000 , '1.25.3' , JSON_OBJECT('role', 'worker', 'zone', 'zone-a')        , NOW() - INTERVAL 7 MINUTE   , '2022-07-05 10:30:00'),
 (7  , 'node-a3b4c5d6' , 'i-3456789012abcdefd' , 'm5.8xlarge' , 'active'       , 16 , 4  , 12 , 65536  , 15536 , 50000  , 1024000 , 224000 , 800000  , 10000 , 10000 , '1.25.3' , JSON_OBJECT('role', 'control-plane', 'zone', 'zone-a') , NOW() - INTERVAL 5 MINUTE   , '2022-07-10 14:15:00'),
 (8  , 'node-e7f8g9h0' , 'i-4567890123abcdefe' , 'r5.8xlarge' , 'active'       , 16 , 5  , 11 , 131072 , 51072 , 80000  , 1024000 , 324000 , 700000  , 10000 , 10000 , '1.26.1' , JSON_OBJECT('role', 'worker', 'zone', 'zone-b')        , NOW() - INTERVAL 8 MINUTE   , '2022-08-05 09:45:00'),
-(8  , 'node-i1j2k3l4' , 'i-5678901234abcdeff' , 'c5.4xlarge' , 'crashed'      , 8  , 0  , 8  , 32768  , 0     , 32768  , 512000  , 0      , 512000  , 10000 , 10000 , '1.24.8' , JSON_OBJECT('role', 'worker', 'zone', 'zone-b')        , NOW() - INTERVAL 240 MINUTE , '2022-08-10 11:30:00'),
+(8  , 'node-i1j2k3l4' , 'i-5678901234abcdeff' , 'c5.4xlarge' , 'degraded'      , 8  , 0  , 8  , 32768  , 0     , 32768  , 512000  , 0      , 512000  , 10000 , 10000 , '1.24.8' , JSON_OBJECT('role', 'worker', 'zone', 'zone-b')        , NOW() - INTERVAL 240 MINUTE , '2022-08-10 11:30:00'),
 (9  , 'node-m5n6o7p8' , 'i-6789012345abcdefg' , 'i3.8xlarge' , 'active'       , 32 , 12 , 20 , 131072 , 51072 , 80000  , 2048000 , 648000 , 1400000 , 10000 , 10000 , '1.25.3' , JSON_OBJECT('role', 'worker', 'zone', 'zone-c')        , NOW() - INTERVAL 3 MINUTE   , '2022-09-05 13:45:00'),
 (9  , 'node-q9r0s1t2' , 'i-7890123456abcdefh' , 'm5.8xlarge' , 'active'       , 16 , 6  , 10 , 65536  , 25536 , 40000  , 1024000 , 424000 , 600000  , 10000 , 10000 , '1.25.3' , JSON_OBJECT('role', 'control-plane', 'zone', 'zone-c') , NOW() - INTERVAL 4 MINUTE   , '2022-09-10 15:20:00'),
 (1  , 'node-u3v4w5x6' , 'i-8901234567abcdefi' , 'r5.8xlarge' , 'active'       , 16 , 4  , 12 , 131072 , 31072 , 100000 , 1024000 , 224000 , 800000  , 10000 , 10000 , '1.26.1' , JSON_OBJECT('role', 'worker', 'zone', 'zone-a')        , NOW() - INTERVAL 6 MINUTE   , '2022-10-05 10:15:00'),
@@ -374,7 +384,7 @@ VALUES
 ('api-service'    , 'Api Service'    , 4 , 9  , 'https://github.com/org4/api-service'    , 'main'    , 'registry.example.com/org4/api-service:latest'    , 5 , 4 , 2 , 'http'    , '/health' , 'nodejs' , 'always' , 0 , 'started'     , 1 , JSON_OBJECT('environment', 'production', 'team', 'backend')   , '2022-09-05 14:20:00'),
 ('mobile-backend' , 'Mobile Backend' , 4 , 9  , 'https://github.com/org4/mobile-backend' , 'main'    , 'registry.example.com/org4/mobile-backend:latest' , 5 , 4 , 2 , 'http'    , '/status' , 'java'   , 'always' , 0 , 'started'     , 0 , JSON_OBJECT('environment', 'production', 'team', 'mobile')    , '2022-09-06 09:30:00'),
 ('dev-staging'    , 'Dev Staging'    , 4 , 10 , 'https://github.com/org4/dev-platform'   , 'develop' , NULL                                              , 4 , 4 , 1 , 'http'    , '/health' , 'nodejs' , 'always' , 0 , 'started'     , 0 , JSON_OBJECT('environment', 'staging', 'team', 'platform')     , '2022-09-06 11:45:00'),
-('api-staging'    , 'Api Staging'    , 4 , 10 , 'https://github.com/org4/api-service'    , 'develop' , NULL                                              , 4 , 4 , 1 , 'http'    , '/health' , 'nodejs' , 'always' , 1 , 'maintenance' , 0 , JSON_OBJECT('environment', 'staging', 'team', 'backend')      , '2022-09-06 15:20:00'),
+('api-staging'    , 'Api Staging'    , 4 , 10 , 'https://github.com/org4/api-service'    , 'develop' , NULL                                              , 4 , 4 , 1 , 'http'    , '/health' , 'nodejs' , 'always' , 1 , 'crashed' , 0 , JSON_OBJECT('environment', 'staging', 'team', 'backend')      , '2022-09-06 15:20:00'),
 ('ai-engine'      , 'Ai Engine'      , 5 , 11 , 'https://github.com/org5/ai-engine'      , 'main'    , 'registry.example.com/org5/ai-engine:latest'      , 9 , 5 , 3 , 'http'    , '/health' , 'python' , 'always' , 0 , 'started'     , 1 , JSON_OBJECT('environment', 'production', 'team', 'data')      , '2022-10-10 09:15:00'),
 ('data-processor' , 'Data Processor' , 5 , 11 , 'https://github.com/org5/data-processor' , 'main'    , 'registry.example.com/org5/data-processor:latest' , 8 , 5 , 3 , 'http'    , '/status' , 'python' , 'always' , 0 , 'started'     , 1 , JSON_OBJECT('environment', 'production', 'team', 'data')      , '2022-10-10 11:30:00'),
 ('web-interface'  , 'Web Interface'  , 5 , 11 , 'https://github.com/org5/web-interface'  , 'main'    , 'registry.example.com/org5/web-interface:latest'  , 6 , 5 , 2 , 'http'    , '/health' , 'nodejs' , 'always' , 0 , 'started'     , 0 , JSON_OBJECT('environment', 'production', 'team', 'frontend')  , '2022-10-11 13:45:00'),
@@ -730,7 +740,6 @@ VALUES
 -- Re-enable foreign key checks and unique checks
 SET FOREIGN_KEY_CHECKS = 1;
 SET UNIQUE_CHECKS = 1;
-SET SQL_MODE = @OLD_SQL_MODE;
 -- Output completion message
 SELECT 'Sample data generation complete.' AS Message;
 SELECT CONCAT('Generated ', @USER_COUNT, ' users') AS Summary

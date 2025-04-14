@@ -49,6 +49,9 @@ use serde::{Deserialize, Serialize};
 use worker_autoscaler::WorkerAutoscaler;
 use worker_autoscaler::{VMTemplate, VMConfig, CloudDirector};
 use worker_autoscaler::create_default_cpu_memory_scaling_policy;
+use rocket::fairing::{Fairing, Info, Kind};
+use rocket::http::Header;
+use rocket::{Request, Response};
 
 // Internal imports
 use crate::state::SharedState;
@@ -65,6 +68,38 @@ use api::*;
 
 #[macro_use]
 extern crate rocket;
+
+// +-------------+
+// | CORS IMPLEMENTATION
+// +-------------+
+// CORS Fairing struct to add CORS headers to responses
+pub struct CORS;
+
+#[rocket::async_trait]
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to responses",
+            kind: Kind::Response,
+        }
+    }
+
+    async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
+        response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
+        response.set_header(Header::new(
+            "Access-Control-Allow-Methods",
+            "POST, GET, PATCH, OPTIONS, DELETE",
+        ));
+        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+        response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+    }
+}
+
+// CORS Preflight handler for OPTIONS requests
+#[options("/<_..>")]
+fn cors_preflight() -> &'static str {
+    ""
+}
 
 // +-------------+
 // | EXTENSIONS  |
@@ -524,7 +559,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Define routes to mount
     log::info!("{}", "Defining API routes".cyan());
     let routes = vec![
-        ("/", routes![health_check, api::index::routes_ui, cluster_status]), 
+        ("/", routes![health_check, api::index::routes_ui, cluster_status, cors_preflight]), 
         ("/api/v1", api::v1::routes())
     ];
 
@@ -538,7 +573,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .manage(pool) // Add database pool to Rocket's state
         .manage(shared_state)
-        .manage(CLUSTER_MANAGER.clone());
+        .manage(CLUSTER_MANAGER.clone())
+        .attach(CORS); // Attach the CORS fairing
 
     // Mount routes to the Rocket instance
     log::info!("{}", "Mounting API routes".cyan());

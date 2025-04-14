@@ -1,4 +1,4 @@
-use crate::db::tables::Region;
+use crate::db::tables::{Region, ProviderRegion};
 use crate::db::v1::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
@@ -48,13 +48,25 @@ pub async fn list_regions(
 ) -> Json<Vec<Region>> {
     let regions = db::region::list_regions(pool, page, per_page)
         .await
-        .unwrap();
+        .expect("Failed to list regions");
     println!("Found {} regions", regions.len());
     let regions_vec: Vec<Region> = regions.into_iter().collect();
     println!("Returning {} regions", regions_vec.len());
     Json(regions_vec)
 }
 
+#[get("/provider_regions")]
+pub async fn list_provider_regions(
+    pool: &State<sqlx::Pool<MySql>>,
+) -> Json<Vec<ProviderRegion>> {
+    let regions = db::region::list_provider_regions(pool)
+        .await
+        .expect("Failed to list provider regions");
+    println!("Found {} provider regions", regions.len());
+    let regions_vec: Vec<ProviderRegion> = regions.into_iter().collect();
+    println!("Returning {} provider regions", regions_vec.len());
+    Json(regions_vec)
+}
 // TODO: (@tristanpoland) Fix these API endpoints to accept the correct data and pass it through to the query engine
 
 // // Get a single region by ID
