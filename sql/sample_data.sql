@@ -602,28 +602,34 @@ VALUES
 (2 , 1 , 'app'    , 'info' , 'GET /api/products 200 77ms'                        , 'nginx' , '2024-01-15 10:42:15'),
 (2 , 1 , 'app'    , 'info' , 'Database query completed in 38ms'                  , 'app'   , '2024-01-15 10:52:45');
 
+-- Generate a massive number of metrics with NULL instance_id and random data
 INSERT INTO metrics (instance_id, metric_name, metric_value, labels, timestamp)
-VALUES
-(1 , 'cpu_utilization'    , 35.2 , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 30 MINUTE),
-(1 , 'memory_utilization' , 42.8 , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 30 MINUTE),
-(1 , 'disk_utilization'   , 15.3 , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 30 MINUTE),
-(1 , 'request_count'      , 125  , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 30 MINUTE),
-(1 , 'request_latency'    , 48.5 , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 30 MINUTE),
-(1 , 'cpu_utilization'    , 38.7 , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 25 MINUTE),
-(1 , 'memory_utilization' , 45.2 , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 25 MINUTE),
-(1 , 'disk_utilization'   , 15.8 , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 25 MINUTE),
-(1 , 'request_count'      , 132  , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 25 MINUTE),
-(1 , 'request_latency'    , 52.3 , JSON_OBJECT('app_id', 1, 'instance_index', 0) , NOW() - INTERVAL 25 MINUTE),
-(2 , 'cpu_utilization'    , 42.1 , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 30 MINUTE),
-(2 , 'memory_utilization' , 51.6 , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 30 MINUTE),
-(2 , 'disk_utilization'   , 17.5 , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 30 MINUTE),
-(2 , 'request_count'      , 118  , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 30 MINUTE),
-(2 , 'request_latency'    , 45.2 , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 30 MINUTE),
-(2 , 'cpu_utilization'    , 45.8 , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 25 MINUTE),
-(2 , 'memory_utilization' , 53.1 , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 25 MINUTE),
-(2 , 'disk_utilization'   , 18.2 , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 25 MINUTE),
-(2 , 'request_count'      , 126  , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 25 MINUTE),
-(2 , 'request_latency'    , 48.7 , JSON_OBJECT('app_id', 1, 'instance_index', 1) , NOW() - INTERVAL 25 MINUTE);
+SELECT 
+     NULL, 
+     metric_name, 
+     RAND() * 100 AS metric_value, 
+     JSON_OBJECT('app_id', FLOOR(RAND() * 50 + 1)) AS labels, 
+     NOW() AS timestamp
+FROM (
+     SELECT 'cpu_utilization' AS metric_name
+     UNION ALL SELECT 'memory_utilization'
+     UNION ALL SELECT 'disk_utilization'
+     UNION ALL SELECT 'request_count'
+     UNION ALL SELECT 'request_latency'
+) AS metric_names
+CROSS JOIN (
+     SELECT 1 AS n
+     UNION ALL SELECT 2
+     UNION ALL SELECT 3
+     UNION ALL SELECT 4
+     UNION ALL SELECT 5
+     UNION ALL SELECT 6
+     UNION ALL SELECT 7
+     UNION ALL SELECT 8
+     UNION ALL SELECT 9
+     UNION ALL SELECT 10
+) AS numbers
+LIMIT 5000;
 
 INSERT INTO network_policies (source_app_id, destination_app_id, protocol, port_range_start, port_range_end, description, enabled, priority, created_at, created_by)
 VALUES

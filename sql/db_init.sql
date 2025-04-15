@@ -821,7 +821,7 @@ CREATE INDEX idx_host_creds_region ON host_creds (region_id);
 -- Create monitoring and logging tables with optimized storage
 CREATE TABLE metrics (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    instance_id BIGINT NOT NULL,
+    instance_id BIGINT,
     metric_name VARCHAR(255) NOT NULL,
     metric_value DOUBLE NOT NULL,
     labels JSON,

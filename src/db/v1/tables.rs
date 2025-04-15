@@ -1,3 +1,4 @@
+use sqlx::types::{chrono::NaiveDateTime, JsonValue};
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use sqlx::types::Json;
@@ -99,6 +100,17 @@ pub struct Build {
     pub completed_at: Option<DateTime<Utc>>,
     pub build_duration: Option<i32>, // in seconds
     pub created_at: DateTime<Utc>,
+}
+
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct Metric {
+    pub id: i64,
+    pub instance_id: Option<i64>,
+    pub metric_name: String,
+    pub metric_value: f64,
+    pub labels: Option<JsonValue>,
+    pub timestamp: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]

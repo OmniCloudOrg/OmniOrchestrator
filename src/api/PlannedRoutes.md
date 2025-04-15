@@ -19,11 +19,11 @@ The goal of this document is to outline the kinds of data we need to be able to 
 - [ ] Database clusters health (Omni's internal DB and all DBs it manages)
 
 ### Multi-cloud Status
-- [ ] Region name
-- [ ] Provider name (Multiple providers can make up a single region)
-- [ ] Provider-region status (The status of a given provider in a given region)
-- [ ] Apps (Total apps on a given provider in a given region)
-- [ ] Instances (Total app-instances on a given provider in a given region)
+- [x] Region name
+- [x] Provider name (Multiple providers can make up a single region)
+- [x] Provider-region status (The status of a given provider in a given region)
+- [x] Apps (Total apps on a given provider in a given region)
+- [x] Instances (Total app-instances on a given provider in a given region)
 
 ### Resource Usage
 Average usage for each resource across all providers and regions (these are a percentage usage of your total cross-provider quota, we will show a dotted line where reserved resources end and on-demand begins)

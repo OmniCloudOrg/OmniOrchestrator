@@ -13,6 +13,7 @@ pub mod users;
 pub mod platforms;
 pub mod workers;
 pub mod control;
+pub mod metrics;
 //pub mod deployments;
 
 use control::*;
@@ -27,6 +28,7 @@ use audit_log::*;
 use platforms::*;
 use instances::*;
 use permissions::*;
+use metrics::*;
 // use platforms::*;
 // use deployments::*;
 
@@ -89,6 +91,10 @@ pub fn routes() -> Vec<rocket::Route> {
         // workers
         list_workers,
         get_worker_by_id,
+
+        // Metrics
+        get_metrics,
+        get_metrics_by_app_id,
 
         // CLI
         control::backup::get_backup,
