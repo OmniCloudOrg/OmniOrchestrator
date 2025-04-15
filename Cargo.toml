@@ -32,6 +32,7 @@ tracing = { version = "0.1.41", features = ["log"] }
 hadris-iso = "0.0.1"
 ssh2 = { version = "0.9" }
 libomni = "0.2.3"
+dotenv = { version = "0.15"}
 
 [profile.dev]
 codegen-units = 32

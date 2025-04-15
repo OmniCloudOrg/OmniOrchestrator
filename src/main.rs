@@ -354,7 +354,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Initialize database pool
     let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "mysql://root:root@localhost:4001/omni".to_string());
+        .unwrap_or_else(|_| {
+            dotenv::dotenv().ok(); // Load environment variables from a .env file if available
+            env::var("DEFAULT_DATABASE_URL").unwrap_or_else(|_| "mysql://root:root@localhost:4001/omni".to_string())
+        });
 
     log::info!("{}", format!("Database URL: {}", database_url).blue());
     log::info!("{}", "Initializing database connection pool...".blue());
@@ -376,10 +379,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "0".to_string());
 
     if current_version != target_version {
+        let mut input = String::new();
         log::warn!("{}", format!("Schema version mismatch! Current: {}, Target: {}", current_version, target_version).yellow());
         println!("{}", "Type 'confirm' to update schema version:".yellow());
-
-        let mut input = String::new();
+        if env::var("OMNI_ORCH_BYPASS_CONFIRM").unwrap_or_default() == "confirm" {
+            log::warn!("{}", "Bypassing schema update confirmation".yellow());
+            input = "confirm".to_string();
+        } else {
+            let mut input = String::new();
+            std::io::stdin().read_line(&mut input)?;
+        }
         std::io::stdin().read_line(&mut input)?;
 
         if input.trim() == "confirm" {

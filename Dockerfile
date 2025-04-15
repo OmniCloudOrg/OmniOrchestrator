@@ -3,7 +3,7 @@
 # If you need more help, visit the Dockerfile reference guide at
 # https://docs.docker.com/go/dockerfile-reference/
 
-ARG RUST_VERSION=1.82.0
+ARG RUST_VERSION=1.86.0
 ARG APP_NAME=omni-orchestrator
 
 ################################################################################
