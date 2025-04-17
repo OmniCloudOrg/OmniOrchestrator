@@ -1,4 +1,4 @@
-use super::super::tables::App;
+use super::super::tables::{App, AppWithInstanceCount};
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 
@@ -24,23 +24,38 @@ use sqlx::{MySql, Pool};
 /// ```
 /// let apps = list_apps(&pool, 0, 10).await?; // Get first 10 apps
 /// ```
-pub async fn list_apps(pool: &Pool<MySql>, page: i64, per_page: i64) -> anyhow::Result<Vec<App>> {
-    println!("Attempting to fetch apps from database...");
+pub async fn list_apps(pool: &Pool<MySql>, page: i64, per_page: i64) -> anyhow::Result<Vec<AppWithInstanceCount>> {
+    println!("Attempting to fetch apps with instance counts from database...");
 
-    let result = sqlx::query_as::<_, App>("SELECT * FROM apps ORDER BY id ASC LIMIT ? OFFSET ?")
-        .bind(per_page)
-        .bind(page * per_page)
-        .fetch_all(pool)
-        .await;
+    let result = sqlx::query_as::<_, AppWithInstanceCount>(
+        r#"
+        SELECT 
+            apps.*, 
+            COUNT(instances.id) AS instance_count
+        FROM 
+            apps
+        LEFT JOIN 
+            instances ON instances.app_id = apps.id
+        GROUP BY 
+            apps.id
+        ORDER BY 
+            apps.id ASC
+        LIMIT ? OFFSET ?
+        "#,
+    )
+    .bind(per_page)
+    .bind(page * per_page)
+    .fetch_all(pool)
+    .await;
 
     match result {
         Ok(apps) => {
-            println!("Successfully fetched {} apps", apps.len());
+            println!("Successfully fetched {} apps with instance counts", apps.len());
             Ok(apps)
         }
         Err(e) => {
-            eprintln!("Error fetching apps: {:#?}", e);
-            Err(anyhow::Error::new(e).context("Failed to fetch apps"))
+            eprintln!("Error fetching apps with instance counts: {:#?}", e);
+            Err(anyhow::Error::new(e).context("Failed to fetch apps with instance counts"))
         }
     }
 }

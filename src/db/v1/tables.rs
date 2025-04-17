@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use sqlx::types::Json;
 use serde_json::Value; 
+use sqlx::Row;
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct User {
@@ -56,6 +57,22 @@ pub struct ProviderRegion {
     region: Region,
     provider_name: String,
     binding_status: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AppWithInstanceCount {
+    #[serde(flatten)]
+    app_data: App,
+    instance_count: i64,
+}
+
+impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for AppWithInstanceCount {
+    fn from_row(row: &'r sqlx::mysql::MySqlRow) -> Result<Self, sqlx::Error> {
+        Ok(AppWithInstanceCount {
+            app_data: App::from_row(row)?,
+            instance_count: row.try_get::<i64, _>("instance_count")?,
+        })
+    }
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]

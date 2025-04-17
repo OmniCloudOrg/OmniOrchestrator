@@ -10,7 +10,7 @@
 //! - Deleting applications
 //! - Releasing new versions of applications
 
-use crate::db::tables::App;
+use crate::db::tables::{App, AppWithInstanceCount};
 use crate::db::v1::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
@@ -94,11 +94,6 @@ pub struct UpdateAppRequest {
     org_id: i64,
 }
 
-// State management
-
-/// Type alias for application state storage.
-type AppStore = Arc<RwLock<HashMap<String, Application>>>;
-
 /// List all applications with pagination support.
 ///
 /// # Arguments
@@ -115,7 +110,7 @@ pub async fn list_apps(
     page: Option<i64>,
     per_page: Option<i64>,
     pool: &State<sqlx::Pool<MySql>>,
-) -> Result<Json<Vec<App>>, (Status, Json<Value>)> {
+) -> Result<Json<Vec<AppWithInstanceCount>>, (Status, Json<Value>)> {
     match (page, per_page) {
         (Some(p), Some(pp)) => {
             let apps = db::app::list_apps(pool, p, pp).await.unwrap();
