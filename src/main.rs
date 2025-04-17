@@ -381,15 +381,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if current_version != target_version {
         let mut input = String::new();
         log::warn!("{}", format!("Schema version mismatch! Current: {}, Target: {}", current_version, target_version).yellow());
-        println!("{}", "Type 'confirm' to update schema version:".yellow());
         if env::var("OMNI_ORCH_BYPASS_CONFIRM").unwrap_or_default() == "confirm" {
-            log::warn!("{}", "Bypassing schema update confirmation".yellow());
+            log::warn!("{}", "Bypassing schema update confirmation due to env var".yellow());
             input = "confirm".to_string();
         } else {
-            let mut input = String::new();
+            println!("{}", "Type 'confirm' to update schema version:".yellow());
             std::io::stdin().read_line(&mut input)?;
         }
-        std::io::stdin().read_line(&mut input)?;
 
         if input.trim() == "confirm" {
             // Initialize database schema
