@@ -1,5 +1,6 @@
-use super::super::tables::{App, AppWithInstanceCount};
+use super::super::tables::{App, AppWithInstanceCount, Instance, AppWithInstances};
 use anyhow::Context;
+use serde::Serialize;
 use sqlx::{MySql, Pool};
 
 /// Retrieves a paginated list of applications from the database.
@@ -58,6 +59,47 @@ pub async fn list_apps(pool: &Pool<MySql>, page: i64, per_page: i64) -> anyhow::
             Err(anyhow::Error::new(e).context("Failed to fetch apps with instance counts"))
         }
     }
+}
+
+/// Retrieves a specific application along with its associated instances.
+/// 
+/// This function fetches an application by its ID and also retrieves all instances
+/// associated with that application. The results are combined into a single structure
+/// for easier access.
+/// 
+/// # Arguments
+/// 
+/// * `pool` - Database connection pool for executing the query
+/// * `app_id` - Unique identifier of the application to retrieve
+/// 
+/// # Returns
+/// 
+/// * `Ok(AppWithInstances)` - Successfully retrieved application and its instances
+/// * `Err(anyhow::Error)` - Failed to fetch application or instances, with context
+pub async fn get_app_with_instances(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<AppWithInstances> {
+    // First fetch the app data
+    let app = sqlx::query_as::<_, App>(
+        "SELECT * FROM apps WHERE id = ?",
+    )
+    .bind(app_id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to fetch app")?;
+    
+    // Then fetch all instances for this app
+    let instances = sqlx::query_as::<_, Instance>(
+        "SELECT * FROM instances WHERE app_id = ? ORDER BY created_at DESC",
+    )
+    .bind(app_id)
+    .fetch_all(pool)
+    .await
+    .context("Failed to fetch instances")?;
+    
+    // Combine into the AppWithInstances structure
+    Ok(AppWithInstances {
+        app,
+        instances,
+    })
 }
 
 /// Counts the total number of applications in the database.

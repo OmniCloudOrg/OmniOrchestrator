@@ -32,6 +32,23 @@ pub struct App {
     pub container_image_url: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct AppWithInstanceCount {
+    #[serde(flatten)]
+    app_data: App,
+    instance_count: i64,
+}
+
+
+// Define the struct with flattening
+#[derive(Debug, Serialize)]
+pub struct AppWithInstances {
+    #[serde(flatten)]
+    pub app: App,
+    pub instances: Vec<Instance>,
+}
+
+
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Org {
     pub id: i64,
@@ -57,13 +74,6 @@ pub struct ProviderRegion {
     region: Region,
     provider_name: String,
     binding_status: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AppWithInstanceCount {
-    #[serde(flatten)]
-    app_data: App,
-    instance_count: i64,
 }
 
 impl<'r> sqlx::FromRow<'r, sqlx::mysql::MySqlRow> for AppWithInstanceCount {

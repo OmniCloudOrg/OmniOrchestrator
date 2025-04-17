@@ -10,7 +10,7 @@
 //! - Deleting applications
 //! - Releasing new versions of applications
 
-use crate::db::tables::{App, AppWithInstanceCount};
+use crate::db::tables::{App, AppWithInstanceCount, AppWithInstances};
 use crate::db::v1::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
@@ -123,6 +123,27 @@ pub async fn list_apps(
                 "message": "Please provide both 'page' and 'per_page' parameters"
             }))
         ))
+    }
+}
+
+
+/// Get app with instances
+#[get("/app_with_instances/<app_id>")]
+pub async fn get_app_with_instances(
+    pool: &State<sqlx::Pool<MySql>>, 
+    app_id: i64
+) -> Result<Json<AppWithInstances>, (Status, Json<Value>)> {
+    match db::app::get_app_with_instances(pool, app_id).await {
+        Ok(app_with_instances) => {
+            Ok(Json(app_with_instances))
+        }
+        Err(_) => Err((
+            Status::InternalServerError,
+            Json(json!({
+                "error": "Failed to fetch app with instances",
+                "message": "An error occurred while retrieving the application data"
+            })),
+        )),
     }
 }
 
