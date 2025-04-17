@@ -126,7 +126,6 @@ pub async fn list_apps(
     }
 }
 
-
 /// Get app with instances
 #[get("/app_with_instances/<app_id>")]
 pub async fn get_app_with_instances(
