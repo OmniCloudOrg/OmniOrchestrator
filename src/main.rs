@@ -560,7 +560,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // ====================== SERVER STARTUP ======================
     println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_cyan());
-    println!("{}", "║                      SERVER STARTUP                           ║".bright_cyan());
+    println!("{}", "║                       SERVER STARTUP                          ║".bright_cyan());
     println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_cyan());
 
     // Define routes to mount
