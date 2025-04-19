@@ -701,7 +701,7 @@ INSERT INTO metrics (app_id, metric_name, metric_value, labels, timestamp)
 SELECT 
      JSON_EXTRACT(JSON_OBJECT('app_id', FLOOR(RAND() * 50 + 1)), '$.app_id') AS app_id, 
      metric_name, 
-     RAND() * 100 AS metric_value, 
+     RAND() * 50 AS metric_value, 
      JSON_OBJECT('app_id', FLOOR(RAND() * 50 + 1)) AS labels, 
      NOW() AS timestamp
 FROM (
@@ -730,7 +730,7 @@ INSERT INTO metrics (app_id, metric_name, metric_value, labels, timestamp)
 SELECT 
      NULL AS app_id, 
      metric_name, 
-     RAND() * 100 AS metric_value, 
+     RAND() * 50 AS metric_value, 
      JSON_OBJECT('platform', 'global') AS labels, 
      NOW() AS timestamp
 FROM (
