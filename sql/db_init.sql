@@ -821,15 +821,16 @@ CREATE INDEX idx_host_creds_region ON host_creds (region_id);
 -- Create monitoring and logging tables with optimized storage
 CREATE TABLE metrics (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    instance_id BIGINT,
+    app_id BIGINT,
     metric_name VARCHAR(255) NOT NULL,
     metric_value DOUBLE NOT NULL,
     labels JSON,
     timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    KEY idx_metrics_instance_id_timestamp (instance_id, timestamp, metric_name),
+    KEY idx_metrics_app_id_timestamp (app_id, timestamp, metric_name),
     KEY idx_metrics_metric_name (metric_name),
-    KEY idx_metrics_timestamp (timestamp)
+    KEY idx_metrics_timestamp (timestamp),
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 -- PARTITION BY RANGE (TO_DAYS(timestamp)) (

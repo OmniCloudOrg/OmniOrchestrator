@@ -697,9 +697,9 @@ VALUES
 (2 , 1 , 'app'    , 'info' , 'Database query completed in 38ms'                  , 'app'   , '2024-01-15 10:52:45');
 
 -- Generate a massive number of metrics with NULL instance_id and random data
-INSERT INTO metrics (instance_id, metric_name, metric_value, labels, timestamp)
+INSERT INTO metrics (app_id, metric_name, metric_value, labels, timestamp)
 SELECT 
-     NULL, 
+     JSON_EXTRACT(JSON_OBJECT('app_id', FLOOR(RAND() * 50 + 1)), '$.app_id') AS app_id, 
      metric_name, 
      RAND() * 100 AS metric_value, 
      JSON_OBJECT('app_id', FLOOR(RAND() * 50 + 1)) AS labels, 
@@ -710,6 +710,38 @@ FROM (
      UNION ALL SELECT 'disk_utilization'
      UNION ALL SELECT 'request_count'
      UNION ALL SELECT 'request_latency'
+) AS metric_names
+CROSS JOIN (
+     SELECT 1 AS n
+     UNION ALL SELECT 2
+     UNION ALL SELECT 3
+     UNION ALL SELECT 4
+     UNION ALL SELECT 5
+     UNION ALL SELECT 6
+     UNION ALL SELECT 7
+     UNION ALL SELECT 8
+     UNION ALL SELECT 9
+     UNION ALL SELECT 10
+) AS numbers
+LIMIT 5000;
+
+-- Generate additional platform metrics with NULL app_id and random data
+INSERT INTO metrics (app_id, metric_name, metric_value, labels, timestamp)
+SELECT 
+     NULL AS app_id, 
+     metric_name, 
+     RAND() * 100 AS metric_value, 
+     JSON_OBJECT('platform', 'global') AS labels, 
+     NOW() AS timestamp
+FROM (
+     SELECT 'cpu_utilization' AS metric_name
+     UNION ALL SELECT 'memory_utilization'
+     UNION ALL SELECT 'disk_utilization'
+     UNION ALL SELECT 'network_in'
+     UNION ALL SELECT 'network_out'
+     UNION ALL SELECT 'active_sessions'
+     UNION ALL SELECT 'error_rate'
+     UNION ALL SELECT 'latency'
 ) AS metric_names
 CROSS JOIN (
      SELECT 1 AS n
