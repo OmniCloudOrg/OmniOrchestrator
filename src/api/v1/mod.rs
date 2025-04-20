@@ -1,6 +1,7 @@
 use rocket::routes;
 
 pub mod apps;
+pub mod alerts;
 pub mod audit_log;
 pub mod builds;
 pub mod deploy;
@@ -18,6 +19,7 @@ pub mod metrics;
 
 use control::*;
 use apps::*;
+use alerts::*;
 use users::*;
 use builds::*;
 use deploy::*;
@@ -47,6 +49,8 @@ pub fn routes() -> Vec<rocket::Route> {
         get_app_stats,
         update_app,
         get_app_with_instances,
+        // alerts
+        list_alerts,
         // instances
         list_instances,
         count_instances,

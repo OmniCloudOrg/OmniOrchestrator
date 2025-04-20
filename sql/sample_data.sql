@@ -869,6 +869,81 @@ VALUES
 (4, 'Database-Only-Backup-20250406',   'Database-only backup for the analytics platform',   '2025-04-06 04:30:00', 'db-scheduler',  'APPLICATION', 'AVAILABLE', '3.2', 'production' , 'AES-256-GCM', 101, 5368709120,  FALSE, FALSE, FALSE, FALSE, FALSE, TRUE, '[11]'      , NULL        , '2025-04-06 05:10:45', 's3://omnicloud-backups/applications/analytics-db/2025-04-06/', 's3://omnicloud-backups/applications/analytics-db/2025-04-06/manifest.json', '{"retention_days": 30, "priority": "high", "db_version": "PostgreSQL 16.2"}'),
 (5, 'Dev-Environment-Backup-20250403', 'Full backup of development environment',            '2025-04-03 22:00:00', 'dev-team',      'PLATFORM',    'AVAILABLE', '3.2', 'development', 'AES-256-GCM', 102, 32212254720, TRUE,  TRUE,  TRUE,  TRUE,  TRUE,  TRUE, NULL        , NULL        , '2025-04-03 23:30:17', 's3://omnicloud-backups/platform/dev/2025-04-03/',              's3://omnicloud-backups/platform/dev/2025-04-03/manifest.json', '{"retention_days": 10, "priority": "low", "purpose": "pre-release-snapshot"}');
 
+-- Insert sample user notifications
+INSERT INTO user_notifications 
+(user_id, org_id, app_id, notification_type, message, read_status, importance, action_url, action_label, created_at, expires_at)
+VALUES 
+(1, 2, 3, 'system_update', 'System maintenance scheduled for tomorrow at 2 AM UTC', FALSE, 'high', '/maintenance/details', 'View Details', '2025-04-15 10:00:00', '2025-04-20 10:00:00'),
+(2, 2, 3, 'account_security', 'Your password will expire in 3 days', FALSE, 'high', '/account/password', 'Change Password', '2025-04-17 09:15:00', '2025-04-21 00:00:00'),
+(1, 2, 4, 'new_feature', 'Try our new dashboard analytics feature', TRUE, 'normal', '/dashboard/analytics', 'Try Now', '2025-04-12 14:30:00', '2025-05-12 14:30:00'),
+(3, 5, 5, 'billing_update', 'Your invoice for April is now available', FALSE, 'normal', '/billing/invoices/april2025', 'View Invoice', '2025-04-18 00:01:00', '2025-05-18 00:01:00'),
+(4, 5, 6, 'performance_alert', 'Your app is experiencing high CPU usage', FALSE, 'critical', '/monitoring/performance/app/6', 'View Metrics', '2025-04-19 03:22:15', NULL);
+
+-- Insert sample role notifications
+INSERT INTO role_notifications 
+(role_id, org_id, app_id, notification_type, message, importance, action_url, action_label, created_at, expires_at)
+VALUES 
+(1, 2, NULL, 'policy_update', 'Security policy updated: Review required by all admins', 'high', '/policy/security/2025-04', 'Review Policy', '2025-04-10 11:00:00', '2025-04-30 11:00:00'),
+(2, 5, NULL, 'permission_change', 'Developer permissions updated for cloud resources', 'normal', '/permissions/changelog', 'View Changes', '2025-04-15 16:45:00', '2025-05-15 16:45:00'),
+(3, 2, 3, 'deployment_required', 'Critical update needs deployment approval', 'critical', '/deployments/pending/3542', 'Review & Approve', '2025-04-19 09:30:00', NULL),
+(4, 5, 6, 'compliance_training', 'New compliance training available for all managers', 'normal', '/training/compliance/2025', 'Start Training', '2025-04-16 10:00:00', '2025-06-16 10:00:00'),
+(1, 2, 4, 'quarterly_meeting', 'Admin quarterly meeting scheduled for next Friday', 'normal', '/calendar/meetings/admin-q2', 'Add to Calendar', '2025-04-18 13:20:00', '2025-04-26 15:00:00');
+
+-- Insert notification acknowledgments
+INSERT INTO notification_acknowledgments 
+(user_id, notification_id, role_notification_id, acknowledged_at)
+VALUES 
+(1, 3, NULL, '2025-04-12 15:45:22'),
+(2, NULL, 1, '2025-04-11 08:30:15'),
+(3, 4, NULL, '2025-04-18 10:22:33'),
+(4, NULL, 2, '2025-04-16 09:15:40'),
+(1, NULL, 5, '2025-04-18 14:05:12');
+
+-- Insert system alerts
+INSERT INTO alerts 
+(alert_type, severity, service, message, timestamp, status, resolved_at, resolved_by, metadata, org_id, app_id, instance_id, region_id, node_id)
+VALUES 
+('high_cpu', 'warning', 'compute', 'Instance CPU usage exceeding 90% for over 15 minutes', '2025-04-18 23:15:10', 'active', NULL, NULL, '{"cpu_usage": 92.5, "duration_minutes": 18}', 2, 3, 10, 1, 5),
+('memory_leak', 'critical', 'app_service', 'Possible memory leak detected in production service', '2025-04-19 01:30:22', 'acknowledged', NULL, NULL, '{"memory_growth_rate": "2MB/min", "process_id": 4588}', 5, 6, 11, 2, 7),
+('disk_space', 'warning', 'storage', 'Database storage approaching 85% capacity', '2025-04-17 10:45:33', 'resolved', '2025-04-17 14:20:15', 2, '{"disk_usage": 85.2, "growth_rate": "500MB/day"}', 2, 4, 12, 1, NULL),
+('api_latency', 'info', 'api_gateway', 'API response time increased by 35%', '2025-04-18 16:22:45', 'auto_resolved', '2025-04-18 16:55:30', NULL, '{"avg_response_ms": 320, "baseline_ms": 230}', 5, 6, NULL, 2, 8),
+('security_event', 'critical', 'auth_service', 'Multiple failed login attempts detected from unusual location', '2025-04-19 04:10:05', 'active', NULL, NULL, '{"attempts": 12, "ip": "203.0.113.42", "location": "Unknown"}', 2, NULL, NULL, NULL, NULL);
+
+-- Insert alert acknowledgments
+INSERT INTO alert_acknowledgments 
+(alert_id, user_id, acknowledged_at, notes)
+VALUES 
+(2, 3, '2025-04-19 01:45:18', 'Investigating the memory growth pattern'),
+(1, 1, '2025-04-19 00:05:30', 'Monitoring - will add more capacity if trend continues'),
+(5, 2, '2025-04-19 04:15:22', 'Security team notified, implementing IP block'),
+(3, 2, '2025-04-17 11:00:12', 'Added additional storage to prevent capacity issues'),
+(4, 4, '2025-04-18 16:35:10', NULL);
+
+-- Insert alert escalations
+INSERT INTO alert_escalations 
+(alert_id, escalation_level, escalated_at, escalated_to, escalation_method, response_required_by)
+VALUES 
+(1, 1, '2025-04-18 23:30:15', '{"roles": [3], "users": [1,4]}', 'email', '2025-04-19 00:30:15'),
+(2, 2, '2025-04-19 02:00:22', '{"roles": [2], "users": [3,5]}', 'sms', '2025-04-19 03:00:22'),
+(5, 1, '2025-04-19 04:25:05', '{"roles": [1], "users": [2]}', 'email', '2025-04-19 05:25:05'),
+(5, 2, '2025-04-19 05:30:05', '{"roles": [1], "users": [2,6]}', 'sms', '2025-04-19 06:00:05'),
+(3, 1, '2025-04-17 11:15:33', '{"roles": [3], "users": [2]}', 'email', '2025-04-17 13:15:33');
+
+-- Insert alert history
+INSERT INTO alert_history 
+(alert_id, action, performed_by, performed_at, previous_state, new_state, notes)
+VALUES 
+(1, 'created', NULL, '2025-04-18 23:15:10', NULL, '{"status": "active", "severity": "warning"}', 'Automatically created by monitoring system'),
+(2, 'created', NULL, '2025-04-19 01:30:22', NULL, '{"status": "active", "severity": "critical"}', 'Automatically created by memory monitor'),
+(2, 'acknowledged', 3, '2025-04-19 01:45:18', '{"status": "active"}', '{"status": "acknowledged"}', 'Engineering team is investigating'),
+(3, 'created', NULL, '2025-04-17 10:45:33', NULL, '{"status": "active", "severity": "warning"}', 'Automatically created by storage monitor'),
+(3, 'acknowledged', 2, '2025-04-17 11:00:12', '{"status": "active"}', '{"status": "acknowledged"}', 'Adding more storage'),
+(3, 'resolved', 2, '2025-04-17 14:20:15', '{"status": "acknowledged"}', '{"status": "resolved"}', 'Added 500GB to database storage'),
+(4, 'created', NULL, '2025-04-18 16:22:45', NULL, '{"status": "active", "severity": "info"}', 'Automatically created by API monitor'),
+(4, 'auto_resolved', NULL, '2025-04-18 16:55:30', '{"status": "active"}', '{"status": "auto_resolved"}', 'API response times returned to normal'),
+(5, 'created', NULL, '2025-04-19 04:10:05', NULL, '{"status": "active", "severity": "critical"}', 'Automatically created by security service'),
+(5, 'acknowledged', 2, '2025-04-19 04:15:22', '{"status": "active"}', '{"status": "acknowledged"}', 'Security team investigating');
+
 -- Re-enable foreign key checks and unique checks
 SET FOREIGN_KEY_CHECKS = 1;
 SET UNIQUE_CHECKS = 1;

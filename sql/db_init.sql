@@ -1024,7 +1024,6 @@ CREATE TABLE backups (
     metadata JSON
 );
 
-
 -- Notifications for individual users
 CREATE TABLE user_notifications (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,

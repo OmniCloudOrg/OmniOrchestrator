@@ -1,4 +1,5 @@
 pub mod app;
+pub mod alert;
 pub mod audit_log;
 pub mod build;
 pub mod deployment;

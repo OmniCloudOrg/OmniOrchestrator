@@ -1,5 +1,6 @@
 use sqlx::types::{chrono::NaiveDateTime, JsonValue};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use sqlx::types::Json;
 use serde_json::Value; 
@@ -178,6 +179,104 @@ pub struct Instance {
     pub scheduler_metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+// User Notifications
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct UserNotification {
+    pub id: i64,
+    pub user_id: i64,
+    pub org_id: Option<i64>,
+    pub app_id: Option<i64>,
+    pub notification_type: String,
+    pub message: String,
+    pub read_status: bool,
+    pub importance: String,
+    pub action_url: Option<String>,
+    pub action_label: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+// Role Notifications
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct RoleNotification {
+    pub id: i64,
+    pub role_id: i64,
+    pub org_id: Option<i64>,
+    pub app_id: Option<i64>,
+    pub notification_type: String,
+    pub message: String,
+    pub importance: String,
+    pub action_url: Option<String>,
+    pub action_label: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+// Notification Acknowledgments
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct NotificationAcknowledgment {
+    pub id: i64,
+    pub user_id: i64,
+    pub notification_id: Option<i64>,
+    pub role_notification_id: Option<i64>,
+    pub acknowledged_at: DateTime<Utc>,
+}
+
+// System Alerts
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct Alert {
+    pub id: i64,
+    pub alert_type: String,
+    pub severity: String,
+    pub service: String,
+    pub message: String,
+    pub timestamp: DateTime<Utc>,
+    pub status: String,
+    pub resolved_at: Option<DateTime<Utc>>,
+    pub resolved_by: Option<i64>,
+    pub metadata: Option<Json<HashMap<String, serde_json::Value>>>,
+    pub org_id: Option<i64>,
+    pub app_id: Option<i64>,
+    pub instance_id: Option<i64>,
+    pub region_id: Option<i64>,
+    pub node_id: Option<i64>,
+}
+
+// Alert Acknowledgments
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct AlertAcknowledgment {
+    pub id: i64,
+    pub alert_id: i64,
+    pub user_id: i64,
+    pub acknowledged_at: DateTime<Utc>,
+    pub notes: Option<String>,
+}
+
+// Alert Escalations
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct AlertEscalation {
+    pub id: i64,
+    pub alert_id: i64,
+    pub escalation_level: i64,
+    pub escalated_at: DateTime<Utc>,
+    pub escalated_to: Json<serde_json::Value>,
+    pub escalation_method: String,
+    pub response_required_by: Option<DateTime<Utc>>,
+}
+
+// Alert History
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct AlertHistory {
+    pub id: i64,
+    pub alert_id: i64,
+    pub action: String,
+    pub performed_by: Option<i64>,
+    pub performed_at: DateTime<Utc>,
+    pub previous_state: Option<Json<serde_json::Value>>,
+    pub new_state: Option<Json<serde_json::Value>>,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
