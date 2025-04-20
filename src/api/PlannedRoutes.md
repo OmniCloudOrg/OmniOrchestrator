@@ -15,7 +15,7 @@ The goal of this document is to outline the kinds of data we need to be able to 
 
 * [x] Total applications
 * [x] Total Running Instances
-* [ ] Avg platform CPU usage (We need help from @AbleTheAbove 's metrics system here)
+* [x] Avg platform CPU usage (We need help from @AbleTheAbove 's metrics system here)
 * [ ] Monthly total platform cost (We need help from @AbleTheAbove 's metrics system here)
 * [ ] Platform health statistics (We need help from @AbleTheAbove 's metrics system here)
 * [ ] API Gateway status (To be replaced with Proxy health)
@@ -42,10 +42,10 @@ Average usage for each resource across all providers and regions (these are a pe
 
 A list of all services (Applications or App stacks) running across all regions and providers.
 
-* [ ] Service (Name of the service)
+* [x] Service (Name of the service)
 * [ ] Status (Healthy, Maintainance, Warning, Critical)
 
-- [ ] Instances (number of running instances of the app or stack) (To be replaced with scale multiplier)
+- [x] Instances (number of running instances of the app or stack) (To be replaced with scale multiplier)
 - [ ] CPU (CPU usage of the service averaged across all instance)
 - [ ] Memory (Memory usage of the service averaged across all instance)
 - [ ] Provider (The cloud provider(s) tasked with running instances of this service)
@@ -59,11 +59,11 @@ A chart-based cost breakdown showing what providers cost you the most (we be abl
 
 ### Active Alerts
 
-A list of any active alerts to your platform (from your services or internal platform components)
+* [x] A list of any active alerts to your platform (from your services or internal platform components)
 
 ### Recent builds
 
-A list of recent builds of your services, container images, and VM images across all platforms.
+* [x] A list of recent builds of your services, container images, and VM images across all platforms.
 
 ### Recent Activity
 
