@@ -1168,6 +1168,84 @@ CREATE TABLE alert_history (
     INDEX idx_alert_history_performed_at (performed_at)
 );
 
+-- Table to store provider cost data over time
+CREATE TABLE provider_costs (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    provider_id BIGINT NOT NULL,
+    region_id BIGINT,
+    cost_type ENUM('compute', 'storage', 'network', 'other') NOT NULL,
+    cost_subtype VARCHAR(255),
+    unit VARCHAR(50) NOT NULL, -- e.g., 'hour', 'GB', 'Mbps'
+    unit_price DECIMAL(10, 4) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    effective_date DATETIME NOT NULL,
+    expiration_date DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+    FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_cost_entry (provider_id, region_id, cost_type, cost_subtype, unit, effective_date),
+    INDEX idx_provider_costs_provider_id (provider_id),
+    INDEX idx_provider_costs_region_id (region_id),
+    INDEX idx_provider_costs_cost_type (cost_type),
+    INDEX idx_provider_costs_effective_date (effective_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table to track usage costs for the platform
+CREATE TABLE usage_costs (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    provider_id BIGINT NOT NULL,
+    region_id BIGINT,
+    app_id BIGINT,
+    cost_type ENUM('compute', 'storage', 'network', 'other') NOT NULL,
+    cost_subtype VARCHAR(255),
+    usage_quantity DOUBLE NOT NULL,
+    unit VARCHAR(50) NOT NULL, -- e.g., 'hour', 'GB', 'Mbps'
+    total_cost DECIMAL(10, 4) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    usage_start DATETIME NOT NULL,
+    usage_end DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+    FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE,
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
+    INDEX idx_usage_costs_provider_id (provider_id),
+    INDEX idx_usage_costs_region_id (region_id),
+    INDEX idx_usage_costs_app_id (app_id),
+    INDEX idx_usage_costs_cost_type (cost_type),
+    INDEX idx_usage_costs_usage_start (usage_start),
+    INDEX idx_usage_costs_usage_end (usage_end)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Table to store aggregated cost summaries
+CREATE TABLE cost_summaries (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    provider_id BIGINT,
+    region_id BIGINT,
+    app_id BIGINT,
+    cost_type ENUM('compute', 'storage', 'network', 'other') NOT NULL,
+    total_cost DECIMAL(10, 4) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'USD',
+    summary_period ENUM('daily', 'weekly', 'monthly') NOT NULL,
+    period_start DATETIME NOT NULL,
+    period_end DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+    FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE,
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_cost_summary (provider_id, region_id, app_id, cost_type, summary_period, period_start),
+    INDEX idx_cost_summaries_provider_id (provider_id),
+    INDEX idx_cost_summaries_region_id (region_id),
+    INDEX idx_cost_summaries_app_id (app_id),
+    INDEX idx_cost_summaries_period_start (period_start),
+    INDEX idx_cost_summaries_period_end (period_end)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Index for faster queries
 CREATE INDEX idx_backups_type ON backups(backup_type);
 CREATE INDEX idx_backups_status ON backups(status);

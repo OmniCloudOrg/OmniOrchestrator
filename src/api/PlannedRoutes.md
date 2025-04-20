@@ -82,7 +82,7 @@ Recent Activity a summery of all recent audit items at info level or higher
 
 ### Applications Page
 
-A searchable, filterable grid of all applications, and stacks running on your platform.
+* [x] A searchable, filterable grid of all applications, and stacks running on your platform.
 
 #### Application -> Overview
 
