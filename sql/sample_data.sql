@@ -732,7 +732,7 @@ SELECT
      metric_name, 
      RAND() * 50 AS metric_value, 
      JSON_OBJECT('platform', 'global') AS labels, 
-     NOW() AS timestamp
+     time_point AS timestamp
 FROM (
      SELECT 'cpu_utilization' AS metric_name
      UNION ALL SELECT 'memory_utilization'
@@ -742,20 +742,22 @@ FROM (
      UNION ALL SELECT 'active_sessions'
      UNION ALL SELECT 'error_rate'
      UNION ALL SELECT 'latency'
+     UNION ALL SELECT 'request_count'
+     UNION ALL SELECT 'queue_depth'
+     UNION ALL SELECT 'cache_hit_ratio'
+     UNION ALL SELECT 'database_connections'
 ) AS metric_names
 CROSS JOIN (
-     SELECT 1 AS n
-     UNION ALL SELECT 2
-     UNION ALL SELECT 3
-     UNION ALL SELECT 4
-     UNION ALL SELECT 5
-     UNION ALL SELECT 6
-     UNION ALL SELECT 7
-     UNION ALL SELECT 8
-     UNION ALL SELECT 9
-     UNION ALL SELECT 10
-) AS numbers
-LIMIT 5000;
+     SELECT DATE_ADD(NOW(), INTERVAL - (n * 10) SECOND) AS time_point
+     FROM (
+         WITH RECURSIVE time_series AS (
+             SELECT 1 AS n
+             UNION ALL
+             SELECT n + 1 FROM time_series WHERE n < 500
+         )
+         SELECT n FROM time_series
+     ) AS time_points
+) AS times;
 
 INSERT INTO network_policies (source_app_id, destination_app_id, protocol, port_range_start, port_range_end, description, enabled, priority, created_at, created_by)
 VALUES
