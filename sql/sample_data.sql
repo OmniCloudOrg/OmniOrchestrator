@@ -100,19 +100,43 @@ VALUES
 ('security_admin'   , 'Security administrator'                    , 0 , 'organization'),
 ('monitoring_admin' , 'Monitoring administrator'                  , 0 , 'organization'),
 ('backup_operator'  , 'Backup and restore operator'               , 0 , 'organization');
-
 INSERT INTO providers (name, display_name, provider_type, status) 
 VALUES
-('aws', 'Amazon Web Services', 'cloud', 'active'),
-('gcp', 'Google Cloud Platform', 'cloud', 'active'),
-('azure', 'Microsoft Azure', 'cloud', 'active'),
-('ibm', 'IBM Cloud', 'cloud', 'active'),
-('oracle', 'Oracle Cloud', 'cloud', 'active'),
 ('alibaba', 'Alibaba Cloud', 'cloud', 'active'),
-('digitalocean', 'DigitalOcean', 'cloud', 'active'),
+('atlantic', 'Atlantic.Net', 'cloud', 'maintenance'),  
+('aws-ec2', 'AWS EC2', 'cloud', 'active'),
+('aws-ec2-api', 'AWS EC2 API', 'cloud', 'active'),
+('aws-lightsail', 'AWS Lightsail', 'cloud', 'active'),
+('azure', 'Microsoft Azure', 'cloud', 'active'),
+('azure-api', 'Microsoft Azure API', 'cloud', 'active'),
+('buyvm', 'BuyVM', 'cloud', 'active'),
+('contabo', 'Contabo', 'cloud', 'active'),
+('detee', 'Detee', 'cloud', 'active'),
+('digital-ocean', 'DigitalOcean', 'cloud', 'active'),
+('dummy', 'Dummy Provider', 'test', 'active'),
+('equinix-metal', 'Equinix Metal', 'bare-metal', 'active'),
+('exoscale', 'Exoscale', 'cloud', 'active'),
+('gcp', 'Google Cloud Platform', 'cloud', 'active'),
+('gcp-api', 'Google Cloud Platform API', 'cloud', 'active'),
+('hetzner', 'Hetzner', 'cloud', 'active'),
+('huawei', 'Huawei Cloud', 'cloud', 'active'),
+('hyperv', 'Microsoft Hyper-V', 'hypervisor', 'active'),
+('ibm', 'IBM Cloud', 'cloud', 'active'),
+('kamatera', 'Kamatera', 'cloud', 'active'),
+('kvm', 'KVM', 'hypervisor', 'offline'),
 ('linode', 'Linode', 'cloud', 'active'),
-('vultr', 'Vultr', 'cloud', 'active'),
-('heroku', 'Heroku', 'platform-as-a-service', 'active');
+('oracle-cloud', 'Oracle Cloud', 'cloud', 'active'),
+('ovh-cloud', 'OVH Cloud', 'cloud', 'active'),
+('proxmox', 'Proxmox', 'hypervisor', 'active'),
+('qemu', 'QEMU', 'hypervisor', 'active'),
+('rackspace', 'Rackspace', 'cloud', 'active'),
+('scaleway', 'Scaleway', 'cloud', 'deprecated'),
+('tencent', 'Tencent Cloud', 'cloud', 'active'),
+('truenas', 'TrueNAS', 'storage', 'active'),
+('upcloud', 'UpCloud', 'cloud', 'active'),
+('vb-linux', 'VirtualBox Linux', 'hypervisor', 'active'),
+('vb-windows', 'VirtualBox Windows', 'hypervisor', 'active'),
+('vmware-esxi', 'VMware ESXi', 'hypervisor', 'active');
 
 
 INSERT INTO regions (name, display_name, provider, location, coordinates, is_public, class)
