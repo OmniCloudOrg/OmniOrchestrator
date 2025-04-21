@@ -699,10 +699,10 @@ VALUES
 -- Generate a massive number of metrics with NULL instance_id and random data
 INSERT INTO metrics (app_id, metric_name, metric_value, labels, timestamp)
 SELECT 
-     JSON_EXTRACT(JSON_OBJECT('app_id', FLOOR(RAND() * 50 + 1)), '$.app_id') AS app_id, 
+     JSON_EXTRACT(JSON_OBJECT('app_id', FLOOR(RAND() * 25 + 1)), '$.app_id') AS app_id, 
      metric_name, 
-     RAND() * 50 AS metric_value, 
-     JSON_OBJECT('app_id', FLOOR(RAND() * 50 + 1)) AS labels, 
+     RAND() * 25 AS metric_value, 
+     JSON_OBJECT('app_id', FLOOR(RAND() * 25 + 1)) AS labels, 
      NOW() AS timestamp
 FROM (
      SELECT 'cpu_utilization' AS metric_name
@@ -730,7 +730,7 @@ INSERT INTO metrics (app_id, metric_name, metric_value, labels, timestamp)
 SELECT 
      NULL AS app_id, 
      metric_name, 
-     RAND() * 50 AS metric_value, 
+     RAND() * 25 AS metric_value, 
      JSON_OBJECT('platform', 'global') AS labels, 
      time_point AS timestamp
 FROM (
@@ -901,7 +901,6 @@ VALUES
 (4, NULL, 2, '2025-04-16 09:15:40'),
 (1, NULL, 5, '2025-04-18 14:05:12');
 
--- Insert system alerts
 INSERT INTO alerts 
 (alert_type, severity, service, message, timestamp, status, resolved_at, resolved_by, metadata, org_id, app_id, instance_id, region_id, node_id)
 VALUES 
@@ -909,7 +908,13 @@ VALUES
 ('memory_leak', 'critical', 'app_service', 'Possible memory leak detected in production service', '2025-04-19 01:30:22', 'acknowledged', NULL, NULL, '{"memory_growth_rate": "2MB/min", "process_id": 4588}', 5, 6, 11, 2, 7),
 ('disk_space', 'warning', 'storage', 'Database storage approaching 85% capacity', '2025-04-17 10:45:33', 'resolved', '2025-04-17 14:20:15', 2, '{"disk_usage": 85.2, "growth_rate": "500MB/day"}', 2, 4, 12, 1, NULL),
 ('api_latency', 'info', 'api_gateway', 'API response time increased by 35%', '2025-04-18 16:22:45', 'auto_resolved', '2025-04-18 16:55:30', NULL, '{"avg_response_ms": 320, "baseline_ms": 230}', 5, 6, NULL, 2, 8),
-('security_event', 'critical', 'auth_service', 'Multiple failed login attempts detected from unusual location', '2025-04-19 04:10:05', 'active', NULL, NULL, '{"attempts": 12, "ip": "203.0.113.42", "location": "Unknown"}', 2, NULL, NULL, NULL, NULL);
+('security_event', 'critical', 'auth_service', 'Multiple failed login attempts detected from unusual location', '2025-04-19 04:10:05', 'active', NULL, NULL, '{"attempts": 12, "ip": "203.0.113.42", "location": "Unknown"}', 2, NULL, NULL, NULL, NULL),
+('network_outage', 'critical', 'network', 'Network connectivity lost in region us-east-1', '2025-04-20 02:15:00', 'active', NULL, NULL, '{"affected_nodes": 15, "region": "us-east-1"}', 3, NULL, NULL, 1, NULL),
+('service_crash', 'critical', 'app_service', 'Critical service crashed unexpectedly', '2025-04-20 03:45:00', 'active', NULL, NULL, '{"service_name": "auth-service", "error_code": 500}', 4, 7, 13, 2, 9),
+('high_memory', 'warning', 'compute', 'Memory usage exceeded 85% for over 10 minutes', '2025-04-20 04:30:00', 'active', NULL, NULL, '{"memory_usage": 87.3, "duration_minutes": 12}', 5, 8, 14, 3, 10),
+('ssl_expiry', 'info', 'security', 'SSL certificate expiring in 15 days', '2025-04-20 05:00:00', 'active', NULL, NULL, '{"certificate_name": "api.example.com", "expiry_date": "2025-05-05"}', 6, NULL, NULL, NULL, NULL),
+('database_error', 'critical', 'database', 'Frequent database connection errors detected', '2025-04-20 06:15:00', 'active', NULL, NULL, '{"error_rate": "15/min", "database": "analytics-db"}', 7, 9, 15, 4, 11);
+
 
 -- Insert alert acknowledgments
 INSERT INTO alert_acknowledgments 
