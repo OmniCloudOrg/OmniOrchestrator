@@ -105,7 +105,15 @@ INSERT INTO providers (name, display_name, provider_type, status)
 VALUES
 ('aws', 'Amazon Web Services', 'cloud', 'active'),
 ('gcp', 'Google Cloud Platform', 'cloud', 'active'),
-('azure', 'Microsoft Azure', 'cloud', 'active');
+('azure', 'Microsoft Azure', 'cloud', 'active'),
+('ibm', 'IBM Cloud', 'cloud', 'active'),
+('oracle', 'Oracle Cloud', 'cloud', 'active'),
+('alibaba', 'Alibaba Cloud', 'cloud', 'active'),
+('digitalocean', 'DigitalOcean', 'cloud', 'active'),
+('linode', 'Linode', 'cloud', 'active'),
+('vultr', 'Vultr', 'cloud', 'active'),
+('heroku', 'Heroku', 'platform-as-a-service', 'active');
+
 
 INSERT INTO regions (name, display_name, provider, location, coordinates, is_public, class)
 VALUES
