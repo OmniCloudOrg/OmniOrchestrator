@@ -66,6 +66,17 @@ pub struct Region {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct Provider {
+    pub id: i64,
+    pub name: String,
+    pub display_name: String,
+    pub provider_type: String, // enum in DB: 'kubernetes' or 'custom'
+    pub status: String, // enum in DB: 'active', 'inactive', 'maintenance'
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// List provider-regions.
 ///
 /// This function fetches all regions from the database, paired with their providers and their binding table data.

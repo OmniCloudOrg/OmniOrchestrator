@@ -12,3 +12,4 @@ pub mod user;
 pub mod worker;
 pub mod backup;
 pub mod metrics;
+pub mod provider;

@@ -15,6 +15,7 @@ pub mod platforms;
 pub mod workers;
 pub mod control;
 pub mod metrics;
+pub mod providers;
 //pub mod deployments;
 
 use control::*;
@@ -31,6 +32,7 @@ use platforms::*;
 use instances::*;
 use permissions::*;
 use metrics::*;
+use providers::*;
 // use platforms::*;
 // use deployments::*;
 
@@ -77,6 +79,7 @@ pub fn routes() -> Vec<rocket::Route> {
         list_builds_for_app,
         get_build,
         list_regions,
+        list_providers,
         list_provider_regions,
         // regions
         // get_region,
