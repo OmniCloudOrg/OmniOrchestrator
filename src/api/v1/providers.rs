@@ -5,6 +5,7 @@
 //! It is designed to be used primarily by the dashboard to add new providers and manage existing ones.
 //! The resulting database table is read at runtime by the various directories to determine which provider configs they need to have access to.
 
+use crate::db::tables::ProviderAuditLog;
 use crate::db::v1::tables::Provider;
 use rocket::http::Status;
 use rocket::serde::json::{Json, Value};
@@ -43,6 +44,42 @@ pub async fn list_providers(
     // TODO: This pagination format should be the new golden standard for all paginated responses from the API
     let response = json!({
         "providers": providers,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "total_pages": total_pages
+        }
+    });
+
+    Ok(Json(response))
+}
+
+/// Retrieves a pagnated list of audit logs for a specific provider.
+#[get("/providers/<provider_id>/audit_logs?<page>&<per_page>")]
+pub async fn get_provider_audit_logs_paginated(
+    provider_id: i64,
+    page: Option<i64>,
+    per_page: Option<i64>,
+    pool: &rocket::State<sqlx::Pool<sqlx::MySql>>,
+) -> Result<Json<Value>, Status> {
+    let page = page.unwrap_or(0);
+    let per_page = per_page.unwrap_or(10);
+
+    let audit_logs: Vec<ProviderAuditLog> = match crate::db::v1::queries::provider::get_provider_audit_logs_paginated(&pool, provider_id, page, per_page).await {
+        Ok(audit_logs) => audit_logs,
+        Err(_) => return Err(Status::InternalServerError),
+    };
+
+    let total_count = match crate::db::v1::queries::provider::get_provider_audit_log_count(&pool, provider_id).await {
+        Ok(count) => count,
+        Err(_) => return Err(Status::InternalServerError),
+    };
+
+    let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
+
+    let response = json!({
+        "audit_logs": audit_logs,
         "pagination": {
             "page": page,
             "per_page": per_page,

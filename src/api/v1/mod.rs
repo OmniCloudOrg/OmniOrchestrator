@@ -80,6 +80,7 @@ pub fn routes() -> Vec<rocket::Route> {
         get_build,
         list_regions,
         list_providers,
+        get_provider_audit_logs_paginated,
         list_provider_regions,
         // regions
         // get_region,

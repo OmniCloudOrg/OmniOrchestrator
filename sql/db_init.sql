@@ -1,10 +1,17 @@
 -- Drop all tables first (in correct dependency order)
+SET FOREIGN_KEY_CHECKS = 0;
+
 DROP TABLE IF EXISTS backups, notifications, host_creds, metrics, allocations, instance_logs, audit_logs, api_keys, 
     config_vars, deployment_logs, rollbacks, deployments, builds, tasks, 
     autoscaling_rules, health_checks, network_policies, service_bindings,
-    routes, instances, domains, apps, spaces, orgmember, permissions_role, 
+    routes, instances, domains, spaces, orgmember, permissions_role, 
     role_user, permissions, roles, quotas, orgs, user_sessions, user_pii, user_meta, users, 
-    data_services, nodes, workers, regions, providers, providers_regions, user_notifications, role_notifications, notification_acknowledgments, alerts, alert_acknowledgments, alert_escalations, alert_history;
+    data_services, nodes, workers, cost_summaries, usage_costs, provider_costs,
+    regions, providers, providers_regions, user_notifications,
+    role_notifications, notification_acknowledgments, alerts, alert_acknowledgments,
+    alert_escalations, alert_history, provider_audit_logs, apps;
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- Create independent tables first (no foreign keys)
 
@@ -141,6 +148,17 @@ CREATE TABLE providers (
     PRIMARY KEY (id),
     UNIQUE KEY unique_name (name),
     INDEX idx_providers_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE provider_audit_logs (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    provider_id BIGINT NOT NULL,
+    action ENUM('create', 'update', 'delete', 'scale', 'deploy') NOT NULL,
+    details TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE regions (
@@ -425,14 +443,14 @@ CREATE TABLE instances (
     app_id BIGINT NOT NULL,
     instance_type VARCHAR(255) NOT NULL,
     guid VARCHAR(36) NOT NULL,
-    status ENUM('running', 'starting', 'stopping', 'stopped', 'crashed', 'terminated', 'unknown') DEFAULT 'starting',
+    status ENUM('running', 'starting', 'stopping', 'stopped', 'paused', 'crashed', 'degraded', 'terminated', 'unknown') DEFAULT 'starting',
     container_id VARCHAR(255),
     container_ip VARCHAR(45),
     allocation_id BIGINT,
     node_id BIGINT,
     instance_index BIGINT NOT NULL,
     last_health_check DATETIME,
-    health_status ENUM('healthy', 'unhealthy', 'unknown') DEFAULT 'unknown',
+    health_status ENUM('healthy', 'degraded', 'critical', 'unknown') DEFAULT 'unknown',
     cpu_usage DOUBLE,
     memory_usage DOUBLE,
     disk_usage DOUBLE,

@@ -77,6 +77,16 @@ pub struct Provider {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct ProviderAuditLog {
+    pub id: i64,
+    pub provider_id: i64,
+    pub action: String,
+    pub details: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// List provider-regions.
 ///
 /// This function fetches all regions from the database, paired with their providers and their binding table data.
