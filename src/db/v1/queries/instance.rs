@@ -36,6 +36,28 @@ pub async fn list_instances(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<V
     Ok(instances)
 }
 
+/// List instances by `region_id` and `app_id` paginated by `page` and `per_page` using a where clause.
+pub async fn list_instances_by_region(
+    pool: &Pool<MySql>,
+    region_id: i64,
+    app_id: i64,
+    page: i64,
+    per_page: i64,
+) -> anyhow::Result<Vec<Instance>> {
+    let instances = sqlx::query_as::<_, Instance>(
+        "SELECT * FROM instances WHERE region_id = ? AND app_id = ? LIMIT ?, ?",
+    )
+    .bind(region_id)
+    .bind(app_id)
+    .bind((page - 1) * per_page)
+    .bind(per_page)
+    .fetch_all(pool)
+    .await
+    .context("Failed to fetch instances")?;
+
+    Ok(instances)
+}
+
 /// Counts the total number of instances across all applications.
 /// 
 /// This function returns the total count of instances in the database.

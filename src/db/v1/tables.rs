@@ -180,6 +180,7 @@ pub struct Instance {
     pub instance_type: String,
     pub guid: String,
     pub status: String, // enum: 'running', 'starting', 'stopping', 'stopped', 'crashed', 'terminated', 'unknown'
+    pub region_id: i64,
     pub container_id: Option<String>,
     pub container_ip: Option<String>,
     pub allocation_id: Option<i64>,

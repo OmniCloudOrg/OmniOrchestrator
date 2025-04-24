@@ -55,6 +55,7 @@ pub fn routes() -> Vec<rocket::Route> {
         list_alerts,
         // instances
         list_instances,
+        list_instances_by_region,
         count_instances,
         get_instance,
         // deploy
@@ -80,6 +81,7 @@ pub fn routes() -> Vec<rocket::Route> {
         get_build,
         list_regions,
         list_providers,
+        get_provider_instances,
         get_provider_audit_logs_paginated,
         list_provider_regions,
         // regions

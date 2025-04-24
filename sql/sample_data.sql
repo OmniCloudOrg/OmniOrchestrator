@@ -512,43 +512,43 @@ VALUES
 (5 , 'APP_PORT'     , '3000'                                         , 0),
 (5 , 'DATABASE_URL' , 'postgresql://user:password@db-host:5432/db-5' , 1);
 
-INSERT INTO instances (app_id, instance_type, guid, status, container_id, container_ip, allocation_id, node_id, instance_index, last_health_check, health_status, cpu_usage, memory_usage, disk_usage, uptime, restart_count, start_time, created_at)
+INSERT INTO instances (app_id, instance_type, guid, status, region_id, container_id, container_ip, allocation_id, node_id, instance_index, last_health_check, health_status, cpu_usage, memory_usage, disk_usage, uptime, restart_count, start_time, created_at)
 VALUES
-(1 , 'nodejs' , UUID() , 'running' , 'container-a1b2c3d4e5f6' , '10.0.0.1'  , 5 , 1  , 0 , NOW() - INTERVAL 5 MINUTE , 'healthy' , 35.2 , 42.8 , 15.3 , 259200 , 0 , '2024-01-15 10:30:00' , '2024-01-15 10:30:00'),
-(1 , 'nodejs' , UUID() , 'running' , 'container-f6e5d4c3b2a1' , '10.0.0.2'  , 5 , 2  , 1 , NOW() - INTERVAL 6 MINUTE , 'healthy' , 42.1 , 51.6 , 17.5 , 259200 , 0 , '2024-01-15 10:31:00' , '2024-01-15 10:31:00'),
-(1 , 'nodejs' , UUID() , 'running' , 'container-1a2b3c4d5e6f' , '10.0.0.3'  , 5 , 3  , 2 , NOW() - INTERVAL 3 MINUTE , 'healthy' , 38.7 , 47.2 , 16.1 , 259200 , 1 , '2024-01-15 11:15:00' , '2024-01-15 10:32:00'),
-(2 , 'nodejs' , UUID() , 'running' , 'container-6f5e4d3c2b1a' , '10.0.0.4'  , 4 , 4  , 0 , NOW() - INTERVAL 4 MINUTE , 'healthy' , 29.8 , 38.3 , 12.5 , 259100 , 0 , '2024-01-15 11:30:00' , '2024-01-15 11:30:00'),
-(2 , 'nodejs' , UUID() , 'running' , 'container-b2a1f6e5d4c3' , '10.0.0.5'  , 4 , 5  , 1 , NOW() - INTERVAL 7 MINUTE , 'healthy' , 31.4 , 40.2 , 13.8 , 259100 , 0 , '2024-01-15 11:31:00' , '2024-01-15 11:31:00'),
-(2 , 'nodejs' , UUID() , 'running' , 'container-5e6f1a2b3c4d' , '10.0.0.6'  , 4 , 6  , 2 , NOW() - INTERVAL 2 MINUTE , 'healthy' , 33.2 , 42.6 , 14.2 , 259000 , 0 , '2024-01-15 11:32:00' , '2024-01-15 11:32:00'),
-(3 , 'nodejs' , UUID() , 'running' , 'container-3c2b1a6f5e4d' , '10.0.0.7'  , 5 , 7  , 0 , NOW() - INTERVAL 8 MINUTE , 'healthy' , 45.3 , 52.7 , 18.4 , 258900 , 0 , '2024-01-15 14:30:00' , '2024-01-15 14:30:00'),
-(3 , 'nodejs' , UUID() , 'running' , 'container-d4c3b2a1f6e5' , '10.0.0.8'  , 5 , 8  , 1 , NOW() - INTERVAL 6 MINUTE , 'healthy' , 43.8 , 50.2 , 17.9 , 258900 , 0 , '2024-01-15 14:31:00' , '2024-01-15 14:31:00'),
-(4 , 'nodejs' , UUID() , 'running' , 'container-4d3c2b1a6f5e' , '10.0.0.9'  , 6 , 9  , 0 , NOW() - INTERVAL 5 MINUTE , 'healthy' , 52.6 , 45.3 , 15.7 , 258800 , 1 , '2024-01-15 14:45:00' , '2024-01-15 10:45:00'),
-(4 , 'nodejs' , UUID() , 'running' , 'container-e5d4c3b2a1f6' , '10.0.0.10' , 6 , 10 , 1 , NOW() - INTERVAL 3 MINUTE , 'healthy' , 48.9 , 42.1 , 14.8 , 258800 , 0 , '2024-01-15 10:46:00' , '2024-01-15 10:46:00');
+(1 , 'nodejs' , UUID() , 'running' , 1 , 'container-a1b2c3d4e5f6' , '10.0.0.1'  , 5 , 1  , 0 , NOW() - INTERVAL 5 MINUTE , 'healthy' , 35.2 , 42.8 , 15.3 , 259200 , 0 , '2024-01-15 10:30:00' , '2024-01-15 10:30:00'),
+(1 , 'nodejs' , UUID() , 'running' , 1 , 'container-f6e5d4c3b2a1' , '10.0.0.2'  , 5 , 2  , 1 , NOW() - INTERVAL 6 MINUTE , 'healthy' , 42.1 , 51.6 , 17.5 , 259200 , 0 , '2024-01-15 10:31:00' , '2024-01-15 10:31:00'),
+(1 , 'nodejs' , UUID() , 'running' , 1 , 'container-1a2b3c4d5e6f' , '10.0.0.3'  , 5 , 3  , 2 , NOW() - INTERVAL 3 MINUTE , 'healthy' , 38.7 , 47.2 , 16.1 , 259200 , 1 , '2024-01-15 11:15:00' , '2024-01-15 10:32:00'),
+(2 , 'nodejs' , UUID() , 'running' , 1 , 'container-6f5e4d3c2b1a' , '10.0.0.4'  , 4 , 4  , 0 , NOW() - INTERVAL 4 MINUTE , 'healthy' , 29.8 , 38.3 , 12.5 , 259100 , 0 , '2024-01-15 11:30:00' , '2024-01-15 11:30:00'),
+(2 , 'nodejs' , UUID() , 'running' , 1 , 'container-b2a1f6e5d4c3' , '10.0.0.5'  , 4 , 5  , 1 , NOW() - INTERVAL 7 MINUTE , 'healthy' , 31.4 , 40.2 , 13.8 , 259100 , 0 , '2024-01-15 11:31:00' , '2024-01-15 11:31:00'),
+(2 , 'nodejs' , UUID() , 'running' , 1 , 'container-5e6f1a2b3c4d' , '10.0.0.6'  , 4 , 6  , 2 , NOW() - INTERVAL 2 MINUTE , 'healthy' , 33.2 , 42.6 , 14.2 , 259000 , 0 , '2024-01-15 11:32:00' , '2024-01-15 11:32:00'),
+(3 , 'nodejs' , UUID() , 'running' , 1 , 'container-3c2b1a6f5e4d' , '10.0.0.7'  , 5 , 7  , 0 , NOW() - INTERVAL 8 MINUTE , 'healthy' , 45.3 , 52.7 , 18.4 , 258900 , 0 , '2024-01-15 14:30:00' , '2024-01-15 14:30:00'),
+(3 , 'nodejs' , UUID() , 'running' , 1 , 'container-d4c3b2a1f6e5' , '10.0.0.8'  , 5 , 8  , 1 , NOW() - INTERVAL 6 MINUTE , 'healthy' , 43.8 , 50.2 , 17.9 , 258900 , 0 , '2024-01-15 14:31:00' , '2024-01-15 14:31:00'),
+(4 , 'nodejs' , UUID() , 'running' , 1 , 'container-4d3c2b1a6f5e' , '10.0.0.9'  , 6 , 9  , 0 , NOW() - INTERVAL 5 MINUTE , 'healthy' , 52.6 , 45.3 , 15.7 , 258800 , 1 , '2024-01-15 14:45:00' , '2024-01-15 10:45:00'),
+(4 , 'nodejs' , UUID() , 'running' , 1 , 'container-e5d4c3b2a1f6' , '10.0.0.10' , 6 , 10 , 1 , NOW() - INTERVAL 3 MINUTE , 'healthy' , 48.9 , 42.1 , 14.8 , 258800 , 0 , '2024-01-15 10:46:00' , '2024-01-15 10:46:00');
 
-INSERT INTO instances (app_id, instance_type, guid, status, container_id, container_ip, allocation_id, node_id, instance_index, last_health_check, health_status, cpu_usage, memory_usage, disk_usage, uptime, restart_count, start_time, created_at)
+INSERT INTO instances (app_id, instance_type, guid, status, region_id, container_id, container_ip, allocation_id, node_id, instance_index, last_health_check, health_status, cpu_usage, memory_usage, disk_usage, uptime, restart_count, start_time, created_at)
 VALUES
-(5  , 'nodejs' , UUID() , 'running' , 'container-5e4d3c2b1a6f' , '10.0.1.1'  , 3 , 11 , 0 , NOW() - INTERVAL 7 MINUTE , 'healthy' , 22.5 , 31.8 , 10.2 , 172800 , 0 , '2024-01-20 13:30:00' , '2024-01-20 13:30:00'),
-(6  , 'nodejs' , UUID() , 'running' , 'container-f5e4d3c2b1a6' , '10.0.1.2'  , 3 , 12 , 0 , NOW() - INTERVAL 9 MINUTE , 'healthy' , 24.7 , 33.5 , 11.4 , 172700 , 0 , '2024-01-20 15:45:00' , '2024-01-20 15:45:00'),
-(7  , 'nodejs' , UUID() , 'running' , 'container-6f5e4d3c2b1a' , '10.0.1.3'  , 2 , 13 , 0 , NOW() - INTERVAL 4 MINUTE , 'healthy' , 18.2 , 25.3 , 8.7  , 172600 , 0 , '2024-01-21 09:15:00' , '2024-01-21 09:15:00'),
-(8  , 'nodejs' , UUID() , 'running' , 'container-a6f5e4d3c2b1' , '10.0.1.4'  , 2 , 14 , 0 , NOW() - INTERVAL 6 MINUTE , 'healthy' , 17.5 , 26.1 , 9.3  , 172500 , 0 , '2024-01-21 11:30:00' , '2024-01-21 11:30:00'),
-(9  , 'python' , UUID() , 'running' , 'container-1a6f5e4d3c2b' , '10.0.1.5'  , 7 , 15 , 0 , NOW() - INTERVAL 5 MINUTE , 'healthy' , 65.3 , 72.8 , 24.6 , 172400 , 0 , '2024-01-25 10:45:00' , '2024-01-25 10:45:00'),
-(9  , 'python' , UUID() , 'running' , 'container-b1a6f5e4d3c2' , '10.0.1.6'  , 7 , 16 , 1 , NOW() - INTERVAL 7 MINUTE , 'healthy' , 68.2 , 75.4 , 26.1 , 172400 , 0 , '2024-01-25 10:46:00' , '2024-01-25 10:46:00'),
-(10 , 'python' , UUID() , 'running' , 'container-2b1a6f5e4d3c' , '10.0.1.7'  , 8 , 17 , 0 , NOW() - INTERVAL 3 MINUTE , 'healthy' , 71.5 , 78.2 , 27.3 , 172300 , 0 , '2024-01-25 14:30:00' , '2024-01-25 14:30:00'),
-(10 , 'python' , UUID() , 'running' , 'container-c2b1a6f5e4d3' , '10.0.1.8'  , 8 , 18 , 1 , NOW() - INTERVAL 8 MINUTE , 'healthy' , 69.7 , 76.5 , 26.8 , 172300 , 1 , '2024-01-25 15:15:00' , '2024-01-25 14:31:00'),
-(11 , 'go'     , UUID() , 'running' , 'container-3c2b1a6f5e4d' , '10.0.1.9'  , 6 , 19 , 0 , NOW() - INTERVAL 4 MINUTE , 'healthy' , 28.6 , 22.4 , 9.7  , 172200 , 0 , '2024-01-26 09:15:00' , '2024-01-26 09:15:00'),
-(11 , 'go'     , UUID() , 'running' , 'container-d3c2b1a6f5e4' , '10.0.1.10' , 6 , 20 , 1 , NOW() - INTERVAL 6 MINUTE , 'healthy' , 30.1 , 24.8 , 10.3 , 172200 , 0 , '2024-01-26 09:16:00' , '2024-01-26 09:16:00');
+(5  , 'nodejs' , UUID() , 'running' , 2 , 'container-5e4d3c2b1a6f' , '10.0.1.1'  , 3 , 11 , 0 , NOW() - INTERVAL 7 MINUTE , 'healthy' , 22.5 , 31.8 , 10.2 , 172800 , 0 , '2024-01-20 13:30:00' , '2024-01-20 13:30:00'),
+(6  , 'nodejs' , UUID() , 'running' , 2 , 'container-f5e4d3c2b1a6' , '10.0.1.2'  , 3 , 12 , 0 , NOW() - INTERVAL 9 MINUTE , 'healthy' , 24.7 , 33.5 , 11.4 , 172700 , 0 , '2024-01-20 15:45:00' , '2024-01-20 15:45:00'),
+(7  , 'nodejs' , UUID() , 'running' , 2 , 'container-6f5e4d3c2b1a' , '10.0.1.3'  , 2 , 13 , 0 , NOW() - INTERVAL 4 MINUTE , 'healthy' , 18.2 , 25.3 , 8.7  , 172600 , 0 , '2024-01-21 09:15:00' , '2024-01-21 09:15:00'),
+(8  , 'nodejs' , UUID() , 'running' , 2 , 'container-a6f5e4d3c2b1' , '10.0.1.4'  , 2 , 14 , 0 , NOW() - INTERVAL 6 MINUTE , 'healthy' , 17.5 , 26.1 , 9.3  , 172500 , 0 , '2024-01-21 11:30:00' , '2024-01-21 11:30:00'),
+(9  , 'python' , UUID() , 'running' , 2 , 'container-1a6f5e4d3c2b' , '10.0.1.5'  , 7 , 15 , 0 , NOW() - INTERVAL 5 MINUTE , 'healthy' , 65.3 , 72.8 , 24.6 , 172400 , 0 , '2024-01-25 10:45:00' , '2024-01-25 10:45:00'),
+(9  , 'python' , UUID() , 'running' , 2 , 'container-b1a6f5e4d3c2' , '10.0.1.6'  , 7 , 16 , 1 , NOW() - INTERVAL 7 MINUTE , 'healthy' , 68.2 , 75.4 , 26.1 , 172400 , 0 , '2024-01-25 10:46:00' , '2024-01-25 10:46:00'),
+(10 , 'python' , UUID() , 'running' , 2 , 'container-2b1a6f5e4d3c' , '10.0.1.7'  , 8 , 17 , 0 , NOW() - INTERVAL 3 MINUTE , 'healthy' , 71.5 , 78.2 , 27.3 , 172300 , 0 , '2024-01-25 14:30:00' , '2024-01-25 14:30:00'),
+(10 , 'python' , UUID() , 'running' , 2 , 'container-c2b1a6f5e4d3' , '10.0.1.8'  , 8 , 18 , 1 , NOW() - INTERVAL 8 MINUTE , 'healthy' , 69.7 , 76.5 , 26.8 , 172300 , 1 , '2024-01-25 15:15:00' , '2024-01-25 14:31:00'),
+(11 , 'go'     , UUID() , 'running' , 2 , 'container-3c2b1a6f5e4d' , '10.0.1.9'  , 6 , 19 , 0 , NOW() - INTERVAL 4 MINUTE , 'healthy' , 28.6 , 22.4 , 9.7  , 172200 , 0 , '2024-01-26 09:15:00' , '2024-01-26 09:15:00'),
+(11 , 'go'     , UUID() , 'running' , 2 , 'container-d3c2b1a6f5e4' , '10.0.1.10' , 6 , 20 , 1 , NOW() - INTERVAL 6 MINUTE , 'healthy' , 30.1 , 24.8 , 10.3 , 172200 , 0 , '2024-01-26 09:16:00' , '2024-01-26 09:16:00');
 
-INSERT INTO instances (app_id, instance_type, guid, status, container_id, container_ip, allocation_id, node_id, instance_index, last_health_check, health_status, cpu_usage, memory_usage, disk_usage, uptime, restart_count, start_time, created_at)
+INSERT INTO instances (app_id, instance_type, guid, status, region_id, container_id, container_ip, allocation_id, node_id, instance_index, last_health_check, health_status, cpu_usage, memory_usage, disk_usage, uptime, restart_count, start_time, created_at)
 VALUES
 -- Additional instances for app_id 1
-(1, 'nodejs', UUID(), 'running', 'container-g7h8i9j0k1l2', '10.0.0.11', 5, 11, 3, NOW() - INTERVAL 4 MINUTE, 'healthy', 36.5, 44.2, 15.8, 259150, 0, '2024-01-15 10:33:00', '2024-01-15 10:33:00'),
-(1, 'nodejs', UUID(), 'running', 'container-m3n4o5p6q7r8', '10.0.0.12', 5, 12, 4, NOW() - INTERVAL 5 MINUTE, 'healthy', 39.3, 46.8, 16.5, 259120, 0, '2024-01-15 10:34:00', '2024-01-15 10:34:00'),
-(1, 'nodejs', UUID(), 'running', 'container-s9t0u1v2w3x4', '10.0.0.13', 5, 13, 5, NOW() - INTERVAL 6 MINUTE, 'healthy', 37.8, 45.5, 16.2, 259100, 0, '2024-01-15 10:35:00', '2024-01-15 10:35:00'),
-(1, 'nodejs', UUID(), 'running', 'container-y5z6a7b8c9d0', '10.0.0.14', 5, 14, 6, NOW() - INTERVAL 4 MINUTE, 'healthy', 38.1, 46.2, 16.3, 259080, 1, '2024-01-15 11:20:00', '2024-01-15 10:36:00'),
-(1, 'nodejs', UUID(), 'running', 'container-e1f2g3h4i5j6', '10.0.0.15', 5, 15, 7, NOW() - INTERVAL 3 MINUTE, 'healthy', 40.2, 48.4, 16.8, 259060, 0, '2024-01-15 10:37:00', '2024-01-15 10:37:00'),
-(1, 'nodejs', UUID(), 'running', 'container-k7l8m9n0o1p2', '10.0.0.16', 5, 16, 8, NOW() - INTERVAL 7 MINUTE, 'healthy', 35.9, 43.7, 15.5, 259040, 0, '2024-01-15 10:38:00', '2024-01-15 10:38:00'),
-(1, 'nodejs', UUID(), 'running', 'container-q3r4s5t6u7v8', '10.0.0.17', 5, 17, 9, NOW() - INTERVAL 5 MINUTE, 'healthy', 37.4, 45.1, 15.9, 259020, 0, '2024-01-15 10:39:00', '2024-01-15 10:39:00'),
-(1, 'nodejs', UUID(), 'running', 'container-w9x0y1z2a3b4', '10.0.0.18', 5, 18, 10, NOW() - INTERVAL 8 MINUTE, 'healthy', 39.8, 47.5, 16.7, 259000, 0, '2024-01-15 10:40:00', '2024-01-15 10:40:00');
+(1, 'nodejs', UUID(), 'running', 1 , 'container-g7h8i9j0k1l2', '10.0.0.11', 5, 11, 3,  NOW() - INTERVAL 4 MINUTE, 'healthy', 36.5, 44.2, 15.8, 259150, 0, '2024-01-15 10:33:00', '2024-01-15 10:33:00'),
+(1, 'nodejs', UUID(), 'running', 1 , 'container-m3n4o5p6q7r8', '10.0.0.12', 5, 12, 4,  NOW() - INTERVAL 5 MINUTE, 'healthy', 39.3, 46.8, 16.5, 259120, 0, '2024-01-15 10:34:00', '2024-01-15 10:34:00'),
+(1, 'nodejs', UUID(), 'running', 1 , 'container-s9t0u1v2w3x4', '10.0.0.13', 5, 13, 5,  NOW() - INTERVAL 6 MINUTE, 'healthy', 37.8, 45.5, 16.2, 259100, 0, '2024-01-15 10:35:00', '2024-01-15 10:35:00'),
+(1, 'nodejs', UUID(), 'running', 1 , 'container-y5z6a7b8c9d0', '10.0.0.14', 5, 14, 6,  NOW() - INTERVAL 4 MINUTE, 'healthy', 38.1, 46.2, 16.3, 259080, 1, '2024-01-15 11:20:00', '2024-01-15 10:36:00'),
+(1, 'nodejs', UUID(), 'running', 1 , 'container-e1f2g3h4i5j6', '10.0.0.15', 5, 15, 7,  NOW() - INTERVAL 3 MINUTE, 'healthy', 40.2, 48.4, 16.8, 259060, 0, '2024-01-15 10:37:00', '2024-01-15 10:37:00'),
+(1, 'nodejs', UUID(), 'running', 1 , 'container-k7l8m9n0o1p2', '10.0.0.16', 5, 16, 8,  NOW() - INTERVAL 7 MINUTE, 'healthy', 35.9, 43.7, 15.5, 259040, 0, '2024-01-15 10:38:00', '2024-01-15 10:38:00'),
+(1, 'nodejs', UUID(), 'running', 1 , 'container-q3r4s5t6u7v8', '10.0.0.17', 5, 17, 9,  NOW() - INTERVAL 5 MINUTE, 'healthy', 37.4, 45.1, 15.9, 259020, 0, '2024-01-15 10:39:00', '2024-01-15 10:39:00'),
+(1, 'nodejs', UUID(), 'running', 1 , 'container-w9x0y1z2a3b4', '10.0.0.18', 5, 18, 10, NOW() - INTERVAL 8 MINUTE, 'healthy', 39.8, 47.5, 16.7, 259000, 0, '2024-01-15 10:40:00', '2024-01-15 10:40:00');
 
 INSERT INTO routes (domain_id, host, path, app_id, weight, https_only, created_at)
 VALUES

@@ -1,3 +1,5 @@
+use crate::db::tables::Instance;
+
 use super::super::tables::{Provider, ProviderAuditLog};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
@@ -73,4 +75,46 @@ pub async fn get_provider_audit_log_count(
     .bind(provider_id);
 
     query.fetch_one(pool).await.context("Failed to count provider audit logs")
+}
+
+/// Fetch all the instances a provider is responsible for via the regions table between them, with pagination
+pub async fn get_provider_instances(
+    pool: &Pool<MySql>,
+    provider_id: i64,
+    page: i64,
+    page_size: i64,
+) -> anyhow::Result<Vec<Instance>> {
+    let offset = page * page_size;
+    let query = sqlx::query_as::<_, Instance>(
+        r#"
+        SELECT i.* 
+        FROM instances i
+        INNER JOIN regions r ON r.id = i.region_id
+        WHERE r.provider = ?
+        LIMIT ? OFFSET ?
+        "#,
+    )
+    .bind(provider_id)
+    .bind(page_size)
+    .bind(offset);
+
+    query.fetch_all(pool).await.context("Failed to fetch instances for provider")
+}
+
+/// Counts the total number of instances associated with a provider.
+pub async fn get_provider_instance_count(
+    pool: &Pool<MySql>,
+    provider_id: i64,
+) -> anyhow::Result<i64> {
+    let query = sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COUNT(*) 
+        FROM instances i
+        INNER JOIN regions r ON r.id = i.region_id
+        WHERE r.provider = ?
+        "#,
+    )
+    .bind(provider_id);
+
+    query.fetch_one(pool).await.context("Failed to count provider instances")
 }

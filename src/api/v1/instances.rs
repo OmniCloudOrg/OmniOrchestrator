@@ -16,6 +16,27 @@ pub async fn list_instances(pool: &State<sqlx::Pool<MySql>>, app_id: i64) -> Jso
     Json(instances_vec)
 }
 
+/// List all instances by `region_id` and `app_id`
+#[get("/apps/<app_id>/instances/region/<region_id>?<page>&<per_page>")]
+pub async fn list_instances_by_region(
+    pool: &State<sqlx::Pool<MySql>>,
+    app_id: i64,
+    region_id: i64,
+    page: Option<i64>,
+    per_page: Option<i64>,
+) -> Json<Vec<Instance>> {
+    // Default to page 1 and 10 items per page
+    let page = page.unwrap_or(1);
+    let per_page = per_page.unwrap_or(10);
+    let instances = db::instance::list_instances_by_region(pool, region_id, app_id, page, per_page)
+        .await
+        .unwrap();
+    println!("Found {} instances", instances.len());
+    let instances_vec: Vec<Instance> = instances.into_iter().collect();
+    println!("Returning {} apps", instances_vec.len());
+    Json(instances_vec)
+}
+
 /// Count all instances across all applications
 #[get("/instances/count")]
 pub async fn count_instances(pool: &State<sqlx::Pool<MySql>>) -> Json<i64> {

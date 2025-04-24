@@ -444,6 +444,7 @@ CREATE TABLE instances (
     instance_type VARCHAR(255) NOT NULL,
     guid VARCHAR(36) NOT NULL,
     status ENUM('running', 'starting', 'stopping', 'stopped', 'paused', 'crashed', 'degraded', 'terminated', 'unknown') DEFAULT 'starting',
+    region_id BIGINT, -- TODO: We should make this not NULL
     container_id VARCHAR(255),
     container_ip VARCHAR(45),
     allocation_id BIGINT,
@@ -471,6 +472,7 @@ CREATE TABLE instances (
     KEY idx_instances_status (status),
     KEY idx_instances_health_status (health_status),
     KEY idx_instances_node_id (node_id),
+    FOREIGN KEY (region_id) REFERENCES regions(id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (allocation_id) REFERENCES allocations(id),
     FOREIGN KEY (node_id) REFERENCES workers(id)
