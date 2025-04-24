@@ -550,6 +550,82 @@ VALUES
 (1, 'nodejs', UUID(), 'running', 1 , 'container-q3r4s5t6u7v8', '10.0.0.17', 5, 17, 9,  NOW() - INTERVAL 5 MINUTE, 'healthy', 37.4, 45.1, 15.9, 259020, 0, '2024-01-15 10:39:00', '2024-01-15 10:39:00'),
 (1, 'nodejs', UUID(), 'running', 1 , 'container-w9x0y1z2a3b4', '10.0.0.18', 5, 18, 10, NOW() - INTERVAL 8 MINUTE, 'healthy', 39.8, 47.5, 16.7, 259000, 0, '2024-01-15 10:40:00', '2024-01-15 10:40:00');
 
+INSERT INTO storage_volumes (id, app_id, name, size_gb, storage_class, access_mode, status, node_id, encryption_enabled, persistence_level, write_concern, reclaim_policy, filesystem_type, created_at, updated_at, snapshot_id, mount_path)
+VALUES 
+(1,  1,  'api-backend-data',       5,  'fast-local-ssd',     'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', '2023-01-15 10:30:00', '2023-01-15 10:30:00', NULL, '/data'),
+(2,  1,  'api-backend-logs',       2,  'standard',           'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-01-15 10:35:00', '2023-01-15 10:35:00', NULL, '/logs'),
+(3,  2,  'web-frontend-assets',    8,  'distributed',        'ReadOnlyMany',  'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'xfs', '2023-01-20 11:45:00', '2023-01-20 11:45:00', NULL, '/assets'),
+(4,  3,  'auth-service-data',      4,  'fast-local-ssd',     'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', '2023-02-05 09:15:00', '2023-02-05 09:15:00', NULL, '/data'),
+(5,  4,  'worker-jobs-storage',    10, 'distributed',        'ReadWriteOnce', 'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'ext4', '2023-02-10 14:30:00', '2023-02-10 14:30:00', NULL, '/storage'),
+(6,  5,  'api-staging-data',       2,  'standard',           'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-02-15 16:20:00', '2023-02-15 16:20:00', NULL, '/data'),
+(7,  7,  'api-dev-data',           1,  'local-disk',         'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-03-01 10:00:00', '2023-03-01 10:00:00', NULL, '/data'),
+(8,  9,  'data-analytics-storage', 20, 'distributed',        'ReadWriteMany', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'xfs', '2023-03-15 13:45:00', '2023-03-15 13:45:00', NULL, '/storage'),
+(9,  10, 'ml-processor-models',    15, 'performance-small',  'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'ext4', '2023-03-20 09:30:00', '2023-03-20 09:30:00', NULL, '/models'),
+(10, 16, 'code-service-repos',     8,  'distributed',        'ReadWriteMany', 'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'xfs', '2023-04-10 11:15:00', '2023-04-10 11:15:00', NULL, '/repos'),
+(11, 5,  'api-staging-backup',     3,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'Enhanced', 'WriteDurable', 'Retain', 'ext4', '2023-02-20 14:30:00', '2023-02-20 14:30:00', NULL, NULL),
+(12, 9,  'data-analytics-archive', 30, 'distributed',        'ReadOnlyMany',  'Provisioned', 1 , TRUE, 'Maximum', 'WriteDistributed', 'Retain', 'xfs', '2023-03-25 16:45:00', '2023-03-25 16:45:00', NULL, NULL),
+(13, 22, 'dev-platform-data',      4,  'local-disk',         'ReadWriteOnce', 'Deleting',    1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-04-15 10:30:00', '2023-05-10 09:15:00', NULL, NULL),
+(14, 27, 'ai-engine-models',       25, 'performance-medium', 'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'xfs', '2023-04-20 13:45:00', '2023-04-20 13:45:00', NULL, '/models'),
+(15, 28, 'data-processor-cache',   12, 'local-ssd',          'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-04-25 15:20:00', '2023-04-25 15:20:00', NULL, '/cache'),
+(16, 1,  'api-backend-snapshots',  7,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'High', 'WriteDurable', 'Retain', 'ext4', '2023-05-05 11:30:00', '2023-05-05 11:30:00', 1, NULL),
+(17, 2,  'web-frontend-backups',   6,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'Enhanced', 'WriteDurable', 'Retain', 'ext4', '2023-05-10 14:15:00', '2023-05-10 14:15:00', 3, NULL),
+(18, 10, 'ml-processor-training',  18, 'performance-small',  'ReadWriteMany', 'Provisioned', 1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'xfs', '2023-05-15 09:45:00', '2023-05-15 09:45:00', NULL, NULL),
+(19, 3,  'auth-service-certs',     1,  'local-disk',         'ReadOnlyMany',  'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', '2023-05-20 13:00:00', '2023-05-20 13:00:00', NULL, '/certs'),
+(20, 20, 'unused-volume',          5,  'standard',           'ReadWriteOnce', 'Deleted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-05-25 10:30:00', '2023-06-01 15:45:00', NULL, NULL);
+
+INSERT INTO storage_snapshots (id, volume_id, name, size_gb, created_at, status, description, retention_date)
+VALUES
+(1, 1, 'api-backend-data-daily-20230504', 5, '2023-05-04 01:00:00', 'Available', 'Daily backup of API backend data', '2023-05-11 01:00:00'),
+(2, 4, 'auth-service-data-daily-20230504', 4, '2023-05-04 01:15:00', 'Available', 'Daily backup of Auth service data', '2023-05-11 01:15:00'),
+(3, 3, 'web-frontend-assets-weekly-20230507', 8, '2023-05-07 02:00:00', 'Available', 'Weekly backup of web frontend assets', '2023-06-07 02:00:00'),
+(4, 8, 'data-analytics-storage-daily-20230504', 20, '2023-05-04 01:30:00', 'Available', 'Daily backup of data analytics storage', '2023-05-11 01:30:00'),
+(5, 9, 'ml-processor-models-daily-20230504', 15, '2023-05-04 01:45:00', 'Available', 'Daily backup of ML processor models', '2023-05-11 01:45:00'),
+(6, 14, 'ai-engine-models-daily-20230504', 25, '2023-05-04 02:00:00', 'Available', 'Daily backup of AI engine models', '2023-05-11 02:00:00'),
+(7, 1, 'api-backend-data-daily-20230505', 5, '2023-05-05 01:00:00', 'Available', 'Daily backup of API backend data', '2023-05-12 01:00:00'),
+(8, 4, 'auth-service-data-daily-20230505', 4, '2023-05-05 01:15:00', 'Available', 'Daily backup of Auth service data', '2023-05-12 01:15:00'),
+(9, 8, 'data-analytics-storage-daily-20230505', 20, '2023-05-05 01:30:00', 'Available', 'Daily backup of data analytics storage', '2023-05-12 01:30:00'),
+(10, 9, 'ml-processor-models-daily-20230505', 15, '2023-05-05 01:45:00', 'Available', 'Daily backup of ML processor models', '2023-05-12 01:45:00');
+
+INSERT INTO storage_migrations (id, source_volume_id, destination_volume_id, migration_type, status, progress_percent, started_at, completed_at, is_online, error_message, created_by)
+VALUES
+(1, 2, 16, 'StorageClass', 'Completed', 100, '2023-05-01 09:00:00', '2023-05-01 09:30:00', TRUE, NULL, 'system'),
+(2, 6, 11, 'StorageClass', 'Completed', 100, '2023-02-20 13:00:00', '2023-02-20 14:00:00', TRUE, NULL, 'admin'),
+(3, 7, 13, 'Node', 'Failed', 65, '2023-04-10 15:00:00', '2023-04-10 15:45:00', TRUE, 'Connection timeout during final sync', 'admin'),
+(4, 8, 12, 'Zone', 'Completed', 100, '2023-03-25 14:00:00', '2023-03-25 16:30:00', FALSE, NULL, 'admin'),
+(5, 9, 18, 'StorageClass', 'Completed', 100, '2023-05-15 08:00:00', '2023-05-15 09:30:00', FALSE, NULL, 'system');
+
+INSERT INTO storage_qos_policies (id, name, max_iops, max_throughput_mbps, burst_iops, burst_duration_seconds, latency_target_ms, created_at, updated_at)
+VALUES
+(1, 'high-performance', 5000, 500, 10000, 300, 5, '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+(2, 'standard', 1000, 100, 2000, 300, 10, '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+(3, 'economy', 500, 50, 1000, 300, 20, '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+(4, 'database-optimized', 3000, 300, 6000, 300, 5, '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+(5, 'analytics-optimized', 2000, 400, 4000, 600, 15, '2023-01-01 00:00:00', '2023-01-01 00:00:00');
+
+INSERT INTO volume_qos_policy_assignments (volume_id, policy_id, assigned_at)
+VALUES
+(1, 1, '2023-01-15 10:30:00'),
+(3, 2, '2023-01-20 11:45:00'),
+(4, 1, '2023-02-05 09:15:00'),
+(5, 2, '2023-02-10 14:30:00'),
+(8, 5, '2023-03-15 13:45:00'),
+(9, 5, '2023-03-20 09:30:00'),
+(14, 1, '2023-04-20 13:45:00'),
+(15, 3, '2023-04-25 15:20:00');
+
+INSERT INTO storage_classes (name, provisioner, reclaim_policy, volume_binding_mode, allow_volume_expansion, storage_type, default_filesystem, created_at, updated_at)
+VALUES
+('standard', 'omnicloud.io/distributed', 'Delete', 'Immediate', TRUE, 'distributed', 'ext4', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('fast-local-ssd', 'omnicloud.io/local-ssd', 'Delete', 'WaitForFirstConsumer', TRUE, 'local-resilient', 'ext4', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('local-disk', 'omnicloud.io/local-disk', 'Delete', 'WaitForFirstConsumer', FALSE, 'local-disk', 'ext4', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('distributed', 'omnicloud.io/distributed', 'Delete', 'Immediate', TRUE, 'distributed', 'xfs', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('performance-small', 'omnicloud.io/performance', 'Delete', 'Immediate', TRUE, 'distributed', 'ext4', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('performance-medium', 'omnicloud.io/performance', 'Delete', 'Immediate', TRUE, 'distributed', 'xfs', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('performance-large', 'omnicloud.io/performance', 'Delete', 'Immediate', TRUE, 'distributed', 'xfs', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('geo-replicated', 'omnicloud.io/geo-replicated', 'Retain', 'Immediate', TRUE, 'geo-replicated', 'ext4', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('local-ssd', 'omnicloud.io/local-ssd', 'Delete', 'WaitForFirstConsumer', TRUE, 'local-resilient', 'ext4', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
+('archive', 'omnicloud.io/archive', 'Retain', 'Immediate', FALSE, 'distributed', 'ext4', '2023-01-01 00:00:00', '2023-01-01 00:00:00');
+
 INSERT INTO routes (domain_id, host, path, app_id, weight, https_only, created_at)
 VALUES
 (1 , 'api'          , ''        , 1  , 100 , 1 , '2022-05-20 10:00:00'),

@@ -1,7 +1,9 @@
 -- Drop all tables first (in correct dependency order)
 SET FOREIGN_KEY_CHECKS = 0;
 
-DROP TABLE IF EXISTS backups, notifications, host_creds, metrics, allocations, instance_logs, audit_logs, api_keys, 
+DROP TABLE IF EXISTS  storage_volumes, storage_snapshots, storage_migrations,
+    storage_qos_policies, volume_qos_policy_assignments, storage_classes,
+    backups, notifications, host_creds, metrics, allocations, instance_logs, audit_logs, api_keys, 
     config_vars, deployment_logs, rollbacks, deployments, builds, tasks, 
     autoscaling_rules, health_checks, network_policies, service_bindings,
     routes, instances, domains, spaces, orgmember, permissions_role, 
@@ -476,6 +478,106 @@ CREATE TABLE instances (
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (allocation_id) REFERENCES allocations(id),
     FOREIGN KEY (node_id) REFERENCES workers(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE storage_volumes (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    app_id BIGINT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    size_gb BIGINT NOT NULL COMMENT 'in GB',
+    storage_class VARCHAR(100) NOT NULL DEFAULT 'standard',
+    access_mode ENUM('ReadWriteOnce', 'ReadOnlyMany', 'ReadWriteMany') DEFAULT 'ReadWriteOnce',
+    status ENUM('Provisioned', 'Bound', 'Mounted', 'Released', 'Deleting', 'Deleted') DEFAULT 'Provisioned',
+    node_id BIGINT NOT NULL COMMENT 'ID of the node where volume is mounted',
+    encryption_enabled BOOLEAN DEFAULT FALSE,
+    persistence_level ENUM('Basic', 'Enhanced', 'High', 'Maximum') DEFAULT 'High',
+    write_concern ENUM('WriteAcknowledged', 'WriteDurable', 'WriteReplicated', 'WriteDistributed') DEFAULT 'WriteDurable',
+    reclaim_policy ENUM('Delete', 'Retain') DEFAULT 'Delete',
+    filesystem_type VARCHAR(50) DEFAULT 'ext4',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    snapshot_id BIGINT NULL COMMENT 'ID of source snapshot if created from snapshot',
+    mount_path VARCHAR(255) NULL COMMENT 'Path where volume is mounted',
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_name_app (name, app_id),
+    KEY idx_storage_app_id (app_id),
+    KEY idx_storage_status (status),
+    KEY idx_storage_class (storage_class),
+    KEY idx_storage_node (node_id),
+    FOREIGN KEY (node_id) REFERENCES workers(id),
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE storage_snapshots (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    volume_id BIGINT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    size_gb BIGINT NOT NULL COMMENT 'in GB',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status ENUM('Creating', 'Available', 'Deleting', 'Deleted') DEFAULT 'Creating',
+    description VARCHAR(255) NULL,
+    retention_date DATETIME NULL COMMENT 'Date until snapshot should be retained',
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_name_volume (name, volume_id),
+    KEY idx_snapshot_volume_id (volume_id),
+    KEY idx_snapshot_status (status),
+    FOREIGN KEY (volume_id) REFERENCES storage_volumes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE storage_migrations (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    source_volume_id BIGINT NOT NULL,
+    destination_volume_id BIGINT NOT NULL,
+    migration_type ENUM('StorageClass', 'Node', 'Zone', 'Environment') NOT NULL,
+    status ENUM('Pending', 'Copying', 'Syncing', 'ReadyForCutover', 'Completed', 'Failed') DEFAULT 'Pending',
+    progress_percent INT DEFAULT 0,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME NULL,
+    is_online BOOLEAN DEFAULT TRUE COMMENT 'Whether migration is online or offline',
+    error_message TEXT NULL,
+    created_by VARCHAR(100) NOT NULL,
+    PRIMARY KEY (id),
+    KEY idx_migration_source (source_volume_id),
+    KEY idx_migration_destination (destination_volume_id),
+    KEY idx_migration_status (status),
+    FOREIGN KEY (source_volume_id) REFERENCES storage_volumes(id),
+    FOREIGN KEY (destination_volume_id) REFERENCES storage_volumes(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE storage_qos_policies (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(255) NOT NULL,
+    max_iops INT NULL COMMENT 'Maximum IOPS allowed',
+    max_throughput_mbps INT NULL COMMENT 'Maximum throughput in MBps',
+    burst_iops INT NULL COMMENT 'Allowed burst IOPS',
+    burst_duration_seconds INT NULL COMMENT 'How long bursting is allowed in seconds',
+    latency_target_ms INT NULL COMMENT 'Target latency in milliseconds',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_policy_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE volume_qos_policy_assignments (
+    volume_id BIGINT NOT NULL,
+    policy_id BIGINT NOT NULL,
+    assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (volume_id, policy_id),
+    FOREIGN KEY (volume_id) REFERENCES storage_volumes(id) ON DELETE CASCADE,
+    FOREIGN KEY (policy_id) REFERENCES storage_qos_policies(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE storage_classes (
+    name VARCHAR(100) NOT NULL,
+    provisioner VARCHAR(255) NOT NULL,
+    reclaim_policy ENUM('Delete', 'Retain') DEFAULT 'Delete',
+    volume_binding_mode ENUM('Immediate', 'WaitForFirstConsumer') DEFAULT 'Immediate',
+    allow_volume_expansion BOOLEAN DEFAULT TRUE,
+    storage_type ENUM('local-disk', 'local-resilient', 'distributed', 'geo-replicated') NOT NULL,
+    default_filesystem VARCHAR(50) DEFAULT 'ext4',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE domains (
