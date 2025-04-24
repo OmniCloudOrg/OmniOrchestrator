@@ -17,7 +17,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- Create independent tables first (no foreign keys)
 
--- Users split BIGINTo three tables: users, user_meta, and user_pii
+-- Users split into three tables: users, user_meta, and user_pii
 CREATE TABLE users (
     id BIGINT NOT NULL AUTO_INCREMENT,
     email VARCHAR(255) NOT NULL,
@@ -58,7 +58,8 @@ CREATE TABLE user_meta (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY unique_user_id (user_id),
-    INDEX idx_user_meta_user_id (user_id)
+    INDEX idx_user_meta_user_id (user_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Personally Identifiable Information (PII) - sensitive data
@@ -76,7 +77,8 @@ CREATE TABLE user_pii (
     PRIMARY KEY (id),
     UNIQUE KEY unique_user_id (user_id),
     INDEX idx_user_pii_user_id (user_id),
-    INDEX idx_user_pii_identity_verified (identity_verified)
+    INDEX idx_user_pii_identity_verified (identity_verified),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- User sessions table for better session management
@@ -97,7 +99,8 @@ CREATE TABLE user_sessions (
     UNIQUE KEY unique_session_token (session_token),
     INDEX idx_user_sessions_user_id (user_id),
     INDEX idx_user_sessions_is_active (is_active),
-    INDEX idx_user_sessions_expires_at (expires_at)
+    INDEX idx_user_sessions_expires_at (expires_at),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE roles (
@@ -175,9 +178,8 @@ CREATE TABLE regions (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    ForEIGN KEY (provider) REFERENCES providers(id) ON DELETE CASCADE,
+    FOREIGN KEY (provider) REFERENCES providers(id) ON DELETE CASCADE,
     UNIQUE KEY unique_name (name),
-    -- Spatial index removed
     INDEX idx_regions_provider (provider),
     INDEX idx_regions_class (class)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -231,7 +233,7 @@ CREATE TABLE role_user (
     scope_id BIGINT NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (user_id, role_id, scope_type, scope_id), -- Simple composite key
+    PRIMARY KEY (user_id, role_id, scope_type, scope_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
     INDEX idx_role_user_scope (scope_type, scope_id)
@@ -264,7 +266,7 @@ CREATE TABLE api_keys (
     description TEXT,
     key_hash VARCHAR(255) NOT NULL,
     prefix VARCHAR(10) NOT NULL,
-    scopes JSON, -- Specific permissions granted to this key
+    scopes JSON,
     expires_at DATETIME,
     last_used_at DATETIME,
     revoked TINYINT(1) DEFAULT 0,
@@ -446,7 +448,7 @@ CREATE TABLE instances (
     instance_type VARCHAR(255) NOT NULL,
     guid VARCHAR(36) NOT NULL,
     status ENUM('running', 'starting', 'stopping', 'stopped', 'paused', 'crashed', 'degraded', 'terminated', 'unknown') DEFAULT 'starting',
-    region_id BIGINT, -- TODO: We should make this not NULL
+    region_id BIGINT,
     container_id VARCHAR(255),
     container_ip VARCHAR(45),
     allocation_id BIGINT,
@@ -523,6 +525,11 @@ CREATE TABLE storage_snapshots (
     KEY idx_snapshot_status (status),
     FOREIGN KEY (volume_id) REFERENCES storage_volumes(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add relationship between snapshots and volumes for volumes created from snapshots
+ALTER TABLE storage_volumes 
+ADD CONSTRAINT fk_volumes_snapshot_id 
+FOREIGN KEY (snapshot_id) REFERENCES storage_snapshots(id) ON DELETE SET NULL;
 
 CREATE TABLE storage_migrations (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -616,7 +623,7 @@ CREATE TABLE routes (
     port BIGINT,
     weight BIGINT DEFAULT 100,
     https_only TINYINT(1) DEFAULT 0,
-    BIGINTernal TINYINT(1) DEFAULT 0,
+    internal TINYINT(1) DEFAULT 0,
     status ENUM('active', 'reserved', 'suspended') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -939,7 +946,6 @@ CREATE INDEX idx_host_creds_physical ON host_creds (is_physical_node);
 CREATE INDEX idx_host_creds_provider ON host_creds (provider_type);
 CREATE INDEX idx_host_creds_region ON host_creds (region_id);
 
-
 -- Create monitoring and logging tables with optimized storage
 CREATE TABLE metrics (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -955,34 +961,6 @@ CREATE TABLE metrics (
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
--- PARTITION BY RANGE (TO_DAYS(timestamp)) (
---     PARTITION p_oldest VALUES LESS THAN (TO_DAYS('2020-01-01')),
---     PARTITION p_2020_q1 VALUES LESS THAN (TO_DAYS('2020-04-01')),
---     PARTITION p_2020_q2 VALUES LESS THAN (TO_DAYS('2020-07-01')),
---     PARTITION p_2020_q3 VALUES LESS THAN (TO_DAYS('2020-10-01')),
---     PARTITION p_2020_q4 VALUES LESS THAN (TO_DAYS('2021-01-01')),
---     PARTITION p_2021_q1 VALUES LESS THAN (TO_DAYS('2021-04-01')),
---     PARTITION p_2021_q2 VALUES LESS THAN (TO_DAYS('2021-07-01')),
---     PARTITION p_2021_q3 VALUES LESS THAN (TO_DAYS('2021-10-01')),
---     PARTITION p_2021_q4 VALUES LESS THAN (TO_DAYS('2022-01-01')),
---     PARTITION p_2022_q1 VALUES LESS THAN (TO_DAYS('2022-04-01')),
---     PARTITION p_2022_q2 VALUES LESS THAN (TO_DAYS('2022-07-01')),
---     PARTITION p_2022_q3 VALUES LESS THAN (TO_DAYS('2022-10-01')),
---     PARTITION p_2022_q4 VALUES LESS THAN (TO_DAYS('2023-01-01')),
---     PARTITION p_2023_q1 VALUES LESS THAN (TO_DAYS('2023-04-01')),
---     PARTITION p_2023_q2 VALUES LESS THAN (TO_DAYS('2023-07-01')),
---     PARTITION p_2023_q3 VALUES LESS THAN (TO_DAYS('2023-10-01')),
---     PARTITION p_2023_q4 VALUES LESS THAN (TO_DAYS('2024-01-01')),
---     PARTITION p_2024_q1 VALUES LESS THAN (TO_DAYS('2024-04-01')),
---     PARTITION p_2024_q2 VALUES LESS THAN (TO_DAYS('2024-07-01')),
---     PARTITION p_2024_q3 VALUES LESS THAN (TO_DAYS('2024-10-01')),
---     PARTITION p_2024_q4 VALUES LESS THAN (TO_DAYS('2025-01-01')),
---     PARTITION p_2025_q1 VALUES LESS THAN (TO_DAYS('2025-04-01')),
---     PARTITION p_2025_q2 VALUES LESS THAN (TO_DAYS('2025-07-01')),
---     PARTITION p_2025_q3 VALUES LESS THAN (TO_DAYS('2025-10-01')),
---     PARTITION p_2025_q4 VALUES LESS THAN (TO_DAYS('2026-01-01')),
---     PARTITION p_future VALUES LESS THAN MAXVALUE
--- );
 
 CREATE TABLE instance_logs (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -999,37 +977,11 @@ CREATE TABLE instance_logs (
     KEY idx_logs_app_id (app_id),
     KEY idx_logs_log_type (log_type),
     KEY idx_logs_log_level (log_level),
-    KEY idx_logs_timestamp (timestamp)
+    KEY idx_logs_timestamp (timestamp),
+    FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE,
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci 
 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
--- PARTITION BY RANGE (TO_DAYS(timestamp)) (
---     PARTITION p_oldest VALUES LESS THAN (TO_DAYS('2020-01-01')),
---     PARTITION p_2020_q1 VALUES LESS THAN (TO_DAYS('2020-04-01')),
---     PARTITION p_2020_q2 VALUES LESS THAN (TO_DAYS('2020-07-01')),
---     PARTITION p_2020_q3 VALUES LESS THAN (TO_DAYS('2020-10-01')),
---     PARTITION p_2020_q4 VALUES LESS THAN (TO_DAYS('2021-01-01')),
---     PARTITION p_2021_q1 VALUES LESS THAN (TO_DAYS('2021-04-01')),
---     PARTITION p_2021_q2 VALUES LESS THAN (TO_DAYS('2021-07-01')),
---     PARTITION p_2021_q3 VALUES LESS THAN (TO_DAYS('2021-10-01')),
---     PARTITION p_2021_q4 VALUES LESS THAN (TO_DAYS('2022-01-01')),
---     PARTITION p_2022_q1 VALUES LESS THAN (TO_DAYS('2022-04-01')),
---     PARTITION p_2022_q2 VALUES LESS THAN (TO_DAYS('2022-07-01')),
---     PARTITION p_2022_q3 VALUES LESS THAN (TO_DAYS('2022-10-01')),
---     PARTITION p_2022_q4 VALUES LESS THAN (TO_DAYS('2023-01-01')),
---     PARTITION p_2023_q1 VALUES LESS THAN (TO_DAYS('2023-04-01')),
---     PARTITION p_2023_q2 VALUES LESS THAN (TO_DAYS('2023-07-01')),
---     PARTITION p_2023_q3 VALUES LESS THAN (TO_DAYS('2023-10-01')),
---     PARTITION p_2023_q4 VALUES LESS THAN (TO_DAYS('2024-01-01')),
---     PARTITION p_2024_q1 VALUES LESS THAN (TO_DAYS('2024-04-01')),
---     PARTITION p_2024_q2 VALUES LESS THAN (TO_DAYS('2024-07-01')),
---     PARTITION p_2024_q3 VALUES LESS THAN (TO_DAYS('2024-10-01')),
---     PARTITION p_2024_q4 VALUES LESS THAN (TO_DAYS('2025-01-01')),
---     PARTITION p_2025_q1 VALUES LESS THAN (TO_DAYS('2025-04-01')),
---     PARTITION p_2025_q2 VALUES LESS THAN (TO_DAYS('2025-07-01')),
---     PARTITION p_2025_q3 VALUES LESS THAN (TO_DAYS('2025-10-01')),
---     PARTITION p_2025_q4 VALUES LESS THAN (TO_DAYS('2026-01-01')),
---     PARTITION p_future VALUES LESS THAN MAXVALUE
--- );
 
 CREATE TABLE audit_logs (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -1054,37 +1006,11 @@ CREATE TABLE audit_logs (
     KEY idx_audit_logs_app_id (app_id),
     KEY idx_audit_logs_action (action),
     KEY idx_audit_logs_resource_type (resource_type),
-    KEY idx_audit_logs_status (status)
+    KEY idx_audit_logs_status (status),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE SET NULL,
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
--- ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8
--- PARTITION BY RANGE (TO_DAYS(created_at)) (
---     PARTITION p_oldest VALUES LESS THAN (TO_DAYS('2020-01-01')),
---     PARTITION p_2020_q1 VALUES LESS THAN (TO_DAYS('2020-04-01')),
---     PARTITION p_2020_q2 VALUES LESS THAN (TO_DAYS('2020-07-01')),
---     PARTITION p_2020_q3 VALUES LESS THAN (TO_DAYS('2020-10-01')),
---     PARTITION p_2020_q4 VALUES LESS THAN (TO_DAYS('2021-01-01')),
---     PARTITION p_2021_q1 VALUES LESS THAN (TO_DAYS('2021-04-01')),
---     PARTITION p_2021_q2 VALUES LESS THAN (TO_DAYS('2021-07-01')),
---     PARTITION p_2021_q3 VALUES LESS THAN (TO_DAYS('2021-10-01')),
---     PARTITION p_2021_q4 VALUES LESS THAN (TO_DAYS('2022-01-01')),
---     PARTITION p_2022_q1 VALUES LESS THAN (TO_DAYS('2022-04-01')),
---     PARTITION p_2022_q2 VALUES LESS THAN (TO_DAYS('2022-07-01')),
---     PARTITION p_2022_q3 VALUES LESS THAN (TO_DAYS('2022-10-01')),
---     PARTITION p_2022_q4 VALUES LESS THAN (TO_DAYS('2023-01-01')),
---     PARTITION p_2023_q1 VALUES LESS THAN (TO_DAYS('2023-04-01')),
---     PARTITION p_2023_q2 VALUES LESS THAN (TO_DAYS('2023-07-01')),
---     PARTITION p_2023_q3 VALUES LESS THAN (TO_DAYS('2023-10-01')),
---     PARTITION p_2023_q4 VALUES LESS THAN (TO_DAYS('2024-01-01')),
---     PARTITION p_2024_q1 VALUES LESS THAN (TO_DAYS('2024-04-01')),
---     PARTITION p_2024_q2 VALUES LESS THAN (TO_DAYS('2024-07-01')),
---     PARTITION p_2024_q3 VALUES LESS THAN (TO_DAYS('2024-10-01')),
---     PARTITION p_2024_q4 VALUES LESS THAN (TO_DAYS('2025-01-01')),
---     PARTITION p_2025_q1 VALUES LESS THAN (TO_DAYS('2025-04-01')),
---     PARTITION p_2025_q2 VALUES LESS THAN (TO_DAYS('2025-07-01')),
---     PARTITION p_2025_q3 VALUES LESS THAN (TO_DAYS('2025-10-01')),
---     PARTITION p_2025_q4 VALUES LESS THAN (TO_DAYS('2026-01-01')),
---     PARTITION p_future VALUES LESS THAN MAXVALUE
--- );
 
 CREATE TABLE notifications (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -1099,7 +1025,10 @@ CREATE TABLE notifications (
     KEY idx_notifications_user_id (user_id),
     KEY idx_notifications_org_id (org_id),
     KEY idx_notifications_app_id (app_id),
-    KEY idx_notifications_created_at (created_at)
+    KEY idx_notifications_created_at (created_at),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE backups (
@@ -1373,14 +1302,35 @@ CREATE INDEX idx_backups_type ON backups(backup_type);
 CREATE INDEX idx_backups_status ON backups(status);
 CREATE INDEX idx_backups_created_at ON backups(created_at);
 
--- CREATE TABLE user_settings (
---     id BIGINT NOT NULL AUTO_INCREMENT,
---     user_id BIGINT NOT NULL,
---     setting_key VARCHAR(255) NOT NULL,
---     setting_value TEXT,
---     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
---     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
---     PRIMARY KEY (id),
---     UNIQUE KEY unique_user_setting (user_id, setting_key),
---     KEY idx_user_settings_user_id (user_id)
--- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- New relation: Connect users with backups they've created
+ALTER TABLE backups
+ADD COLUMN creator_user_id BIGINT,
+ADD CONSTRAINT fk_backups_creator 
+FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE SET NULL;
+
+-- New relation: Connect backups with applications they contain
+ALTER TABLE backups
+ADD COLUMN primary_app_id BIGINT,
+ADD CONSTRAINT fk_backups_primary_app
+FOREIGN KEY (primary_app_id) REFERENCES apps(id) ON DELETE SET NULL;
+
+-- New relation: Connect nodes with workers
+CREATE TABLE nodes (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    worker_id BIGINT NOT NULL,
+    node_type ENUM('master', 'worker', 'edge', 'storage') NOT NULL,
+    hostname VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    cpu_cores INT NOT NULL,
+    ram_gb INT NOT NULL,
+    disk_gb INT NOT NULL,
+    status ENUM('active', 'maintenance', 'offline', 'provisioning', 'decommissioning') DEFAULT 'provisioning',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY unique_worker_hostname (worker_id, hostname),
+    FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,
+    INDEX idx_nodes_status (status),
+    INDEX idx_nodes_type (node_type),
+    INDEX idx_nodes_hostname (hostname)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
