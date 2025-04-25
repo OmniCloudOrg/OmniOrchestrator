@@ -69,9 +69,9 @@ use api::*;
 #[macro_use]
 extern crate rocket;
 
-// +-------------+
-// | CORS IMPLEMENTATION
-// +-------------+
+// +---------------------+
+// | CORS IMPLEMENTATION |
+// +---------------------+
 // CORS Fairing struct to add CORS headers to responses
 pub struct CORS;
 
@@ -310,14 +310,6 @@ async fn cluster_status(
 // | MAIN        |
 // +-------------+
 /// Main entry point for the OmniOrchestrator server
-///
-/// Initializes the server components in the following order:
-/// 1. Server configuration and logging
-/// 2. Database connection
-/// 3. Schema verification and optional migration
-/// 4. Cluster management and peer discovery
-/// 5. Leader election
-/// 6. API route mounting and server start
 #[rocket::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ====================== INITIALIZATION ======================
@@ -368,11 +360,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("{}", "✓ Database connection established".green());
 
     // Initialize metadata system properly with mutex protection
+    //
+    // The metadata system is used to store and manage metadata for the OmniCloud
+    // platform. It is initialized with a connection pool to the database as it lives
+    // outside of the database schema and is used by the platform to determine
+    // when to update the schema and initialize sample data before we actually
+    // touch any data or start the API.
     log::info!("{}", "Initializing metadata system...".blue());
     db::v1::queries::metadata::initialize_metadata_system(&pool).await?;
     log::info!("{}", "✓ Metadata system initialized".green());
 
     // Check database schema version and update if necessary
+    //
+    // This section checks the current schema version against the target version
+    // If they differ, it prompts the user for confirmation before proceeding
+    // with the schema update and sample data initialization
     let target_version = "1";
     let current_version = db::v1::queries::metadata::get_meta_value(&pool, "omni_schema_version")
         .await
@@ -434,6 +436,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(RwLock::new(SharedState::new(node_id.clone())));
 
     // Start peer discovery in background task
+    //
+    // This task will run in the background and periodically check for peer nodes
+    // in the cluster, performing discovery and connection operations
+    // for each discovered node. It will also log any errors encountered during
+    // discovery or connection operations.
     log::info!("{}", "Starting peer discovery background task".magenta());
     tokio::task::spawn({
         let cluster_manager = CLUSTER_MANAGER.clone();
@@ -486,6 +493,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("{}", "✓ Worker autoscaler configured".green());
 
     // Start discovery tasks
+    //
+    // This task will run in the background and periodically check for nodes
+    // and VMs in the cluster, performing discovery and scaling operations
+    // for worker nodes. It will also log any errors encountered during
+    // discovery or scaling operations.
     log::info!("{}", "Starting worker autoscaler discovery tasks".yellow());
     tokio::spawn({
         let mut autoscaler = autoscaler;
@@ -523,6 +535,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("{}", "✓ Application autoscaler configured".green());
 
     // Spawn a task to run the app autoscaler discovery and scaling loop
+    //
+    // This task will run in the background and periodically check for app instances
+    // and perform scaling operations based on the configured policy
+    // It will also log any errors encountered during discovery or scaling
+    // operations.
     log::info!("{}", "Starting application autoscaler discovery tasks".yellow());
     tokio::spawn({
         let mut app_autoscaler = app_autoscaler;
@@ -578,7 +595,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             address: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
             ..Default::default()
         })
-        .manage(pool) // Add database pool to Rocket's state
+
+        // Add database pool to Rocket's state (used by any route that needs to talk to the database) can be used in a route like:
+        // #[get("/apps/count")]
+        // pub async fn count_apps(pool: &State<sqlx::Pool<MySql>>) -> Json<i64> {
+        //     let count = db::app::count_apps(pool).await.unwrap();
+        //     Json(count)
+        // }
+        .manage(pool)
         .manage(shared_state)
         .manage(CLUSTER_MANAGER.clone())
         .attach(CORS); // Attach the CORS fairing
