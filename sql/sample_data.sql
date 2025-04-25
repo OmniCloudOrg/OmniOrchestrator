@@ -550,28 +550,28 @@ VALUES
 (1, 'nodejs', UUID(), 'running', 1 , 'container-q3r4s5t6u7v8', '10.0.0.17', 5, 17, 9,  NOW() - INTERVAL 5 MINUTE, 'healthy', 37.4, 45.1, 15.9, 259020, 0, '2024-01-15 10:39:00', '2024-01-15 10:39:00'),
 (1, 'nodejs', UUID(), 'running', 1 , 'container-w9x0y1z2a3b4', '10.0.0.18', 5, 18, 10, NOW() - INTERVAL 8 MINUTE, 'healthy', 39.8, 47.5, 16.7, 259000, 0, '2024-01-15 10:40:00', '2024-01-15 10:40:00');
 
-INSERT INTO storage_volumes (id, app_id, name, size_gb, storage_class, access_mode, status, node_id, encryption_enabled, persistence_level, write_concern, reclaim_policy, filesystem_type, created_at, updated_at, snapshot_id, mount_path)
+INSERT INTO storage_volumes (id, app_id, name, size_gb, storage_class, access_mode, status, node_id, encryption_enabled, persistence_level, write_concern, reclaim_policy, filesystem_type, storage_class_id, created_at, updated_at, snapshot_id, mount_path)
 VALUES 
-(1,  1,  'api-backend-data',       5,  'fast-local-ssd',     'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', '2023-01-15 10:30:00', '2023-01-15 10:30:00', NULL, '/data'),
-(2,  1,  'api-backend-logs',       2,  'standard',           'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-01-15 10:35:00', '2023-01-15 10:35:00', NULL, '/logs'),
-(3,  2,  'web-frontend-assets',    8,  'distributed',        'ReadOnlyMany',  'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'xfs', '2023-01-20 11:45:00', '2023-01-20 11:45:00', NULL, '/assets'),
-(4,  3,  'auth-service-data',      4,  'fast-local-ssd',     'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', '2023-02-05 09:15:00', '2023-02-05 09:15:00', NULL, '/data'),
-(5,  4,  'worker-jobs-storage',    10, 'distributed',        'ReadWriteOnce', 'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'ext4', '2023-02-10 14:30:00', '2023-02-10 14:30:00', NULL, '/storage'),
-(6,  5,  'api-staging-data',       2,  'standard',           'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-02-15 16:20:00', '2023-02-15 16:20:00', NULL, '/data'),
-(7,  7,  'api-dev-data',           1,  'local-disk',         'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-03-01 10:00:00', '2023-03-01 10:00:00', NULL, '/data'),
-(8,  9,  'data-analytics-storage', 20, 'distributed',        'ReadWriteMany', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'xfs', '2023-03-15 13:45:00', '2023-03-15 13:45:00', NULL, '/storage'),
-(9,  10, 'ml-processor-models',    15, 'performance-small',  'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'ext4', '2023-03-20 09:30:00', '2023-03-20 09:30:00', NULL, '/models'),
-(10, 16, 'code-service-repos',     8,  'distributed',        'ReadWriteMany', 'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'xfs', '2023-04-10 11:15:00', '2023-04-10 11:15:00', NULL, '/repos'),
-(11, 5,  'api-staging-backup',     3,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'Enhanced', 'WriteDurable', 'Retain', 'ext4', '2023-02-20 14:30:00', '2023-02-20 14:30:00', NULL, NULL),
-(12, 9,  'data-analytics-archive', 30, 'distributed',        'ReadOnlyMany',  'Provisioned', 1 , TRUE, 'Maximum', 'WriteDistributed', 'Retain', 'xfs', '2023-03-25 16:45:00', '2023-03-25 16:45:00', NULL, NULL),
-(13, 22, 'dev-platform-data',      4,  'local-disk',         'ReadWriteOnce', 'Deleting',    1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-04-15 10:30:00', '2023-05-10 09:15:00', NULL, NULL),
-(14, 27, 'ai-engine-models',       25, 'performance-medium', 'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'xfs', '2023-04-20 13:45:00', '2023-04-20 13:45:00', NULL, '/models'),
-(15, 28, 'data-processor-cache',   12, 'local-ssd',          'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-04-25 15:20:00', '2023-04-25 15:20:00', NULL, '/cache'),
-(16, 1,  'api-backend-snapshots',  7,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'High', 'WriteDurable', 'Retain', 'ext4', '2023-05-05 11:30:00', '2023-05-05 11:30:00', 1, NULL),
-(17, 2,  'web-frontend-backups',   6,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'Enhanced', 'WriteDurable', 'Retain', 'ext4', '2023-05-10 14:15:00', '2023-05-10 14:15:00', 3, NULL),
-(18, 10, 'ml-processor-training',  18, 'performance-small',  'ReadWriteMany', 'Provisioned', 1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'xfs', '2023-05-15 09:45:00', '2023-05-15 09:45:00', NULL, NULL),
-(19, 3,  'auth-service-certs',     1,  'local-disk',         'ReadOnlyMany',  'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', '2023-05-20 13:00:00', '2023-05-20 13:00:00', NULL, '/certs'),
-(20, 20, 'unused-volume',          5,  'standard',           'ReadWriteOnce', 'Deleted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', '2023-05-25 10:30:00', '2023-06-01 15:45:00', NULL, NULL);
+(1,  1,  'api-backend-data',       5,  'fast-local-ssd',     'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', 1, '2023-01-15 10:30:00', '2023-01-15 10:30:00', NULL, '/data'),
+(2,  1,  'api-backend-logs',       2,  'standard',           'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', 1, '2023-01-15 10:35:00', '2023-01-15 10:35:00', NULL, '/logs'),
+(3,  2,  'web-frontend-assets',    8,  'distributed',        'ReadOnlyMany',  'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'xfs', 1, '2023-01-20 11:45:00', '2023-01-20 11:45:00', NULL, '/assets'),
+(4,  3,  'auth-service-data',      4,  'fast-local-ssd',     'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', 1, '2023-02-05 09:15:00', '2023-02-05 09:15:00', NULL, '/data'),
+(5,  4,  'worker-jobs-storage',    10, 'distributed',        'ReadWriteOnce', 'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'ext4', 1, '2023-02-10 14:30:00', '2023-02-10 14:30:00', NULL, '/storage'),
+(6,  5,  'api-staging-data',       2,  'standard',           'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', 1, '2023-02-15 16:20:00', '2023-02-15 16:20:00', NULL, '/data'),
+(7,  7,  'api-dev-data',           1,  'local-disk',         'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', 1, '2023-03-01 10:00:00', '2023-03-01 10:00:00', NULL, '/data'),
+(8,  9,  'data-analytics-storage', 20, 'distributed',        'ReadWriteMany', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'xfs', 1, '2023-03-15 13:45:00', '2023-03-15 13:45:00', NULL, '/storage'),
+(9,  10, 'ml-processor-models',    15, 'performance-small',  'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'ext4', 1, '2023-03-20 09:30:00', '2023-03-20 09:30:00', NULL, '/models'),
+(10, 16, 'code-service-repos',     8,  'distributed',        'ReadWriteMany', 'Mounted',     1 , FALSE, 'High', 'WriteDurable', 'Delete', 'xfs', 1, '2023-04-10 11:15:00', '2023-04-10 11:15:00', NULL, '/repos'),
+(11, 5,  'api-staging-backup',     3,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'Enhanced', 'WriteDurable', 'Retain', 'ext4', 1, '2023-02-20 14:30:00', '2023-02-20 14:30:00', NULL, NULL),
+(12, 9,  'data-analytics-archive', 30, 'distributed',        'ReadOnlyMany',  'Provisioned', 1 , TRUE, 'Maximum', 'WriteDistributed', 'Retain', 'xfs', 1, '2023-03-25 16:45:00', '2023-03-25 16:45:00', NULL, NULL),
+(13, 22, 'dev-platform-data',      4,  'local-disk',         'ReadWriteOnce', 'Deleting',    1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', 1, '2023-04-15 10:30:00', '2023-05-10 09:15:00', NULL, NULL),
+(14, 27, 'ai-engine-models',       25, 'performance-medium', 'ReadWriteOnce', 'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Retain', 'xfs', 1, '2023-04-20 13:45:00', '2023-04-20 13:45:00', NULL, '/models'),
+(15, 28, 'data-processor-cache',   12, 'local-ssd',          'ReadWriteOnce', 'Mounted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', 1, '2023-04-25 15:20:00', '2023-04-25 15:20:00', NULL, '/cache'),
+(16, 1,  'api-backend-snapshots',  7,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'High', 'WriteDurable', 'Retain', 'ext4', 1, '2023-05-05 11:30:00', '2023-05-05 11:30:00', 1, NULL),
+(17, 2,  'web-frontend-backups',   6,  'standard',           'ReadWriteOnce', 'Provisioned', 1 , TRUE, 'Enhanced', 'WriteDurable', 'Retain', 'ext4', 1, '2023-05-10 14:15:00', '2023-05-10 14:15:00', 3, NULL),
+(18, 10, 'ml-processor-training',  18, 'performance-small',  'ReadWriteMany', 'Provisioned', 1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'xfs', 1, '2023-05-15 09:45:00', '2023-05-15 09:45:00', NULL, NULL),
+(19, 3,  'auth-service-certs',     1,  'local-disk',         'ReadOnlyMany',  'Mounted',     1 , TRUE, 'High', 'WriteReplicated', 'Delete', 'ext4', 1, '2023-05-20 13:00:00', '2023-05-20 13:00:00', NULL, '/certs'),
+(20, 20, 'unused-volume',          5,  'standard',           'ReadWriteOnce', 'Deleted',     1 , FALSE, 'Basic', 'WriteAcknowledged', 'Delete', 'ext4', 1, '2023-05-25 10:30:00', '2023-06-01 15:45:00', NULL, NULL);
 
 INSERT INTO storage_snapshots (id, volume_id, name, size_gb, created_at, status, description, retention_date)
 VALUES

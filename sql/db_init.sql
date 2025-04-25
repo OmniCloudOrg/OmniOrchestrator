@@ -482,6 +482,20 @@ CREATE TABLE instances (
     FOREIGN KEY (node_id) REFERENCES workers(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE storage_classes (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    provisioner VARCHAR(255) NOT NULL,
+    reclaim_policy ENUM('Delete', 'Retain') DEFAULT 'Delete',
+    volume_binding_mode ENUM('Immediate', 'WaitForFirstConsumer') DEFAULT 'Immediate',
+    allow_volume_expansion BOOLEAN DEFAULT TRUE,
+    storage_type ENUM('local-disk', 'local-resilient', 'distributed', 'geo-replicated') NOT NULL,
+    default_filesystem VARCHAR(50) DEFAULT 'ext4',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE storage_volumes (
     id BIGINT NOT NULL AUTO_INCREMENT,
     app_id BIGINT NOT NULL,
@@ -496,6 +510,7 @@ CREATE TABLE storage_volumes (
     write_concern ENUM('WriteAcknowledged', 'WriteDurable', 'WriteReplicated', 'WriteDistributed') DEFAULT 'WriteDurable',
     reclaim_policy ENUM('Delete', 'Retain') DEFAULT 'Delete',
     filesystem_type VARCHAR(50) DEFAULT 'ext4',
+    storage_class_id BIGINT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     snapshot_id BIGINT NULL COMMENT 'ID of source snapshot if created from snapshot',
@@ -507,6 +522,7 @@ CREATE TABLE storage_volumes (
     KEY idx_storage_class (storage_class),
     KEY idx_storage_node (node_id),
     FOREIGN KEY (node_id) REFERENCES workers(id),
+    FOREIGN KEY (storage_class_id) REFERENCES storage_classes(id) ON DELETE CASCADE,
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -572,19 +588,6 @@ CREATE TABLE volume_qos_policy_assignments (
     PRIMARY KEY (volume_id, policy_id),
     FOREIGN KEY (volume_id) REFERENCES storage_volumes(id) ON DELETE CASCADE,
     FOREIGN KEY (policy_id) REFERENCES storage_qos_policies(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE storage_classes (
-    name VARCHAR(100) NOT NULL,
-    provisioner VARCHAR(255) NOT NULL,
-    reclaim_policy ENUM('Delete', 'Retain') DEFAULT 'Delete',
-    volume_binding_mode ENUM('Immediate', 'WaitForFirstConsumer') DEFAULT 'Immediate',
-    allow_volume_expansion BOOLEAN DEFAULT TRUE,
-    storage_type ENUM('local-disk', 'local-resilient', 'distributed', 'geo-replicated') NOT NULL,
-    default_filesystem VARCHAR(50) DEFAULT 'ext4',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE domains (
