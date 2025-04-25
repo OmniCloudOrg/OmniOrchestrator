@@ -110,11 +110,24 @@ pub async fn list_apps(
     page: Option<i64>,
     per_page: Option<i64>,
     pool: &State<sqlx::Pool<MySql>>,
-) -> Result<Json<Vec<AppWithInstanceCount>>, (Status, Json<Value>)> {
+) -> Result<Json<Value>, (Status, Json<Value>)> {
     match (page, per_page) {
         (Some(p), Some(pp)) => {
             let apps = db::app::list_apps(pool, p, pp).await.unwrap();
-            Ok(Json(apps.into_iter().collect()))
+            let total_count = db::app::count_apps(pool).await.unwrap();
+            let total_pages = (total_count as f64 / pp as f64).ceil() as i64;
+
+            let response = json!({
+                "apps": apps,
+                "pagination": {
+                    "page": p,
+                    "per_page": pp,
+                    "total_count": total_count,
+                    "total_pages": total_pages
+                }
+            });
+
+            Ok(Json(response))
         }
         _ => Err((
             Status::BadRequest,
