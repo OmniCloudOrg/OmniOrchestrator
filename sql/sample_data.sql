@@ -1,4 +1,4 @@
--- Sample Data Generation Script for Cloud Platform
+-- Sample Data Generation Script for OmniCloud
 -- This script uses only direct inserts (no temp tables, no stored procedures)
 -- Compatible with all MySQL environments
 
@@ -814,10 +814,7 @@ VALUES
 (16 , 17 , 'tcp' , 443 , NULL , 'Allow code service to web portal'     , 1 , 1000 , '2022-07-30 14:00:00' , 8),
 (17 , 18 , 'tcp' , 443 , NULL , 'Allow web portal to worker tasks'     , 1 , 1000 , '2022-07-30 14:15:00' , 8),
 (18 , 16 , 'tcp' , 443 , NULL , 'Allow worker tasks to code service'   , 1 , 1000 , '2022-07-30 14:30:00' , 8);
--- 2. Populate permissions
--- 3. Populate roles
--- 4. Populate permissions_role
--- System Admin has all permissions
+
 SELECT p.id, r.id
 FROM permissions p, roles r
 WHERE r.name = 'system_admin';
@@ -834,53 +831,6 @@ AND (p.resource_type = 'organization'
      OR p.resource_type = 'route'
      OR p.resource_type = 'quota'
      OR p.resource_type = 'config');
--- 5. Populate regions
--- Add more users (11-25)
--- Add admin users
--- Insert user_meta for each user
--- Admin user metadata
--- Insert user_pii for each user
--- Create some user sessions
--- 7. Populate organizations - Direct inserts
--- Create quotas for each organization
--- Add a special organization for admins
--- Add organization members
--- Add admin users to admin org
--- VALUES
--- (@ORG_COUNT + 1, @USER_COUNT + 1, 'owner', 'accepted'),
--- (@ORG_COUNT + 1, @USER_COUNT + 2, 'admin', 'accepted'),
--- (@ORG_COUNT + 1, @USER_COUNT + 3, 'admin', 'accepted');
--- Add API keys for organizations
--- Add API key for admin org
--- VALUES
--- (@ORG_COUNT + 1, @USER_COUNT + 1, 'Admin API Key', SHA2('admin_api_key_hash', 256), 'admincld', JSON_ARRAY('*'));
--- 8. Populate spaces - Direct inserts
--- Add default spaces for admin org
--- VALUES
--- (@ORG_COUNT + 1, 'production', 'Production Space', 'active', '2020-01-01 00:00:00'),
--- (@ORG_COUNT + 1, 'staging', 'Staging Space', 'active', '2020-01-01 00:00:00'),
--- (@ORG_COUNT + 1, 'development', 'Development Space', 'active', '2020-01-01 00:00:00');
--- 9. Populate nodes
--- 10. Populate data services
--- 11. Populate domains
--- Add system domains
--- 12. Populate apps
--- Continue with more apps 31-50
--- Create health checks for apps
--- Create auto-scaling rules for some apps
--- Add environment variables
--- 13. Populate instances (simplified)
--- Add more instances
--- 14. Populate routes
--- 15. Populate service bindings (simplified)
--- 16. Populate builds (simplified)
--- 17. Populate deployments (simplified)
--- Add some deployment logs
--- 18. Populate tasks (simplified)
--- 19. Populate audit logs (simplified)
--- 20. Populate instance logs (simplified)
--- 21. Populate metrics (simplified)
--- 22. Populate network policies (simplified)
 
 -- Insert notifications
 INSERT INTO notifications (user_id, org_id, app_id, notification_type, message, read_status, created_at)
