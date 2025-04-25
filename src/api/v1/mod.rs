@@ -16,6 +16,7 @@ pub mod workers;
 pub mod control;
 pub mod metrics;
 pub mod providers;
+pub mod storage;
 //pub mod deployments;
 
 use control::*;
@@ -33,6 +34,7 @@ use instances::*;
 use permissions::*;
 use metrics::*;
 use providers::*;
+use storage::*;
 // use platforms::*;
 // use deployments::*;
 
@@ -106,6 +108,10 @@ pub fn routes() -> Vec<rocket::Route> {
         // Metrics
         get_metrics,
         get_metrics_by_app_id,
+
+        // Storage
+        list_storage_volumes_paginated,
+        count_storage_volumes,
 
         // CLI
         control::backup::get_backup,
