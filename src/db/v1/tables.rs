@@ -19,6 +19,26 @@ pub struct User {
     pub last_login_at: Option<DateTime<Utc>>,
 }
 
+#[rocket::async_trait]
+impl<'r> rocket::request::FromRequest<'r> for User {
+    type Error = ();
+
+    async fn from_request(_request: &'r rocket::Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
+        // Placeholder implementation
+        rocket::request::Outcome::Success(User {
+            id: 0,
+            name: String::new(),
+            salt: String::new(),
+            email: String::new(),
+            active: false,
+            password: String::new(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_login_at: None,
+        })
+    }
+}
+
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct App {
     pub id: i64,
@@ -287,7 +307,7 @@ pub struct VolumeQosPolicyAssignment {
 }
 
 // User Notifications
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct UserNotification {
     pub id: i64,
     pub user_id: i64,
@@ -304,7 +324,7 @@ pub struct UserNotification {
 }
 
 // Role Notifications
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct RoleNotification {
     pub id: i64,
     pub role_id: i64,
@@ -316,11 +336,11 @@ pub struct RoleNotification {
     pub action_url: Option<String>,
     pub action_label: Option<String>,
     pub created_at: DateTime<Utc>,
-    pub expires_at: Option<DateTime<Utc>>
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 // Notification Acknowledgments
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct NotificationAcknowledgment {
     pub id: i64,
     pub user_id: i64,
@@ -330,7 +350,7 @@ pub struct NotificationAcknowledgment {
 }
 
 // System Alerts
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Alert {
     pub id: i64,
     pub alert_type: String,
@@ -350,7 +370,7 @@ pub struct Alert {
 }
 
 // Alert Acknowledgments
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct AlertAcknowledgment {
     pub id: i64,
     pub alert_id: i64,
@@ -360,7 +380,7 @@ pub struct AlertAcknowledgment {
 }
 
 // Alert Escalations
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct AlertEscalation {
     pub id: i64,
     pub alert_id: i64,
@@ -371,8 +391,38 @@ pub struct AlertEscalation {
     pub response_required_by: Option<DateTime<Utc>>,
 }
 
+/// Represents an alert with all its related data (acknowledgments, escalations, and history).
+/// This comprehensive view is useful for detailed alert pages.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AlertWithRelatedData {
+    /// The core alert data
+    pub alert: Alert,
+    /// List of all acknowledgments for this alert
+    pub acknowledgments: Vec<AlertAcknowledgment>,
+    /// List of all escalations for this alert
+    pub escalations: Vec<AlertEscalation>,
+    /// History of all actions taken on this alert
+    pub history: Vec<AlertHistory>
+}
+
+/// Represents an alert with its acknowledgment information.
+/// This is useful for displaying alerts with their acknowledgment status.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AlertWithAcknowledgments {
+    /// The core alert data
+    pub alert: Alert,
+    /// List of acknowledgments for this alert
+    pub acknowledgments: Vec<AlertAcknowledgment>,
+    /// Whether the alert has been acknowledged
+    pub is_acknowledged: bool,
+    /// Total number of acknowledgments
+    pub acknowledgment_count: i64,
+    /// Timestamp of the most recent acknowledgment, if any
+    pub latest_acknowledgment: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 // Alert History
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct AlertHistory {
     pub id: i64,
     pub alert_id: i64,
@@ -470,6 +520,36 @@ pub struct Notification {
     pub message: String,
     pub read_status: bool,
     pub created_at: DateTime<Utc>,
+}
+
+/// Represents a comprehensive view of a user's notifications with unread counts.
+/// This is useful for providing notification center overviews.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NotificationWithCount {
+    /// Direct notifications for the user
+    pub user_notifications: Vec<UserNotification>,
+    /// Role-based notifications applicable to the user
+    pub role_notifications: Vec<RoleNotification>,
+    /// User's acknowledgments of role notifications
+    pub acknowledgments: Vec<NotificationAcknowledgment>,
+    /// Count of unread direct user notifications
+    pub unread_user_count: i64,
+    /// Count of unacknowledged role notifications
+    pub unacknowledged_role_count: i64,
+    /// Total count of unread notifications (user + role)
+    pub total_unread_count: i64
+}
+
+/// Represents a user's notifications including those from their roles.
+/// This combines personal notifications with role-based ones.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserNotificationWithRoleNotifications {
+    /// Direct notifications for the user
+    pub user_notifications: Vec<UserNotification>,
+    /// Role-based notifications applicable to the user
+    pub role_notifications: Vec<RoleNotification>,
+    /// User's acknowledgments of role notifications
+    pub acknowledgments: Vec<NotificationAcknowledgment>
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]

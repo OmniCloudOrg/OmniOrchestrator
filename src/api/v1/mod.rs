@@ -17,6 +17,7 @@ pub mod control;
 pub mod metrics;
 pub mod providers;
 pub mod storage;
+pub mod notifications;
 //pub mod deployments;
 
 use control::*;
@@ -35,6 +36,7 @@ use permissions::*;
 use metrics::*;
 use providers::*;
 use storage::*;
+use notifications::*;
 // use platforms::*;
 // use deployments::*;
 
@@ -55,6 +57,33 @@ pub fn routes() -> Vec<rocket::Route> {
         get_app_with_instances,
         // alerts
         list_alerts,
+        get_alert,
+        create_alert,
+        update_alert_status,
+        acknowledge_alert,
+        resolve_alert,
+        escalate_alert,
+        get_app_alerts,
+        get_org_active_alerts,
+        get_org_alert_stats,
+        get_alerts_needing_escalation,
+        auto_resolve_old_alerts,
+        search_alerts,
+        bulk_update_alert_status,
+        // Notifications
+        list_user_notifications,
+        count_unread_user_notifications,
+        get_user_notification_by_id,
+        create_user_notification,
+        mark_user_notification_as_read,
+        mark_all_user_notifications_as_read,
+        delete_user_notification,
+        delete_read_user_notifications,
+        list_role_notifications,
+        create_role_notification,
+        acknowledge_notification,
+        get_all_user_notifications_with_count,
+
         // instances
         list_instances,
         list_instances_by_region,
@@ -65,6 +94,7 @@ pub fn routes() -> Vec<rocket::Route> {
         // users
         handle_create_user,
         handle_login,
+        get_current_user,
         // permissions
         list_permission,
         get_permission_by_id,

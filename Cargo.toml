@@ -34,6 +34,7 @@ ssh2 = { version = "0.9" }
 libomni = "0.2.3"
 dotenv = { version = "0.15"}
 paxakos = "0.13.0"
+jsonwebtoken = "9.3.1"
 
 [profile.dev]
 codegen-units = 32
