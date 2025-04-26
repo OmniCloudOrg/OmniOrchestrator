@@ -42,6 +42,17 @@ pub async fn list_builds_paginated(
     Ok(builds)
 }
 
+/// Retrieves the total number of builds in the system.
+pub async fn get_total_build_count(pool: &Pool<MySql>) -> anyhow::Result<i64> {
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM builds")
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch build count")?;
+
+    Ok(count)
+}
+
+
 /// Retrieves a paginated list of builds for a specific application.
 ///
 /// This function fetches builds associated with a particular application,

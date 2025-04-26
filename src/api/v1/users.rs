@@ -1,8 +1,10 @@
 use super::super::super::db::v1::queries::user::{create_user, login_user};
+use crate::db::v1::tables::User;
 use log;
 use rand::rngs::OsRng;
 use rand::Rng;
-use rocket::http::Status;
+use rocket::{http::Status, serde::json};
+use rocket::serde::json::json;
 use rocket::post;
 use rocket::response::status::Custom;
 use rocket::State;
@@ -113,4 +115,9 @@ pub async fn handle_login(pool: &State<Pool>, data: String) -> Custom<String> {
             )
         }
     }
+}
+
+#[get("/me")]
+pub async fn get_current_user(user: User) -> Result<rocket::serde::json::Value, Status> {
+    Ok(json!(user))
 }

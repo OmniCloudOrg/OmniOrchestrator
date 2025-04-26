@@ -8,7 +8,7 @@
 use crate::db::tables::Build;
 use crate::db::v1::queries as db;
 use rocket::http::Status;
-use rocket::serde::json::Json;
+use rocket::serde::json::{self, json, Json};
 use rocket::{delete, get, http::ContentType, post, put, Data, State};
 use sqlx::MySql;
 
@@ -31,15 +31,29 @@ pub async fn list_builds(
     pool: &State<sqlx::Pool<MySql>>,
     page: Option<u32>,
     per_page: Option<u32>,
-) -> Json<Vec<Build>> {
-    let page: i64 = page.unwrap_or(1).into();
+) -> Json<serde_json::Value> {
+    let page: i64 = page.unwrap_or(0).into();
     let per_page: i64 = per_page.unwrap_or(10).into();
+    let offset = page * per_page;
 
-    let builds = db::build::list_builds_paginated(pool, per_page, page)
+    let builds = db::build::list_builds_paginated(pool, per_page, offset)
         .await
         .unwrap();
 
-    Json(builds)
+    let total_count = db::build::get_total_build_count(pool).await.unwrap();
+    let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
+
+    let response = json!({
+        "builds": builds,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "total_pages": total_pages
+        }
+    });
+
+    Json(response)
 }
 
 /// List builds for a specific application with pagination support.

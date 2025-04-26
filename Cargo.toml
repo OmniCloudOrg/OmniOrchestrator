@@ -1,6 +1,6 @@
 [package]
 name = "omni-orchestrator"
-version = "0.1.0-in-dev-3b4d9b8a2f2cf00cac4618bc5c7d728d857336a8"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
@@ -34,6 +34,7 @@ ssh2 = { version = "0.9" }
 libomni = "0.2.3"
 dotenv = { version = "0.15"}
 paxakos = "0.13.0"
+jsonwebtoken = "9.3.1"
 
 [profile.dev]
 codegen-units = 32

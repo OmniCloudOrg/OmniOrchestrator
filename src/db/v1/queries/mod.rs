@@ -14,3 +14,4 @@ pub mod backup;
 pub mod metrics;
 pub mod provider;
 pub mod storage;
+pub mod notification;
