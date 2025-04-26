@@ -1,13 +1,9 @@
 use rocket::response::content;
-use serde::{Deserialize, Serialize};
-use env_logger::{Builder, Target};
+use serde::Serialize;
 use lazy_static::lazy_static;
-use reqwest::Client;
-use rocket::serde::json::Json;
 use rocket::Build;
 use rocket::Rocket;
-use std::{env, sync::Arc};
-use tokio::sync::RwLock;
+use std::sync::Arc;
 use std::sync::Mutex;
 
 /// Route information structure for API documentation
