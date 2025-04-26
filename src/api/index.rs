@@ -173,10 +173,14 @@ pub fn routes_ui() -> content::RawHtml<String> {
             };
 
             route_rows.push_str(&format!(
-                "<tr class=\"route-row\" data-method=\"{}\" data-path=\"{}\" data-version=\"{}\">
-                    <td class=\"method-col\"><span class=\"method {}\">{}</span></td>
-                    <td class=\"path-col\"><a href=\"{}\" style=\"color: white; text-decoration: none;\">{}</a></td>
-                </tr>\n",
+                r#"<tr class="route-row border-b border-gray-800" data-method="{}" data-path="{}" data-version="{}">
+                    <td class="py-3 px-4">
+                      <span class="method {} text-sm font-medium px-3 py-1 rounded">{}</span>
+                    </td>
+                    <td class="py-3 px-4">
+                      <a href="{}" class="text-gray-300 hover:text-white hover:underline transition duration-150">{}</a>
+                    </td>
+                </tr>"#,
                 method.to_lowercase(),
                 escaped_path.to_lowercase(),
                 version.to_lowercase(),
@@ -197,142 +201,201 @@ pub fn routes_ui() -> content::RawHtml<String> {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OmniOrchestrator API</title>
     <style>
+        :root {{
+            --color-gray-900: #111827;
+            --color-gray-800: #1F2937;
+            --color-gray-700: #374151;
+            --color-gray-600: #4B5563;
+            --color-gray-500: #6B7280;
+            --color-gray-400: #9CA3AF;
+            --color-gray-300: #D1D5DB;
+            --color-gray-200: #E5E7EB;
+            --color-gray-100: #F3F4F6;
+            --color-gray-50: #F9FAFB;
+            --color-blue-500: #3B82F6;
+            --color-blue-600: #2563EB;
+            --color-green-500: #10B981;
+            --color-yellow-500: #F59E0B;
+            --color-red-500: #EF4444;
+            --color-purple-500: #8B5CF6;
+        }}
+        
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
         body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--color-gray-900);
+            color: var(--color-gray-300);
+            line-height: 1.5;
         }}
-        h1 {{
-            color: #2c3e50;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 10px;
+
+        a {{
+            color: var(--color-blue-200);
+            text-decoration: none;
         }}
+        
         .container {{
-            background-color: #fff;
-            border-radius: 8px;
-            padding: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
         }}
-        .routes-section {{
-            background-color: #fff;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        
+        .header {{
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--color-gray-800);
+            padding-bottom: 1.5rem;
         }}
+        
+        h1 {{
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: white;
+        }}
+        
+        h2 {{
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: white;
+        }}
+        
+        p {{
+            margin-bottom: 1rem;
+            color: var(--color-gray-400);
+        }}
+        
+        .filters {{
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }}
+        
+        .filter-input {{
+            flex: 1;
+            min-width: 200px;
+            padding: 0.75rem 1rem;
+            background-color: var(--color-gray-800);
+            border: 1px solid var(--color-gray-700);
+            border-radius: 0.5rem;
+            color: var(--color-gray-300);
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }}
+        
+        .filter-input:focus {{
+            outline: none;
+            border-color: var(--color-blue-500);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }}
+        
+        .table-container {{
+            background-color: var(--color-gray-800);
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }}
+        
         table {{
             width: 100%;
-            border-collapse: separate;
-            border-spacing: 0;
+            border-collapse: collapse;
         }}
-        th, td {{
-            text-align: left;
-            padding: 12px 15px;
-            border-bottom: 1px solid #eee;
+        
+        thead {{
+            background-color: var(--color-gray-800);
+            border-bottom: 2px solid var(--color-gray-700);
         }}
+        
         th {{
-            background-color: #f8f9fa;
+            text-align: left;
+            padding: 1rem;
             font-weight: 600;
+            color: var(--color-gray-200);
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.05em;
         }}
+        
+        td {{
+            padding: 0.75rem 1rem;
+        }}
+        
         .method {{
             display: inline-block;
-            padding: 6px 10px;
-            border-radius: 4px;
-            color: white;
-            font-weight: bold;
             min-width: 60px;
             text-align: center;
+            font-weight: 500;
         }}
-        .method-col {{
-            width: 100px;
-        }}
+        
         .get {{
-            background-color: #61affe;
+            background-color: var(--color-blue-500);
+            color: white;
         }}
+        
         .post {{
-            background-color: #49cc90;
+            background-color: var(--color-green-500);
+            color: white;
         }}
+        
         .put {{
-            background-color: #fca130;
+            background-color: var(--color-yellow-500);
+            color: white;
         }}
+        
         .delete {{
-            background-color: #f93e3e;
+            background-color: var(--color-red-500);
+            color: white;
         }}
+        
         .patch {{
-            background-color: #9c42be;
+            background-color: var(--color-purple-500);
+            color: white;
         }}
-        /* Search and Filter Styles */
-        .search-container {{
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+        
+        .empty-message {{
+            padding: 2rem;
+            text-align: center;
+            color: var(--color-gray-500);
         }}
-        #searchInput, #methodFilter, #versionFilter {{
-            padding: 10px;
-            width: calc(33.33% - 10px);
-            border: 1px solid #ccc;
-            border-radius: 8px;
-            background-color: #f8f9fa;
-            color: #333;
-            font-size: 14px;
-            transition: all 0.3s ease;
+
+        .border-b {{
+            border-bottom-width: 1px;
         }}
-        #searchInput:focus, #methodFilter:focus, #versionFilter:focus {{
-            outline: none;
-            border-color: #3498db;
-            box-shadow: 0 0 5px rgba(52, 152, 219, 0.5);
+
+        .border-gray-800 {{
+            border-color: var(--color-gray-700);
         }}
-        option {{
-            padding: 10px;
-        }}
-        /* Dark Mode Styles */
-        @media (prefers-color-scheme: dark) {{
-            body {{
-                background-color: #1a1a1a;
-                color: #e0e0e0;
+
+        /* Responsive adjustments */
+        @media (max-width: 640px) {{
+            .filters {{
+                flex-direction: column;
             }}
-            .container, .routes-section {{
-                background-color: #2d2d2d;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            }}
-            th {{
-                background-color: #3d3d3d;
-            }}
-            td {{
-                border-bottom: 1px solid #444;
-            }}
-            h1 {{
-                color: #81a1c1;
-                border-bottom-color: #5e81ac;
-            }}
-            #searchInput, #methodFilter, #versionFilter {{
-                background-color: #2d2d2d;
-                color: #e0e0e0;
-                border: 1px solid #444;
-            }}
-            #searchInput:focus, #methodFilter:focus, #versionFilter:focus {{
-                border-color: #81a1c1;
-                box-shadow: 0 0 5px rgba(94, 129, 172, 0.5);
+            
+            .filter-input {{
+                width: 100%;
             }}
         }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Welcome to OmniOrchestrator</h1>
-        <p>OmniOrchestrator is a distributed system for managing and orchestrating the OmniCloud platform. Please refer to the API documentation below to get started!</p>
-    </div>
+        <div class="header">
+            <h1>OmniOrchestrator API</h1>
+            <p>Browse the available API endpoints and explore the platform capabilities.</p>
+        </div>
 
-    <div class="routes-section">
-        <h2>Available Routes</h2>
-
-        <!-- Search Bar and Filters -->
-        <div class="search-container">
-            <input type="text" id="searchInput" placeholder="Search routes by path..." onkeyup="filterRoutes()">
-            <select id="methodFilter" onchange="filterRoutes()">
+        <h2>API Routes</h2>
+        
+        <div class="filters">
+            <input type="text" id="searchInput" class="filter-input" placeholder="Search routes..." onkeyup="filterRoutes()">
+            
+            <select id="methodFilter" class="filter-input" onchange="filterRoutes()">
                 <option value="all">All Methods</option>
                 <option value="get">GET</option>
                 <option value="post">POST</option>
@@ -340,51 +403,64 @@ pub fn routes_ui() -> content::RawHtml<String> {
                 <option value="delete">DELETE</option>
                 <option value="patch">PATCH</option>
             </select>
-            <select id="versionFilter" onchange="filterRoutes()">
+            
+            <select id="versionFilter" class="filter-input" onchange="filterRoutes()">
                 {version_options}
             </select>
         </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Method</th>
-                    <th>Path</th>
-                </tr>
-            </thead>
-            <tbody id="routesTable">
-                {route_rows}
-            </tbody>
-        </table>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th width="120">Method</th>
+                        <th>Endpoint</th>
+                    </tr>
+                </thead>
+                <tbody id="routesTable">
+                    {route_rows}
+                </tbody>
+            </table>
+            <div id="emptyMessage" class="empty-message" style="display: none;">
+                No routes match your filter criteria
+            </div>
+        </div>
     </div>
 
     <script>
         function filterRoutes() {{
-            let input = document.getElementById('searchInput').value.toLowerCase();
-            let methodFilter = document.getElementById('methodFilter').value.toLowerCase();
-            let versionFilter = document.getElementById('versionFilter').value.toLowerCase();
-            let rows = document.querySelectorAll('.route-row');
-
+            const input = document.getElementById('searchInput').value.toLowerCase();
+            const methodFilter = document.getElementById('methodFilter').value.toLowerCase();
+            const versionFilter = document.getElementById('versionFilter').value.toLowerCase();
+            const rows = document.querySelectorAll('.route-row');
+            const emptyMessage = document.getElementById('emptyMessage');
+            
+            let visibleCount = 0;
+            
             rows.forEach(row => {{
-                let method = row.getAttribute('data-method').toLowerCase();
-                let path = row.getAttribute('data-path').toLowerCase();
-                let version = row.getAttribute('data-version').toLowerCase();
+                const method = row.getAttribute('data-method').toLowerCase();
+                const path = row.getAttribute('data-path').toLowerCase();
+                const version = row.getAttribute('data-version').toLowerCase();
                 
-                // Match method, version, and path with filters
-                let methodMatch = methodFilter === 'all' || method === methodFilter;
-                let versionMatch = 
+                // Match criteria
+                const methodMatch = methodFilter === 'all' || method === methodFilter;
+                const versionMatch = 
                     versionFilter === 'all' || 
                     (versionFilter === 'unversioned' && version === 'unversioned') || 
                     version === versionFilter;
-                let pathMatch = path.includes(input);
-
-                // Show row if all conditions match
+                const pathMatch = path.includes(input);
+                
+                // Show/hide row based on matches
                 if (methodMatch && versionMatch && pathMatch) {{
                     row.style.display = '';
+                    visibleCount++;
                 }} else {{
                     row.style.display = 'none';
                 }}
             }});
+            
+            // Show empty message if no results
+            emptyMessage.style.display = visibleCount > 0 ? 'none' : 'block';
         }}
     </script>
 </body>
