@@ -53,7 +53,10 @@ impl<'r> FromRequest<'r> for User {
 
     async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
         // Get the auth config from Rocket state
-        let auth_config = request.rocket().state::<AuthConfig>().unwrap();
+        let auth_config = match request.rocket().state::<AuthConfig>() {
+            Some(cfg) => cfg,
+            None => return Outcome::Error((Status::Unauthorized, ())),
+        };
         
         // Extract the token from the Authorization header
         let token = request
