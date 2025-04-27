@@ -99,7 +99,8 @@ pub fn routes() -> Vec<rocket::Route> {
         change_password,
         logout,
         get_user_profile,
-        update_user_profile,
+        list_user_sessions,
+        invalidate_user_session,
         // permissions
         list_permission,
         get_permission_by_id,

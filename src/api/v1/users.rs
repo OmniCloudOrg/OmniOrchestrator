@@ -1,6 +1,6 @@
 use super::super::super::db::v1::queries::user::{
     create_user, get_user_by_email, record_login_attempt, create_session,
-    invalidate_session, update_user_security, update_user_pii, update_user_meta, get_user_by_id
+    invalidate_session, update_user_security, update_user_pii, update_user_meta, get_user_sessions
 };
 use super::super::super::db::v1::queries::user::{
     get_user_meta, get_user_pii
@@ -503,6 +503,49 @@ async fn create_auth_token_and_session(
     };
     
     Ok((token, session_id))
+}
+
+///list all sessions for a user
+#[get("/auth/sessions")]
+pub async fn list_user_sessions(
+    user: User,
+    pool: &State<Pool>,
+) -> Result<rocket::serde::json::Value, Custom<String>> {
+    // Fetch user sessions
+    match get_user_sessions(pool, user.id).await {
+        Ok(sessions) => Ok(json!({
+            "sessions": sessions
+        })),
+        Err(e) => {
+            log::error!("Error fetching user sessions: {}", e);
+            Err(Custom(
+                Status::InternalServerError,
+                String::from("Error fetching user sessions"),
+            ))
+        }
+    }
+}
+
+/// Invalidate a specific session
+#[delete("/auth/sessions/<session_id>")]
+pub async fn invalidate_user_session(
+    user: User,
+    session_id: String,
+    pool: &State<Pool>,
+) -> Result<rocket::serde::json::Value, Custom<String>> {
+    // Invalidate the session
+    match invalidate_session(pool, &session_id).await {
+        Ok(_) => Ok(json!({
+            "message": "Session invalidated successfully"
+        })),
+        Err(e) => {
+            log::error!("Error invalidating session: {}", e);
+            Err(Custom(
+                Status::InternalServerError,
+                String::from("Error invalidating session"),
+            ))
+        }
+    }
 }
 
 /// Get the current user's complete profile including meta and PII data

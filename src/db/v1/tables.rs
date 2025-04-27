@@ -83,6 +83,9 @@ impl<'r> rocket::request::FromRequest<'r> for User {
     type Error = ();
 
     async fn from_request(request: &'r rocket::Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
+        // Log the request path for context
+        log::info!("Authentication attempt for path: {}", request.uri().path());
+        
         // Get the authentication config
         let auth_config = match request.rocket().state::<AuthConfig>() {
             Some(config) => config,
@@ -99,26 +102,34 @@ impl<'r> rocket::request::FromRequest<'r> for User {
                 return rocket::request::Outcome::Forward(rocket::http::Status::InternalServerError);
             }
         };
-
+    
         // Check for Authorization header first (Bearer token)
         let token = if let Some(auth_header) = request.headers().get_one("Authorization") {
             if auth_header.starts_with("Bearer ") {
+                log::info!("Found Bearer token in Authorization header");
                 Some(auth_header.trim_start_matches("Bearer ").to_string())
             } else {
+                log::info!("Authorization header present but not a Bearer token");
                 None
             }
         } else {
+            log::info!("No Authorization header found");
             None
         };
-
+    
         // If no Authorization header, check for session_id cookie
         let user_id = if let Some(token_str) = token {
             // Validate the JWT token
+            log::info!("Attempting JWT token validation");
             match validate_token(&token_str, auth_config) {
                 Ok(claims) => {
                     // Extract user ID from sub claim
+                    log::info!("JWT token validated successfully");
                     match claims.sub.parse::<i64>() {
-                        Ok(id) => Some(id),
+                        Ok(id) => {
+                            log::info!("User authenticated via JWT token, user_id: {}", id);
+                            Some(id)
+                        },
                         Err(e) => {
                             log::error!("Failed to parse user ID from token: {}", e);
                             None
@@ -132,6 +143,7 @@ impl<'r> rocket::request::FromRequest<'r> for User {
             }
         } else if let Some(session_cookie) = request.cookies().get("session_id") {
             // Look up session in database using query_as with the SessionData struct
+            log::info!("Attempting session cookie validation");
             match sqlx::query_as::<_, SessionData>(
                 "SELECT user_id FROM user_sessions WHERE session_token = ? AND expires_at > NOW() AND is_active = 1"
             )
@@ -140,6 +152,7 @@ impl<'r> rocket::request::FromRequest<'r> for User {
             .await {
                 Ok(Some(session)) => {
                     // Update last_activity
+                    log::info!("Session found and valid for user_id: {}", session.user_id);
                     let _ = sqlx::query(
                         "UPDATE user_sessions SET last_activity = NOW() WHERE session_token = ?"
                     )
@@ -160,12 +173,14 @@ impl<'r> rocket::request::FromRequest<'r> for User {
             }
         } else {
             // No authentication provided
+            log::info!("No authentication method found");
             None
         };
-
+    
         // Fetch the user if we have an ID
         if let Some(id) = user_id {
             // Use query_as to fetch the complete user
+            log::info!("Fetching user details for user_id: {}", id);
             match sqlx::query_as::<_, User>(
                 "SELECT * FROM users WHERE id = ?"
             )
@@ -175,6 +190,7 @@ impl<'r> rocket::request::FromRequest<'r> for User {
                 Ok(user) => {
                     // Check if user is active
                     if user.active {
+                        log::info!("User {} successfully authenticated and active", id);
                         rocket::request::Outcome::Success(user)
                     } else {
                         log::warn!("Inactive user attempted access: {}", id);
@@ -188,6 +204,7 @@ impl<'r> rocket::request::FromRequest<'r> for User {
             }
         } else {
             // No valid authentication
+            log::info!("Authentication failed, no valid credentials");
             rocket::request::Outcome::Forward(rocket::http::Status::Unauthorized)
         }
     }
