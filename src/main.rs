@@ -590,6 +590,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let auth_config = AuthConfig {
         jwt_secret: std::env::var("JWT_SECRET").expect("Environment variable JWT_SECRET must be set for secure operation."),
+        token_expiry_hours: std::env::var("TOKEN_EXPIRY_HOURS")
+            .unwrap_or_else(|_| "24".to_string())
+            .parse()
+            .expect("Invalid value for TOKEN_EXPIRY_HOURS"),
     };
 
     // Build Rocket instance with base configuration
