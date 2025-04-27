@@ -3,8 +3,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use sqlx::types::Json;
+use sqlx::Pool;
+use sqlx::MySql;
 use serde_json::Value; 
 use sqlx::Row;
+use jsonwebtoken::{decode, encode, DecodingKey, Validation, Algorithm};
+
+use crate::api::auth::{AuthConfig, Claims};
 
 #[derive(Debug, sqlx::FromRow, Serialize, Clone, Deserialize)]
 pub struct User {
@@ -21,27 +26,140 @@ pub struct User {
     pub last_login_at: Option<DateTime<Utc>>,
 }
 
+// Define a struct for session data
+#[derive(Debug, sqlx::FromRow)]
+struct SessionData {
+    user_id: i64,
+}
+
 #[rocket::async_trait]
 impl<'r> rocket::request::FromRequest<'r> for User {
     type Error = ();
 
-    async fn from_request(_request: &'r rocket::Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
-        // Placeholder implementation
-        rocket::request::Outcome::Success(User {
-            id: 0,
-            email: String::new(),
-            email_verified: 0,
-            password: String::new(),
-            salt: String::new(),
-            login_attempts: 0,
-            active: false,
-            status: String::new(),
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            last_login_at: None,
-        })
+    async fn from_request(request: &'r rocket::Request<'_>) -> rocket::request::Outcome<Self, Self::Error> {
+        // Get the authentication config
+        let auth_config = match request.rocket().state::<AuthConfig>() {
+            Some(config) => config,
+            None => {
+                log::error!("AuthConfig not found in rocket state");
+                return rocket::request::Outcome::Forward(rocket::http::Status::InternalServerError)
+            }
+        };
+        
+        let pool = match request.rocket().state::<Pool<MySql>>() {
+            Some(p) => p,
+            None => {
+                log::error!("Database pool not found in rocket state");
+                return rocket::request::Outcome::Forward(rocket::http::Status::InternalServerError);
+            }
+        };
+
+        // Check for Authorization header first (Bearer token)
+        let token = if let Some(auth_header) = request.headers().get_one("Authorization") {
+            if auth_header.starts_with("Bearer ") {
+                Some(auth_header.trim_start_matches("Bearer ").to_string())
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // If no Authorization header, check for session_id cookie
+        let user_id = if let Some(token_str) = token {
+            // Validate the JWT token
+            match validate_token(&token_str, auth_config) {
+                Ok(claims) => {
+                    // Extract user ID from sub claim
+                    match claims.sub.parse::<i64>() {
+                        Ok(id) => Some(id),
+                        Err(e) => {
+                            log::error!("Failed to parse user ID from token: {}", e);
+                            None
+                        }
+                    }
+                },
+                Err(e) => {
+                    log::error!("JWT validation failed: {}", e);
+                    None
+                }
+            }
+        } else if let Some(session_cookie) = request.cookies().get("session_id") {
+            // Look up session in database using query_as with the SessionData struct
+            match sqlx::query_as::<_, SessionData>(
+                "SELECT user_id FROM user_sessions WHERE session_token = ? AND expires_at > NOW() AND is_active = 1"
+            )
+            .bind(session_cookie.value())
+            .fetch_optional(pool)
+            .await {
+                Ok(Some(session)) => {
+                    // Update last_activity
+                    let _ = sqlx::query(
+                        "UPDATE user_sessions SET last_activity = NOW() WHERE session_token = ?"
+                    )
+                    .bind(session_cookie.value())
+                    .execute(pool)
+                    .await;
+                    
+                    Some(session.user_id)
+                },
+                Ok(None) => {
+                    log::warn!("Invalid or expired session: {}", session_cookie.value());
+                    None
+                },
+                Err(e) => {
+                    log::error!("Database error looking up session: {}", e);
+                    None
+                }
+            }
+        } else {
+            // No authentication provided
+            None
+        };
+
+        // Fetch the user if we have an ID
+        if let Some(id) = user_id {
+            // Use query_as to fetch the complete user
+            match sqlx::query_as::<_, User>(
+                "SELECT * FROM users WHERE id = ?"
+            )
+            .bind(id)
+            .fetch_one(pool)
+            .await {
+                Ok(user) => {
+                    // Check if user is active
+                    if user.active {
+                        rocket::request::Outcome::Success(user)
+                    } else {
+                        log::warn!("Inactive user attempted access: {}", id);
+                        rocket::request::Outcome::Error((rocket::http::Status::Forbidden, ()))
+                    }
+                },
+                Err(e) => {
+                    log::error!("Error fetching user {}: {}", id, e);
+                    rocket::request::Outcome::Error((rocket::http::Status::InternalServerError, ()))
+                }
+            }
+        } else {
+            // No valid authentication
+            rocket::request::Outcome::Forward(rocket::http::Status::Unauthorized)
+        }
     }
 }
+
+// Token validation function
+fn validate_token(token: &str, auth_config: &AuthConfig) -> Result<Claims, jsonwebtoken::errors::Error> {
+    // Decode and validate the token
+    let token_data = decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(auth_config.jwt_secret.as_bytes()),
+        &Validation::new(Algorithm::HS256)
+    )?;
+    
+    // Return the claims
+    Ok(token_data.claims)
+}
+
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct App {

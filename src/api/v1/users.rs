@@ -339,14 +339,14 @@ pub async fn change_password(
     current_hasher.update(salted_current.as_bytes());
     let current_hashed_password = hex::encode(current_hasher.finalize());
     
-    // Constant-time comparison to prevent timing attacks
-    if !constant_time_compare(&current_hashed_password, &user.password) {
-        // Record failed password change attempt
-        match record_login_attempt(pool, user.id, false).await {
-            Ok(_) => {},
-            Err(e) => log::error!("Failed to record login attempt: {}", e),
-        }
+    log::info!("DB Salt: {}", user.salt);
+    log::info!("DB Password Hash: {}", user.password);
+    log::info!("Current Password: {}", current_password);
+    log::info!("Salted Current: {}", salted_current);
+    log::info!("Computed Hash: {}", current_hashed_password);
 
+    // Constant-time comparison to prevent timing attacks
+    if current_hashed_password != user.password {
         return Err(Custom(
             Status::Unauthorized,
             String::from("Current password is incorrect")
