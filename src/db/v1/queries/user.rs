@@ -1,4 +1,5 @@
 use super::super::tables::User;
+use crate::db::v1::tables::{UserMeta, UserPii};
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 
@@ -754,4 +755,85 @@ pub async fn invalidate_all_user_sessions(
         .context("Failed to invalidate user sessions")?;
 
     Ok(())
+}
+
+/// Get user meta information
+pub async fn get_user_meta(pool: &Pool<MySql>, user_id: i64) -> Result<UserMeta, anyhow::Error> {
+    // First try to find existing meta
+    let meta = sqlx::query_as::<_, UserMeta>(
+        r#"
+        SELECT 
+            id, user_id, timezone, language, theme, 
+            notification_preferences, profile_image, dashboard_layout, 
+            onboarding_completed, created_at, updated_at
+        FROM user_meta
+        WHERE user_id = ?
+        "#
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    // If meta exists, return it
+    if let Some(meta) = meta {
+        return Ok(meta);
+    }
+
+    // Otherwise create default meta for the user
+    let default_meta = sqlx::query_as::<_, UserMeta>(
+        r#"
+        INSERT INTO user_meta (
+            user_id, timezone, language, theme, 
+            onboarding_completed
+        ) VALUES (?, 'UTC', 'en', 'light', 0)
+        RETURNING id, user_id, timezone, language, theme, 
+                  notification_preferences, profile_image, dashboard_layout, 
+                  onboarding_completed, created_at, updated_at
+        "#
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(default_meta)
+}
+
+/// Get user PII (Personally Identifiable Information)
+pub async fn get_user_pii(pool: &Pool<MySql>, user_id: i64) -> Result<UserPii, anyhow::Error> {
+    // Try to find existing PII
+    let pii = sqlx::query_as::<_, UserPii>(
+        r#"
+        SELECT 
+            id, user_id, first_name, last_name, full_name, 
+            identity_verified, identity_verification_date, 
+            identity_verification_method, created_at, updated_at
+        FROM user_pii
+        WHERE user_id = ?
+        "#
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
+
+    // If PII exists, return it
+    if let Some(pii) = pii {
+        return Ok(pii);
+    }
+
+    // Otherwise create empty PII record for the user
+    let default_pii = sqlx::query_as::<_, UserPii>(
+        r#"
+        INSERT INTO user_pii (
+            user_id, identity_verified
+        ) VALUES (?, 0)
+        RETURNING id, user_id, first_name, last_name, full_name, 
+                 identity_verified, identity_verification_date, 
+                 identity_verification_method, created_at, updated_at
+        "#
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(default_pii)
 }

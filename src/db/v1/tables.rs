@@ -5,13 +5,14 @@ use chrono::{DateTime, Utc};
 use sqlx::types::Json;
 use sqlx::Pool;
 use sqlx::MySql;
+use sqlx::FromRow;
 use serde_json::Value; 
 use sqlx::Row;
 use jsonwebtoken::{decode, encode, DecodingKey, Validation, Algorithm};
 
 use crate::api::auth::{AuthConfig, Claims};
 
-#[derive(Debug, sqlx::FromRow, Serialize, Clone, Deserialize)]
+#[derive(Debug, FromRow, Serialize, Clone, Deserialize)]
 pub struct User {
     pub id: i64,
     pub email: String,
@@ -24,6 +25,51 @@ pub struct User {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_login_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, FromRow, Serialize, Deserialize)]
+pub struct UserMeta {
+    pub id: i64,
+    pub user_id: i64,
+    pub timezone: Option<String>,
+    pub language: Option<String>,
+    pub theme: Option<String>,
+    pub notification_preferences: Option<serde_json::Value>,
+    pub profile_image: Option<String>,
+    pub dashboard_layout: Option<serde_json::Value>,
+    pub onboarding_completed: i8,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, FromRow, Serialize, Deserialize)]
+pub struct UserPii {
+    pub id: i64,
+    pub user_id: i64,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub full_name: Option<String>,
+    pub identity_verified: i8,
+    pub identity_verification_date: Option<DateTime<Utc>>,
+    pub identity_verification_method: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, FromRow, Serialize, Deserialize)]
+pub struct UserSession {
+    pub id: i64,
+    pub user_id: i64,
+    pub session_token: String,
+    pub refresh_token: Option<String>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub device_info: Option<serde_json::Value>,
+    pub location_info: Option<serde_json::Value>,
+    pub is_active: i8,
+    pub last_activity: Option<DateTime<Utc>>,
+    pub expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
 }
 
 // Define a struct for session data
