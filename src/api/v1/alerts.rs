@@ -15,7 +15,7 @@ use rocket::{delete, get, http::ContentType, post, put, State};
 use serde::{Deserialize, Serialize};
 use rocket::time::OffsetDateTime;
 use std::collections::HashMap;
-use crate::api::auth::User; // Add this at the top if not already present
+use crate::db::tables::User; // Add this at the top if not already present
 
 // Request and response structs
 

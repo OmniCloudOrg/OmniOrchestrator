@@ -6,14 +6,16 @@ use sqlx::types::Json;
 use serde_json::Value; 
 use sqlx::Row;
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Clone, Deserialize)]
 pub struct User {
     pub id: i64,
-    pub name: String,
-    pub salt: String,
     pub email: String,
-    pub active: bool,
+    pub email_verified: i8,
     pub password: String,
+    pub salt: String,
+    pub login_attempts: i64,
+    pub active: bool,
+    pub status: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_login_at: Option<DateTime<Utc>>,
@@ -27,11 +29,13 @@ impl<'r> rocket::request::FromRequest<'r> for User {
         // Placeholder implementation
         rocket::request::Outcome::Success(User {
             id: 0,
-            name: String::new(),
-            salt: String::new(),
             email: String::new(),
-            active: false,
+            email_verified: 0,
             password: String::new(),
+            salt: String::new(),
+            login_attempts: 0,
+            active: false,
+            status: String::new(),
             created_at: Utc::now(),
             updated_at: Utc::now(),
             last_login_at: None,
