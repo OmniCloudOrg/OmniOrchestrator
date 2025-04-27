@@ -2,6 +2,9 @@ use super::super::super::db::v1::queries::user::{
     create_user, get_user_by_email, record_login_attempt, create_session,
     invalidate_session, update_user_security, update_user_pii, update_user_meta, get_user_by_id
 };
+use super::super::super::db::v1::queries::user::{
+    get_user_meta, get_user_pii
+};
 use crate::api::auth::{AuthConfig, Claims};
 use crate::db::v1::queries::user::invalidate_all_user_sessions;
 use crate::db::v1::tables::User;
@@ -500,4 +503,137 @@ async fn create_auth_token_and_session(
     };
     
     Ok((token, session_id))
+}
+
+/// Get the current user's complete profile including meta and PII data
+#[get("/users/profile")]
+pub async fn get_user_profile(
+    user: User,
+    pool: &State<Pool>,
+) -> Result<rocket::serde::json::Value, Custom<String>> {
+    // Fetch user meta data
+    let user_meta = match get_user_meta(pool, user.id).await {
+        Ok(meta) => meta,
+        Err(e) => {
+            log::error!("Error fetching user meta: {}", e);
+            return Err(Custom(
+                Status::InternalServerError,
+                String::from("Error fetching user preferences"),
+            ));
+        }
+    };
+    
+    // Fetch user PII data
+    let user_pii = match get_user_pii(pool, user.id).await {
+        Ok(pii) => pii,
+        Err(e) => {
+            log::error!("Error fetching user PII: {}", e);
+            return Err(Custom(
+                Status::InternalServerError,
+                String::from("Error fetching user personal information"),
+            ));
+        }
+    };
+    
+    // Combine all data into a single response
+    Ok(json!({
+        // Basic user information
+        "id": user.id,
+        "email": user.email,
+        "email_verified": user.email_verified > 0,
+        "active": user.active,
+        "status": user.status,
+        "created_at": user.created_at,
+        "updated_at": user.updated_at,
+        "last_login_at": user.last_login_at,
+        
+        // User meta information
+        "timezone": user_meta.timezone,
+        "language": user_meta.language,
+        "theme": user_meta.theme,
+        "notification_preferences": user_meta.notification_preferences,
+        "profile_image": user_meta.profile_image,
+        "dashboard_layout": user_meta.dashboard_layout,
+        "onboarding_completed": user_meta.onboarding_completed > 0,
+        
+        // User PII information
+        "first_name": user_pii.first_name,
+        "last_name": user_pii.last_name,
+        "full_name": user_pii.full_name,
+        "identity_verified": user_pii.identity_verified > 0
+    }))
+}
+
+/// Update user profile information - handles both PII and meta updates in a single endpoint
+#[put("/users/profile", data = "<data>")]
+pub async fn update_user_profile(
+    user: User,
+    pool: &State<Pool>,
+    data: String,
+) -> Result<rocket::serde::json::Value, Custom<String>> {
+    // Parse the incoming JSON data
+    let data = match serde_json5::from_str::<serde_json::Value>(&data) {
+        Ok(d) => d,
+        Err(_) => return Err(Custom(
+            Status::BadRequest, 
+            String::from("Invalid JSON request")
+        )),
+    };
+    
+    // Extract optional profile fields (PII)
+    let first_name = data.get("first_name").and_then(|f| f.as_str());
+    let last_name = data.get("last_name").and_then(|l| l.as_str());
+    let full_name = data.get("full_name").and_then(|f| f.as_str());
+
+    // Update PII info if provided
+    if first_name.is_some() || last_name.is_some() || full_name.is_some() {
+        if let Err(e) = update_user_pii(pool, user.id, first_name, last_name, full_name).await {
+            log::error!("Error updating user PII: {}", e);
+            return Err(Custom(
+                Status::InternalServerError,
+                String::from("Error updating profile information"),
+            ));
+        }
+    }
+
+    // Extract user preferences
+    let timezone = data.get("timezone").and_then(|t| t.as_str());
+    let language = data.get("language").and_then(|l| l.as_str());
+    let theme = data.get("theme").and_then(|t| t.as_str());
+    let onboarding_completed = data.get("onboarding_completed").and_then(|o| o.as_bool());
+
+    // Update meta info if provided
+    if timezone.is_some() || language.is_some() || theme.is_some() || onboarding_completed.is_some() {
+        if let Err(e) = update_user_meta(
+            pool, 
+            user.id, 
+            timezone, 
+            language, 
+            theme, 
+            onboarding_completed
+        ).await {
+            log::error!("Error updating user preferences: {}", e);
+            return Err(Custom(
+                Status::InternalServerError,
+                String::from("Error updating profile preferences"),
+            ));
+        }
+    }
+
+    Ok(json!({
+        "message": "Profile updated successfully",
+        "updated_fields": {
+            "pii": {
+                "first_name": first_name.is_some(),
+                "last_name": last_name.is_some(),
+                "full_name": full_name.is_some(),
+            },
+            "meta": {
+                "timezone": timezone.is_some(),
+                "language": language.is_some(),
+                "theme": theme.is_some(),
+                "onboarding_completed": onboarding_completed.is_some(),
+            }
+        }
+    }))
 }

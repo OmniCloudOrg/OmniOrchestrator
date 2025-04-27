@@ -80,7 +80,7 @@ pub struct CORS;
 impl Fairing for CORS {
     fn info(&self) -> Info {
         Info {
-            name: "Add CORS headers to responses",
+            name: "Add comprehensive CORS headers to responses",
             kind: Kind::Response,
         }
     }
@@ -88,11 +88,15 @@ impl Fairing for CORS {
     async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
         response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
         response.set_header(Header::new(
-            "Access-Control-Allow-Methods",
-            "POST, GET, PATCH, OPTIONS, DELETE",
+            "Access-Control-Allow-Methods", 
+            "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
         ));
-        response.set_header(Header::new("Access-Control-Allow-Headers", "*"));
+        response.set_header(Header::new(
+            "Access-Control-Allow-Headers", 
+            "Authorization, Content-Type, Accept, Origin, X-Requested-With"
+        ));
         response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
+        response.set_header(Header::new("Access-Control-Max-Age", "86400")); // Cache preflight for 24 hours
     }
 }
 
