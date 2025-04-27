@@ -92,9 +92,12 @@ pub fn routes() -> Vec<rocket::Route> {
         // deploy
         deploy_permissions,
         // users
-        handle_create_user,
+        handle_register,
         handle_login,
+        update_profile,
         get_current_user,
+        change_password,
+        logout,
         // permissions
         list_permission,
         get_permission_by_id,

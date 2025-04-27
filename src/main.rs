@@ -27,6 +27,7 @@ mod cluster;
 mod app_autoscaler;
 mod worker_autoscaler;
 
+use api::auth::AuthConfig;
 // +-------------+
 // | IMPORTS     |
 // +-------------+
@@ -587,6 +588,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ("/api/v1", api::v1::routes())
     ];
 
+    let auth_config = AuthConfig {
+        jwt_secret: std::env::var("JWT_SECRET").expect("Environment variable JWT_SECRET must be set for secure operation."),
+        token_expiry_hours: std::env::var("TOKEN_EXPIRY_HOURS")
+            .unwrap_or_else(|_| "24".to_string())
+            .parse()
+            .expect("Invalid value for TOKEN_EXPIRY_HOURS"),
+    };
+
     // Build Rocket instance with base configuration
     log::info!("{}", "Building Rocket instance".cyan());
     let rocket_instance = rocket::build()
@@ -602,6 +611,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //     let count = db::app::count_apps(pool).await.unwrap();
         //     Json(count)
         // }
+        .manage(auth_config)
         .manage(pool)
         .manage(shared_state)
         .manage(CLUSTER_MANAGER.clone())
