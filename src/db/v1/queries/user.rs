@@ -1,5 +1,5 @@
 use super::super::tables::User;
-use crate::db::v1::tables::{UserMeta, UserPii};
+use crate::db::v1::tables::{UserMeta, UserPii, UserSession};
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 
@@ -755,6 +755,38 @@ pub async fn invalidate_all_user_sessions(
         .context("Failed to invalidate user sessions")?;
 
     Ok(())
+}
+
+/// Retrieves a list of all active sessions for a user.
+pub async fn get_user_sessions(
+    pool: &Pool<MySql>,
+    user_id: i64,
+) -> anyhow::Result<Vec<UserSession>> {
+    let sessions = sqlx::query_as::<_, UserSession>(
+        "SELECT * FROM user_sessions WHERE user_id = ? AND is_active = 1"
+    )
+        .bind(user_id)
+        .fetch_all(pool)
+        .await
+        .context("Failed to fetch user sessions")?;
+
+    Ok(sessions)
+}
+
+/// Is session valid?
+pub async fn is_session_valid(
+    pool: &Pool<MySql>,
+    session_token: &str,
+) -> anyhow::Result<bool> {
+    let session = sqlx::query_as::<_, UserSession>(
+        "SELECT * FROM user_sessions WHERE session_token = ? AND is_active = 1"
+    )
+        .bind(session_token)
+        .fetch_optional(pool)
+        .await
+        .context("Failed to check session validity")?;
+
+    Ok(session.is_some())
 }
 
 /// Get user meta information

@@ -99,7 +99,8 @@ pub fn routes() -> Vec<rocket::Route> {
         change_password,
         logout,
         get_user_profile,
-        update_user_profile,
+        list_user_sessions,
+        invalidate_user_session,
         // permissions
         list_permission,
         get_permission_by_id,
@@ -145,8 +146,13 @@ pub fn routes() -> Vec<rocket::Route> {
         get_metrics_by_app_id,
 
         // Storage
-        list_storage_volumes_paginated,
-        count_storage_volumes,
+        list_storage_classes,
+        get_storage_class,
+        list_storage_volumes,
+        get_volumes_by_storage_class,
+        list_qos_policies,
+        list_volumes_by_write_concern,
+        list_volumes_by_persistence_level,
 
         // CLI
         control::backup::get_backup,
