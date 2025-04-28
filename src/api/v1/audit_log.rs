@@ -63,13 +63,79 @@ pub async fn list_audit_logs(
     pool: &State<sqlx::Pool<MySql>>,
     page: Option<u32>,
     per_page: Option<u32>,
-) -> Json<Vec<crate::db::v1::tables::AuditLog>> {
-    let page: i64 = page.unwrap_or(1).into();
-    let per_page: i64 = per_page.unwrap_or(10).into();
+) -> Json<serde_json::Value> {
+    let p: i64 = page.unwrap_or(1).into();
+    let pp: i64 = per_page.unwrap_or(10).into();
 
-    let audit_logs = db::audit_log::list_audit_logs_paginated(pool, per_page, page)
+    let audit_logs = db::audit_log::list_audit_logs_paginated(pool, pp, p)
         .await
         .unwrap();
 
-    Json(audit_logs)
+    let total_count = db::audit_log::count_audit_logs(pool)
+        .await
+        .unwrap();
+
+    let total_pages = if pp > 0 {
+        (total_count + pp - 1) / pp
+    } else {
+        1
+    };
+
+    let response = serde_json::json!({
+        "audit_logs": audit_logs,
+        "pagination": {
+            "page": p,
+            "per_page": pp,
+            "total_count": total_count,
+            "total_pages": total_pages
+        }
+    });
+
+    Json(response)
+}
+
+/// List all audit log entries for a given app_id with pagination support.
+#[get("/audit_logs/<app_id>?<page>&<per_page>")]
+pub async fn list_audit_logs_for_app(
+    pool: &State<sqlx::Pool<MySql>>,
+    app_id: Option<i64>,
+    page: Option<i64>,
+    per_page: Option<i64>,
+) -> Json<serde_json::Value> {
+    let page: i64 = page.unwrap_or(1).into();
+    let per_page: i64 = per_page.unwrap_or(10).into();
+    let app_id = match app_id {
+        Some(id) => id,
+        None => {
+            return Json(serde_json::json!({
+                "error": "app_id is required"
+            }));
+        }
+    };
+
+    let audit_logs = db::audit_log::get_audit_logs_by_app(pool, app_id, page, per_page)
+        .await
+        .unwrap();
+
+    let total_count = db::audit_log::count_audit_logs_by_app(pool, app_id)
+        .await
+        .unwrap();
+
+    let total_pages = if per_page > 0 {
+        (total_count + per_page - 1) / per_page
+    } else {
+        1
+    };
+
+    let response = serde_json::json!({
+        "audit_logs": audit_logs,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "total_pages": total_pages
+        }
+    });
+
+    Json(response)
 }
