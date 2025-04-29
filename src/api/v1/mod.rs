@@ -101,6 +101,7 @@ pub fn routes() -> Vec<rocket::Route> {
         get_user_profile,
         list_user_sessions,
         invalidate_user_session,
+        list_users,
         // permissions
         list_permission,
         get_permission_by_id,
