@@ -155,6 +155,7 @@ pub fn routes() -> Vec<rocket::Route> {
         list_qos_policies,
         list_volumes_by_write_concern,
         list_volumes_by_persistence_level,
+        get_volumes_for_region_route,
 
         // CLI
         control::backup::get_backup,

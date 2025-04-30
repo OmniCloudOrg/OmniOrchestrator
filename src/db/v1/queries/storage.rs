@@ -1,3 +1,5 @@
+use crate::db::tables::Region;
+
 // Updated queries.rs file
 use super::super::tables::{
     StorageClass,
@@ -251,4 +253,85 @@ pub async fn get_volumes_by_persistence_level(
         .context("Failed to fetch volumes by persistence level")?;
     
     Ok(volumes)
+}
+
+/// Struct to represent a Region with its storage volumes
+#[derive(Debug)]
+pub struct RegionVolumes {
+    pub region: Region,
+    pub volumes: Vec<StorageVolume>
+}
+
+/// Retrieves storage volumes for a specific region grouped by region with pagination
+pub async fn get_volumes_for_region(
+    pool: &Pool<MySql>,
+    region_id: i64,
+    page: i64,
+    per_page: i64,
+) -> anyhow::Result<RegionVolumes> {
+    // First, get the region
+    let region = sqlx::query_as::<_, Region>("SELECT * FROM regions WHERE id = ?")
+        .bind(region_id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch region")?;
+    
+    // Calculate offset
+    let offset = page * per_page;
+    
+    // Get paginated volumes for this region
+    let volumes = sqlx::query_as::<_, StorageVolume>(
+        r#"
+        SELECT
+            v.*
+        FROM 
+            storage_volumes v
+        INNER JOIN 
+            workers w ON v.node_id = w.id
+        WHERE 
+            w.region_id = ?
+        ORDER BY 
+            v.id
+        LIMIT ? OFFSET ?
+        "#
+    )
+    .bind(region_id)
+    .bind(per_page)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+    .context("Failed to fetch volumes for region")?;
+    
+    Ok(RegionVolumes {
+        region,
+        volumes
+    })
+}
+
+/// Counts the total number of storage volumes for a specific region
+pub async fn count_volumes_for_region(
+    pool: &Pool<MySql>,
+    region_id: i64,
+) -> anyhow::Result<i64> {
+    // Get the total count of volumes for this region
+    let (total_volumes,) = sqlx::query_as::<_, (i64,)>(
+        r#"
+        SELECT
+            COUNT(v.id)
+        FROM 
+            storage_volumes v
+        INNER JOIN 
+            workers w ON v.node_id = w.id
+        INNER JOIN 
+            nodes n ON w.id = n.worker_id
+        WHERE 
+            w.region_id = ?
+        "#
+    )
+    .bind(region_id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to count volumes for region")?;
+    
+    Ok(total_volumes)
 }
