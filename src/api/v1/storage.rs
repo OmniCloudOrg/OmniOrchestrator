@@ -264,3 +264,36 @@ pub async fn get_volumes_for_region_route(
         }
     })))
 }
+
+/// Get storage volumes for a specific provider, with pagination
+#[get("/storage/providers/<provider_id>/volumes?<page>&<per_page>")]
+pub async fn get_storage_volumes_for_provider(
+    pool: &State<sqlx::Pool<MySql>>,
+    provider_id: i64,
+    page: Option<i64>,
+    per_page: Option<i64>,
+) -> Result<Json<Value>, Status> {
+    let page = page.unwrap_or(0);
+    let per_page = per_page.unwrap_or(10);
+
+    let volumes = storage::get_volumes_for_provider(pool, provider_id, page, per_page)
+        .await
+        .map_err(|_| Status::InternalServerError)?;
+
+    let total_count = storage::count_volumes_for_provider(pool, provider_id)
+        .await
+        .map_err(|_| Status::InternalServerError)?;
+
+    let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
+
+    Ok(Json(json!({
+        "provider_id": provider_id,
+        "volumes": volumes,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "total_pages": total_pages
+        }
+    })))
+}

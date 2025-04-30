@@ -1,7 +1,6 @@
-use crate::db::tables::Region;
-
-// Updated queries.rs file
 use super::super::tables::{
+    Provider,
+    Region,
     StorageClass,
     StorageVolume,
     StorageSnapshot,
@@ -10,6 +9,7 @@ use super::super::tables::{
 };
 use anyhow::Context;
 use sqlx::{MySql, Pool};
+use sqlx::Row;
 
 /// Storage class query filters
 #[derive(Default, Debug)]
@@ -256,7 +256,7 @@ pub async fn get_volumes_by_persistence_level(
 }
 
 /// Struct to represent a Region with its storage volumes
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize)]
 pub struct RegionVolumes {
     pub region: Region,
     pub volumes: Vec<StorageVolume>
@@ -332,6 +332,112 @@ pub async fn count_volumes_for_region(
     .fetch_one(pool)
     .await
     .context("Failed to count volumes for region")?;
+    
+    Ok(total_volumes)
+}
+
+#[derive(serde::Serialize)]
+pub struct ProviderRegionVolumes {
+    pub provider: Provider,
+    pub regions: Vec<RegionVolumes>
+}
+
+/// Retrieves storage volumes for a specific provider grouped by region with pagination
+pub async fn get_volumes_for_provider(
+    pool: &Pool<MySql>,
+    provider_id: i64,
+    page: i64,
+    per_page: i64,
+) -> anyhow::Result<ProviderRegionVolumes> {
+    // First, get the provider
+    let provider = sqlx::query_as::<_, Provider>("SELECT * FROM providers WHERE id = ?")
+        .bind(provider_id)
+        .fetch_one(pool)
+        .await
+        .context("Failed to fetch provider")?;
+    
+    // Get all regions for this provider
+    let regions = sqlx::query_as::<_, Region>(
+        "SELECT * FROM regions WHERE provider = ? ORDER BY name"
+    )
+    .bind(provider_id)
+    .fetch_all(pool)
+    .await
+    .context("Failed to fetch regions for provider")?;
+    
+    let mut region_volumes = Vec::new();
+    
+    // Calculate offset
+    let offset = page * per_page;
+    
+    // For each region, get paginated volumes
+    for region in regions {
+        // Get paginated volumes for this region
+        let volumes = sqlx::query_as::<_, StorageVolume>(
+            r#"
+            SELECT
+                v.*
+            FROM 
+                storage_volumes v
+            INNER JOIN 
+                workers w ON v.node_id = w.id
+            INNER JOIN
+                regions r ON w.region_id = r.id
+            WHERE 
+                r.provider = ?
+                AND r.id = ?
+            ORDER BY 
+                v.id
+            LIMIT ? OFFSET ?
+            "#
+        )
+        .bind(provider_id)
+        .bind(region.id)
+        .bind(per_page)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .context(format!("Failed to fetch volumes for region {}", region.id))?;
+        
+        // Only add regions with volumes
+        if !volumes.is_empty() {
+            region_volumes.push(RegionVolumes {
+                region,
+                volumes
+            });
+        }
+    }
+    
+    Ok(ProviderRegionVolumes {
+        provider,
+        regions: region_volumes
+    })
+}
+
+/// Counts the total number of storage volumes for a specific provider
+pub async fn count_volumes_for_provider(
+    pool: &Pool<MySql>,
+    provider_id: i64,
+) -> anyhow::Result<i64> {
+    // Get the total count of volumes for this provider
+    let (total_volumes,) = sqlx::query_as::<_, (i64,)>(
+        r#"
+        SELECT
+            COUNT(v.id)
+        FROM 
+            storage_volumes v
+        INNER JOIN 
+            workers w ON v.node_id = w.id
+        INNER JOIN 
+            regions r ON w.region_id = r.id
+        WHERE 
+            r.provider = ?
+        "#
+    )
+    .bind(provider_id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to count volumes for provider")?;
     
     Ok(total_volumes)
 }

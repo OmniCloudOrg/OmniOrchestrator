@@ -156,6 +156,7 @@ pub fn routes() -> Vec<rocket::Route> {
         list_volumes_by_write_concern,
         list_volumes_by_persistence_level,
         get_volumes_for_region_route,
+        get_storage_volumes_for_provider,
 
         // CLI
         control::backup::get_backup,
