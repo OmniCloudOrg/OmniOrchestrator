@@ -1,42 +1,44 @@
 use rocket::routes;
 
-pub mod apps;
 pub mod alerts;
+pub mod apps;
 pub mod audit_log;
 pub mod builds;
+pub mod control;
+pub mod cost;
 pub mod deploy;
 pub mod helpers;
 pub mod instances;
 pub mod metadata;
-pub mod permissions;
-pub mod regions;
-pub mod users;
-pub mod platforms;
-pub mod workers;
-pub mod control;
 pub mod metrics;
-pub mod providers;
-pub mod storage;
 pub mod notifications;
+pub mod permissions;
+pub mod platforms;
+pub mod providers;
+pub mod regions;
+pub mod storage;
+pub mod users;
+pub mod workers;
 //pub mod deployments;
 
-use control::*;
-use apps::*;
 use alerts::*;
-use users::*;
-use builds::*;
-use deploy::*;
-use workers::*;
-use regions::*;
-use metadata::*;
+use apps::*;
 use audit_log::*;
-use platforms::*;
+use builds::*;
+use control::*;
+use cost::*;
+use deploy::*;
 use instances::*;
-use permissions::*;
+use metadata::*;
 use metrics::*;
-use providers::*;
-use storage::*;
 use notifications::*;
+use permissions::*;
+use platforms::*;
+use providers::*;
+use regions::*;
+use storage::*;
+use users::*;
+use workers::*;
 // use platforms::*;
 // use deployments::*;
 
@@ -83,7 +85,6 @@ pub fn routes() -> Vec<rocket::Route> {
         create_role_notification,
         acknowledge_notification,
         get_all_user_notifications_with_count,
-
         // instances
         list_instances,
         list_instances_by_region,
@@ -131,22 +132,18 @@ pub fn routes() -> Vec<rocket::Route> {
         // update_region
         // deployments
         // list_deployments
-
         init_platform,
         check_platform_status,
         bootstrap_host,
         configure_network,
         setup_monitoring,
         setup_backups,
-        
         // workers
         list_workers,
         get_worker_by_id,
-
         // Metrics
         get_metrics,
         get_metrics_by_app_id,
-
         // Storage
         list_storage_classes,
         get_storage_class,
@@ -157,11 +154,48 @@ pub fn routes() -> Vec<rocket::Route> {
         list_volumes_by_persistence_level,
         get_volumes_for_region_route,
         get_storage_volumes_for_provider,
+        // Cost
+
+        // Resource Type routes
+        list_resource_types,
+        count_resource_types,
+        get_resource_type,
+        create_resource_type,
+        update_resource_type,
+        delete_resource_type,
+        // Cost Metric routes
+        list_cost_metrics,
+        get_cost_metric,
+        create_cost_metric,
+        delete_cost_metric,
+        analyze_costs_by_dimension,
+        analyze_cost_over_time,
+        // Cost Budget routes
+        list_cost_budgets,
+        get_cost_budget,
+        create_cost_budget,
+        update_cost_budget,
+        delete_cost_budget,
+        // Cost Projection routes
+        list_cost_projections,
+        get_cost_projection,
+        create_cost_projection,
+        delete_cost_projection,
+        // Resource Pricing routes
+        list_resource_pricing,
+        get_resource_pricing,
+        create_resource_pricing,
+        update_resource_pricing,
+        delete_resource_pricing,
+        // Cost Allocation Tag routes
+        get_cost_allocation_tags,
+        create_cost_allocation_tag,
+        delete_cost_allocation_tag,
 
         // CLI
         control::backup::get_backup,
         control::backup::list_backups,
         control::backup::create_backup,
         control::backup::list_backups_by_app_id,
-        ]
+    ]
 }
