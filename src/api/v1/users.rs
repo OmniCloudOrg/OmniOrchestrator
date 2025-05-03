@@ -6,6 +6,7 @@ use super::super::super::db::v1::queries::user::{
     get_user_meta, get_user_pii
 };
 use crate::api::auth::{AuthConfig, Claims};
+use crate::db::v1::queries;
 use crate::db::v1::queries::user::invalidate_all_user_sessions;
 use crate::db::v1::tables::User;
 use chrono::{Duration, Utc};
@@ -679,4 +680,53 @@ pub async fn update_user_profile(
             }
         }
     }))
+}
+
+/// List  all users
+#[get("/users?<page>&<per_page>")]
+pub async fn list_users(
+    page: Option<i64>,
+    per_page: Option<i64>,
+    pool: &State<Pool>,
+) -> Result<rocket::serde::json::Value, Custom<String>> {
+    match (page, per_page) {
+        (Some(page), Some(per_page)) => {
+            // Fetch paginated users and total count
+            let users = match crate::db::v1::queries::user::list_users(pool, page, per_page).await {
+                Ok(u) => u,
+                Err(e) => {
+                    log::error!("Error fetching users: {}", e);
+                    return Err(Custom(
+                        Status::InternalServerError,
+                        String::from("Error fetching users"),
+                    ));
+                }
+            };
+            let total_count = match crate::db::v1::queries::user::count_users(pool).await {
+                Ok(c) => c,
+                Err(e) => {
+                    log::error!("Error counting users: {}", e);
+                    return Err(Custom(
+                        Status::InternalServerError,
+                        String::from("Error counting users"),
+                    ));
+                }
+            };
+            let total_pages = ((total_count as f64) / (per_page as f64)).ceil() as i64;
+
+            Ok(json!({
+                "users": users,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total_count": total_count,
+                    "total_pages": total_pages
+                }
+            }))
+        }
+        _ => Err(Custom(
+            Status::BadRequest,
+            String::from("Missing pagination parameters: please provide both 'page' and 'per_page'")
+        ))
+    }
 }

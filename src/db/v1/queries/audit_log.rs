@@ -124,6 +124,35 @@ pub async fn list_audit_logs_paginated(
     Ok(audit_logs)
 }
 
+/// Count the total number of audit logs in the system.
+///
+/// This function provides a simple count of all audit logs stored in the database.
+/// It is useful for understanding the volume of logged actions and can be
+/// used in conjunction with pagination to inform users about the
+/// total number of available logs.
+/// 
+/// # Arguments
+/// 
+/// * `pool` - Database connection pool for executing the query
+/// 
+/// # Returns
+/// 
+/// * `Ok(i64)` - Total number of audit logs in the system
+pub async fn count_audit_logs(
+    pool: &Pool<MySql>,
+) -> anyhow::Result<i64> {
+    let count = sqlx::query_scalar::<_, i64>(
+        r#"
+            SELECT COUNT(*) FROM audit_logs
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to count audit logs")?;
+
+    Ok(count)
+}
+
 /// Retrieves audit logs for a specific resource.
 ///
 /// This function fetches audit logs related to a particular resource, identified
@@ -288,4 +317,75 @@ pub async fn get_org_audit_logs(
     .context("Failed to fetch organization audit logs")?;
 
     Ok(audit_logs)
+}
+
+/// Retrieves audit logs for a given app_id.
+/// 
+/// This function fetches audit logs related to a specific application,
+/// identified by its app_id. This is useful for viewing the history
+/// of actions performed on a specific application in the system.
+/// 
+/// # Arguments
+/// 
+/// * `pool` - Database connection pool for executing the query
+/// * `app_id` - Identifier of the specific application to get logs for
+/// * `page` - Zero-based page offset (e.g., 0 for first page, 1 for second page)
+/// * `per_page` - Maximum number of logs to retrieve
+///
+/// # Returns
+/// 
+/// * `Ok(Vec<AuditLog>)` - Successfully retrieved audit logs for the application
+pub async fn get_audit_logs_by_app(
+    pool: &Pool<MySql>,
+    app_id: i64,
+    page: i64,
+    per_page: i64,
+) -> anyhow::Result<Vec<AuditLog>> {
+    let audit_logs = sqlx::query_as::<_, AuditLog>(
+        r#"
+            SELECT * FROM audit_logs 
+            WHERE app_id = ?
+            ORDER BY created_at DESC 
+            LIMIT ? OFFSET ?
+        "#,
+    )
+    .bind(app_id)
+    .bind(per_page)
+    .bind(page * per_page)
+    .fetch_all(pool)
+    .await
+    .context("Failed to fetch app audit logs")?;
+
+    Ok(audit_logs)
+}
+
+/// Retrieves the number of audit logs for a given app_id.
+///
+/// This function counts the number of audit logs related to a specific application,
+/// identified by its app_id. This is useful for understanding the volume of logged
+/// actions for a specific application.
+/// 
+/// # Arguments
+/// * `pool` - Database connection pool for executing the query
+/// * `app_id` - Identifier of the specific application to count logs for
+/// 
+/// # Returns
+/// 
+/// * `Ok(i64)` - Total number of audit logs for the application
+pub async fn count_audit_logs_by_app(
+    pool: &Pool<MySql>,
+    app_id: i64,
+) -> anyhow::Result<i64> {
+    let count = sqlx::query_scalar::<_, i64>(
+        r#"
+            SELECT COUNT(*) FROM audit_logs 
+            WHERE app_id = ?
+        "#,
+    )
+    .bind(app_id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to count app audit logs")?;
+
+    Ok(count)
 }

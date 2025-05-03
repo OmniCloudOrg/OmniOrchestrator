@@ -1,17 +1,18 @@
 -- Drop all tables first (in correct dependency order)
 SET FOREIGN_KEY_CHECKS = 0;
 
-DROP TABLE IF EXISTS  storage_volumes, storage_snapshots, storage_migrations,
-    storage_qos_policies, volume_qos_policy_assignments, storage_classes,
-    backups, notifications, host_creds, metrics, allocations, instance_logs, audit_logs, api_keys, 
-    config_vars, deployment_logs, rollbacks, deployments, builds, tasks, 
-    autoscaling_rules, health_checks, network_policies, service_bindings,
-    routes, instances, domains, spaces, orgmember, permissions_role, 
+DROP TABLE IF EXISTS resource_types, cost_metrics, cost_projections, cost_budgets,
+    resource_pricing, cost_allocation_tags, storage_volumes, storage_snapshots,
+    storage_migrations, storage_qos_policies, volume_qos_policy_assignments,
+    storage_classes, backups, notifications, host_creds, metrics, allocations,
+    instance_logs, audit_logs, api_keys, config_vars, deployment_logs, rollbacks,
+    deployments, builds, tasks, autoscaling_rules, health_checks, network_policies,
+    service_bindings, routes, instances, domains, spaces, orgmember, permissions_role, 
     role_user, permissions, roles, quotas, orgs, user_sessions, user_pii, user_meta, users, 
     data_services, nodes, workers, cost_summaries, usage_costs, provider_costs,
-    regions, providers, providers_regions, user_notifications,
-    role_notifications, notification_acknowledgments, alerts, alert_acknowledgments,
-    alert_escalations, alert_history, provider_audit_logs, apps;
+    regions, providers, providers_regions, user_notifications, role_notifications,
+    notification_acknowledgments, alerts, alert_acknowledgments, alert_escalations,
+    alert_history, provider_audit_logs, apps;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -1337,3 +1338,157 @@ CREATE TABLE nodes (
     INDEX idx_nodes_type (node_type),
     INDEX idx_nodes_hostname (hostname)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Improved resource_types table with more detailed categorization
+CREATE TABLE resource_types (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name VARCHAR(255) NOT NULL,
+  category ENUM('compute', 'storage', 'network', 'database', 'service', 'other') NOT NULL,
+  unit_of_measurement VARCHAR(50) NOT NULL, -- e.g., 'CPU-hour', 'GB-month', 'request'
+  description TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_resource_type_name (name)
+);
+
+-- Enhanced cost_metrics table with more detailed tracking
+CREATE TABLE cost_metrics (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  resource_type_id INT NOT NULL,
+  provider_id BIGINT,     -- Link to your existing providers table
+  region_id BIGINT,       -- Link to your existing regions table
+  app_id BIGINT,          -- Link to your existing apps table
+  worker_id BIGINT,       -- Link to your existing workers table
+  org_id BIGINT,          -- Link to your existing orgs table
+  
+  -- Time tracking
+  start_time DATETIME NOT NULL,
+  end_time DATETIME NOT NULL,
+  
+  -- Actual metrics
+  usage_quantity DOUBLE NOT NULL,
+  unit_cost DECIMAL(10, 6) NOT NULL,
+  currency VARCHAR(10) DEFAULT 'USD',
+  total_cost DECIMAL(10, 4) NOT NULL,
+  
+  -- For tracking discounts, promotions, etc.
+  discount_percentage DECIMAL(5, 2) DEFAULT 0,
+  discount_reason VARCHAR(255),
+  
+  -- Billing period reference
+  billing_period VARCHAR(20), -- e.g., '2025-05'
+  
+  -- Standard timestamps
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  -- Constraints and foreign keys
+  FOREIGN KEY (resource_type_id) REFERENCES resource_types(id),
+  FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+  FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE,
+  FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
+  FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,
+  FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
+  
+  -- Indexes for faster querying
+  INDEX idx_cost_metrics_resource_type (resource_type_id),
+  INDEX idx_cost_metrics_provider (provider_id),
+  INDEX idx_cost_metrics_region (region_id),
+  INDEX idx_cost_metrics_app (app_id),
+  INDEX idx_cost_metrics_worker (worker_id),
+  INDEX idx_cost_metrics_org (org_id),
+  INDEX idx_cost_metrics_time_range (start_time, end_time),
+  INDEX idx_cost_metrics_billing_period (billing_period)
+);
+
+-- Cost projections table for forecasting
+CREATE TABLE cost_projections (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  org_id BIGINT NOT NULL,
+  app_id BIGINT,
+  projection_period ENUM('daily', 'weekly', 'monthly', 'quarterly', 'yearly') NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  projected_cost DECIMAL(12, 2) NOT NULL,
+  currency VARCHAR(10) DEFAULT 'USD',
+  projection_model VARCHAR(100) NOT NULL, -- e.g., 'linear', 'average_30d', 'peak_usage'
+  confidence_level DECIMAL(5, 2), -- e.g., 0.95 for 95% confidence
+  metadata JSON, -- Store any additional forecast parameters
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
+  FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
+  
+  INDEX idx_cost_projections_org (org_id),
+  INDEX idx_cost_projections_app (app_id),
+  INDEX idx_cost_projections_date_range (start_date, end_date)
+);
+
+-- Budget thresholds and alerts
+CREATE TABLE cost_budgets (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  org_id BIGINT NOT NULL,
+  app_id BIGINT,
+  budget_name VARCHAR(255) NOT NULL,
+  budget_amount DECIMAL(12, 2) NOT NULL,
+  currency VARCHAR(10) DEFAULT 'USD',
+  budget_period ENUM('monthly', 'quarterly', 'yearly', 'custom') NOT NULL,
+  period_start DATE,
+  period_end DATE,
+  alert_threshold_percentage DECIMAL(5, 2) DEFAULT 80.00, -- Alert at 80% usage
+  alert_contacts JSON, -- Store email/user IDs to notify
+  is_active BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_by BIGINT,
+  
+  FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
+  FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  
+  INDEX idx_cost_budgets_org (org_id),
+  INDEX idx_cost_budgets_app (app_id),
+  INDEX idx_cost_budgets_period (period_start, period_end)
+);
+
+-- Resource pricing table to track historical price changes
+CREATE TABLE resource_pricing (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  resource_type_id INT NOT NULL,
+  provider_id BIGINT NOT NULL,
+  region_id BIGINT,
+  tier_name VARCHAR(100), -- e.g., 'standard', 'premium', 'enterprise'
+  unit_price DECIMAL(10, 6) NOT NULL,
+  currency VARCHAR(10) DEFAULT 'USD',
+  effective_from DATETIME NOT NULL,
+  effective_to DATETIME,
+  pricing_model VARCHAR(100), -- e.g., 'on-demand', 'reserved', 'spot'
+  commitment_period VARCHAR(50), -- e.g., '1-year', '3-year'
+  volume_discount_tiers JSON, -- For storing volume-based discount tiers
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  FOREIGN KEY (resource_type_id) REFERENCES resource_types(id),
+  FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+  FOREIGN KEY (region_id) REFERENCES regions(id) ON DELETE CASCADE,
+  
+  INDEX idx_resource_pricing_type (resource_type_id),
+  INDEX idx_resource_pricing_provider_region (provider_id, region_id),
+  INDEX idx_resource_pricing_effective_dates (effective_from, effective_to)
+);
+
+-- Cost allocation tags for better cost attribution
+CREATE TABLE cost_allocation_tags (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  tag_key VARCHAR(128) NOT NULL,
+  tag_value VARCHAR(256) NOT NULL,
+  resource_id BIGINT NOT NULL,
+  resource_type ENUM('app', 'worker', 'instance', 'volume', 'service') NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  UNIQUE KEY unique_tag_resource (tag_key, tag_value, resource_id, resource_type),
+  INDEX idx_cost_tags_key_value (tag_key, tag_value),
+  INDEX idx_cost_tags_resource (resource_id, resource_type)
+);

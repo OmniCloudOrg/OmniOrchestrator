@@ -231,3 +231,69 @@ pub async fn list_volumes_by_persistence_level(
         }
     }))
 }
+
+/// Get storage volumes for a specific region, grouped by region, with pagination
+#[get("/storage/regions/<region_id>/volumes?<page>&<per_page>")]
+pub async fn get_volumes_for_region_route(
+    pool: &State<sqlx::Pool<MySql>>,
+    region_id: i64,
+    page: Option<i64>,
+    per_page: Option<i64>,
+) -> Result<Json<Value>, Status> {
+    let page = page.unwrap_or(0);
+    let per_page = per_page.unwrap_or(10);
+
+    let region_volumes = storage::get_volumes_for_region(pool, region_id, page, per_page)
+        .await
+        .map_err(|_| Status::InternalServerError)?;
+
+    let total_count = storage::count_volumes_for_region(pool, region_id)
+        .await
+        .map_err(|_| Status::InternalServerError)?;
+
+    let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
+
+    Ok(Json(json!({
+        "region": region_volumes.region,
+        "volumes": region_volumes.volumes,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "total_pages": total_pages
+        }
+    })))
+}
+
+/// Get storage volumes for a specific provider, with pagination
+#[get("/storage/providers/<provider_id>/volumes?<page>&<per_page>")]
+pub async fn get_storage_volumes_for_provider(
+    pool: &State<sqlx::Pool<MySql>>,
+    provider_id: i64,
+    page: Option<i64>,
+    per_page: Option<i64>,
+) -> Result<Json<Value>, Status> {
+    let page = page.unwrap_or(0);
+    let per_page = per_page.unwrap_or(10);
+
+    let volumes = storage::get_volumes_for_provider(pool, provider_id, page, per_page)
+        .await
+        .map_err(|_| Status::InternalServerError)?;
+
+    let total_count = storage::count_volumes_for_provider(pool, provider_id)
+        .await
+        .map_err(|_| Status::InternalServerError)?;
+
+    let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
+
+    Ok(Json(json!({
+        "provider_id": provider_id,
+        "volumes": volumes,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total_count": total_count,
+            "total_pages": total_pages
+        }
+    })))
+}

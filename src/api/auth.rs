@@ -1,4 +1,4 @@
-use crate::db::v1::tables::User;
+pub use crate::db::v1::tables::User;
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{Deserialize, Serialize};

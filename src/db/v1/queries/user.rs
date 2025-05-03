@@ -24,15 +24,34 @@ use sqlx::{MySql, Pool};
 /// - Administrative dashboards showing all system users
 /// - User management interfaces
 /// - User activity reports and analytics
-pub async fn list_users(pool: &Pool<MySql>) -> anyhow::Result<Vec<User>> {
+pub async fn list_users(
+    pool: &Pool<MySql>,
+    page: i64,
+    per_page: i64,
+) -> anyhow::Result<Vec<User>> {
+    let offset = (page * per_page) as i64;
+    let limit = per_page as i64;
+
     let users = sqlx::query_as::<_, User>(
-        "SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC"
+        "SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?"
     )
+        .bind(limit)
+        .bind(offset)
         .fetch_all(pool)
         .await
         .context("Failed to fetch users")?;
 
     Ok(users)
+}
+
+/// Counts the total number of users in the system.
+pub async fn count_users(pool: &Pool<MySql>) -> anyhow::Result<i64> {
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM users WHERE deleted_at IS NULL")
+        .fetch_one(pool)
+        .await
+        .context("Failed to count users")?;
+
+    Ok(count)
 }
 
 /// Retrieves a specific user by their unique identifier.
