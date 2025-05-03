@@ -1367,12 +1367,12 @@ CREATE TABLE cost_metrics (
   
   -- Actual metrics
   usage_quantity DOUBLE NOT NULL,
-  unit_cost DECIMAL(10, 6) NOT NULL,
+  unit_cost DOUBLE NOT NULL,
   currency VARCHAR(10) DEFAULT 'USD',
-  total_cost DECIMAL(10, 4) NOT NULL,
+  total_cost DOUBLE NOT NULL,
   
   -- For tracking discounts, promotions, etc.
-  discount_percentage DECIMAL(5, 2) DEFAULT 0,
+  discount_percentage DOUBLE DEFAULT 0,
   discount_reason VARCHAR(255),
   
   -- Billing period reference

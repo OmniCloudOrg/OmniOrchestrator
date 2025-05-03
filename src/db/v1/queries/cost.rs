@@ -425,9 +425,26 @@ pub async fn get_cost_metric_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Resul
     let cost_metric = sqlx::query_as::<_, CostMetricWithType>(
         r#"
         SELECT 
-            cm.*,
-            rt.name as resource_type_name,
-            rt.category as resource_type_category,
+            cm.id,
+            cm.resource_type_id,
+            cm.provider_id,
+            cm.region_id,
+            cm.app_id,
+            cm.worker_id,
+            cm.org_id,
+            cm.start_time,
+            cm.end_time,
+            cm.usage_quantity,
+            cm.unit_cost,
+            cm.currency,
+            cm.total_cost,
+            cm.discount_percentage,
+            cm.discount_reason,
+            cm.billing_period,
+            cm.created_at,
+            cm.updated_at,
+            rt.name AS resource_type_name,
+            rt.category AS resource_type_category,
             rt.unit_of_measurement
         FROM 
             cost_metrics cm
@@ -440,7 +457,11 @@ pub async fn get_cost_metric_by_id(pool: &Pool<MySql>, id: i64) -> anyhow::Resul
     .bind(id)
     .fetch_one(pool)
     .await
-    .context("Failed to fetch cost metric")?;
+    .map_err(|e| {
+        eprintln!("Failed to fetch cost metric by id {}: {:?}", id, e);
+        anyhow::Error::new(e).context(format!("Failed to fetch cost metric with id {}", id))
+    })?
+;
 
     Ok(cost_metric)
 }

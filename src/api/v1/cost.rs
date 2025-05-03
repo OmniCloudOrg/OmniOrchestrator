@@ -438,8 +438,9 @@ pub async fn get_cost_metric(id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option
     let result = db::cost::get_cost_metric_by_id(pool, id).await;
     match result {
         Ok(cost_metric) => Some(Json(cost_metric)),
-        Err(_) => {
+        Err(e) => {
             println!("Client requested cost metric: {} but it could not be found", id);
+            println!("Error: {}", e);
             None
         }
     }
