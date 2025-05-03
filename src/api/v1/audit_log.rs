@@ -69,11 +69,11 @@ pub async fn list_audit_logs(
 
     let audit_logs = db::audit_log::list_audit_logs_paginated(pool, pp, p)
         .await
-        .unwrap();
+        .expect("Failed to list audit logs");
 
     let total_count = db::audit_log::count_audit_logs(pool)
         .await
-        .unwrap();
+        .expect("Failed to count audit logs");
 
     let total_pages = if pp > 0 {
         (total_count + pp - 1) / pp
