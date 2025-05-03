@@ -944,6 +944,204 @@ VALUES
 (5, 'created', NULL, '2025-04-19 04:10:05', NULL, '{"status": "active", "severity": "critical"}', 'Automatically created by security service'),
 (5, 'acknowledged', 2, '2025-04-19 04:15:22', '{"status": "active"}', '{"status": "acknowledged"}', 'Security team investigating');
 
+INSERT INTO nodes (worker_id, node_type, hostname, ip_address, cpu_cores, ram_gb, disk_gb, status) VALUES
+-- Region 1 nodes
+(1, 'master', 'master-node-001.region1', '10.0.1.10', 16, 64, 500, 'active'),
+(1, 'worker', 'worker-node-001.region1', '10.0.1.20', 32, 128, 1000, 'active'),
+(2, 'worker', 'worker-node-002.region1', '10.0.1.21', 32, 128, 1000, 'active'),
+(3, 'storage', 'storage-node-001.region1', '10.0.1.30', 16, 64, 4000, 'active'),
+(4, 'edge', 'edge-node-001.region1', '10.0.1.40', 8, 32, 250, 'active');
+
+-- Populate resource_types table with common cloud resources
+INSERT INTO resource_types (name, category, unit_of_measurement, description) VALUES
+('cpu_usage', 'compute', 'vCPU-hour', 'Virtual CPU usage per hour'),
+('memory_usage', 'compute', 'GB-hour', 'Memory usage per hour'),
+('disk_usage', 'storage', 'GB-month', 'Persistent disk storage per month'),
+('network_egress', 'network', 'GB', 'Outbound data transfer'),
+('network_ingress', 'network', 'GB', 'Inbound data transfer'),
+('database_storage', 'database', 'GB-month', 'Database storage per month'),
+('database_iops', 'database', 'million-iops', 'Database I/O operations per second'),
+('snapshot_storage', 'storage', 'GB-month', 'Snapshot storage per month'),
+('load_balancer', 'network', 'hour', 'Load balancer operating hours'),
+('api_requests', 'service', 'million-requests', 'API requests processed'),
+('container_runtime', 'compute', 'container-hour', 'Container runtime per hour'),
+('gpu_usage', 'compute', 'GPU-hour', 'GPU usage per hour'),
+('cache_usage', 'service', 'GB-hour', 'In-memory cache usage per hour'),
+('queue_messages', 'service', 'million-messages', 'Queue messages processed'),
+('dns_queries', 'network', 'million-queries', 'DNS queries processed');
+
+-- Sample resource pricing for different providers
+INSERT INTO resource_pricing (resource_type_id, provider_id, region_id, tier_name, unit_price, currency, 
+                            effective_from, effective_to, pricing_model, commitment_period, volume_discount_tiers) VALUES
+-- Provider 1 pricing (AWS-like)
+(1, 1, 1, 'standard', 0.0456, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, 
+ '{"tiers": [{"min": 0, "max": 1000, "discount": 0}, {"min": 1001, "max": 10000, "discount": 10}, {"min": 10001, "max": null, "discount": 20}]}'),
+(2, 1, 1, 'standard', 0.0125, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, 
+ '{"tiers": [{"min": 0, "max": 1000, "discount": 0}, {"min": 1001, "max": 10000, "discount": 5}, {"min": 10001, "max": null, "discount": 15}]}'),
+(3, 1, 1, 'standard', 0.10, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, 
+ '{"tiers": [{"min": 0, "max": 1000, "discount": 0}, {"min": 1001, "max": null, "discount": 10}]}'),
+(4, 1, 1, 'standard', 0.09, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, NULL),
+
+-- Provider 2 pricing (GCP-like)
+(1, 2, 2, 'standard', 0.0438, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, 
+ '{"tiers": [{"min": 0, "max": 1000, "discount": 0}, {"min": 1001, "max": null, "discount": 15}]}'),
+(2, 2, 2, 'standard', 0.0118, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, 
+ '{"tiers": [{"min": 0, "max": 1000, "discount": 0}, {"min": 1001, "max": null, "discount": 10}]}'),
+(3, 2, 2, 'standard', 0.08, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, NULL),
+(4, 2, 2, 'standard', 0.085, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, NULL),
+
+-- Provider 3 pricing (Azure-like)
+(1, 3, 3, 'standard', 0.0460, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, NULL),
+(2, 3, 3, 'standard', 0.0127, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, NULL),
+(3, 3, 3, 'standard', 0.095, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, NULL),
+(4, 3, 3, 'standard', 0.087, 'USD', '2025-01-01 00:00:00', NULL, 'on-demand', NULL, NULL),
+
+-- Reserved instance pricing examples
+(1, 1, 1, 'reserved', 0.0290, 'USD', '2025-01-01 00:00:00', NULL, 'reserved', '1-year', NULL),
+(1, 1, 1, 'reserved', 0.0210, 'USD', '2025-01-01 00:00:00', NULL, 'reserved', '3-year', NULL),
+(1, 2, 2, 'reserved', 0.0280, 'USD', '2025-01-01 00:00:00', NULL, 'reserved', '1-year', NULL),
+(1, 3, 3, 'reserved', 0.0295, 'USD', '2025-01-01 00:00:00', NULL, 'reserved', '1-year', NULL),
+
+-- Spot/preemptible pricing examples
+(1, 1, 1, 'spot', 0.0137, 'USD', '2025-01-01 00:00:00', NULL, 'spot', NULL, NULL),
+(1, 2, 2, 'preemptible', 0.0131, 'USD', '2025-01-01 00:00:00', NULL, 'spot', NULL, NULL),
+(1, 3, 3, 'spot', 0.0138, 'USD', '2025-01-01 00:00:00', NULL, 'spot', NULL, NULL),
+
+-- Historical price changes (showing how prices have decreased over time)
+(1, 1, 1, 'standard', 0.0520, 'USD', '2024-01-01 00:00:00', '2024-12-31 23:59:59', 'on-demand', NULL, NULL),
+(2, 1, 1, 'standard', 0.0145, 'USD', '2024-01-01 00:00:00', '2024-12-31 23:59:59', 'on-demand', NULL, NULL),
+(1, 2, 2, 'standard', 0.0490, 'USD', '2024-01-01 00:00:00', '2024-12-31 23:59:59', 'on-demand', NULL, NULL),
+(1, 3, 3, 'standard', 0.0510, 'USD', '2024-01-01 00:00:00', '2024-12-31 23:59:59', 'on-demand', NULL, NULL);
+
+-- Sample cost metrics data (assumes you have apps, regions, providers, workers, and orgs already defined)
+INSERT INTO cost_metrics (resource_type_id, provider_id, region_id, app_id, worker_id, org_id, 
+                        start_time, end_time, usage_quantity, unit_cost, currency, total_cost, 
+                        discount_percentage, discount_reason, billing_period) VALUES
+-- App 1 metrics for different resources over time
+(1, 1, 1, 1, 1, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 8.0, 0.0456, 'USD', 0.3648, 0, NULL, '2025-05'),
+(2, 1, 1, 1, 1, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 16.0, 0.0125, 'USD', 0.2000, 0, NULL, '2025-05'),
+(3, 1, 1, 1, 1, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 100.0, 0.10, 'USD', 10.0000, 0, NULL, '2025-05'),
+(4, 1, 1, 1, 1, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 5.2, 0.09, 'USD', 0.4680, 0, NULL, '2025-05'),
+
+-- App 1, next hour
+(1, 1, 1, 1, 1, 1, '2025-05-01 01:00:00', '2025-05-01 02:00:00', 8.0, 0.0456, 'USD', 0.3648, 0, NULL, '2025-05'),
+(2, 1, 1, 1, 1, 1, '2025-05-01 01:00:00', '2025-05-01 02:00:00', 16.5, 0.0125, 'USD', 0.2063, 0, NULL, '2025-05'),
+(3, 1, 1, 1, 1, 1, '2025-05-01 01:00:00', '2025-05-01 02:00:00', 100.0, 0.10, 'USD', 10.0000, 0, NULL, '2025-05'),
+(4, 1, 1, 1, 1, 1, '2025-05-01 01:00:00', '2025-05-01 02:00:00', 6.1, 0.09, 'USD', 0.5490, 0, NULL, '2025-05'),
+
+-- App 2 metrics
+(1, 1, 1, 2, 2, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 4.0, 0.0456, 'USD', 0.1824, 0, NULL, '2025-05'),
+(2, 1, 1, 2, 2, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 8.0, 0.0125, 'USD', 0.1000, 0, NULL, '2025-05'),
+(3, 1, 1, 2, 2, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 50.0, 0.10, 'USD', 5.0000, 0, NULL, '2025-05'),
+(4, 1, 1, 2, 2, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 2.8, 0.09, 'USD', 0.2520, 0, NULL, '2025-05'),
+
+-- App 3 metrics (different provider)
+(1, 2, 2, 3, 3, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 16.0, 0.0438, 'USD', 0.7008, 0, NULL, '2025-05'),
+(2, 2, 2, 3, 3, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 32.0, 0.0118, 'USD', 0.3776, 0, NULL, '2025-05'),
+(3, 2, 2, 3, 3, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 200.0, 0.08, 'USD', 16.0000, 0, NULL, '2025-05'),
+(4, 2, 2, 3, 3, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 15.6, 0.085, 'USD', 1.3260, 0, NULL, '2025-05'),
+
+-- App 4 metrics (another provider)
+(1, 3, 3, 4, 4, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 8.0, 0.0460, 'USD', 0.3680, 0, NULL, '2025-05'),
+(2, 3, 3, 4, 4, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 16.0, 0.0127, 'USD', 0.2032, 0, NULL, '2025-05'),
+(3, 3, 3, 4, 4, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 100.0, 0.095, 'USD', 9.5000, 0, NULL, '2025-05'),
+(4, 3, 3, 4, 4, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 7.4, 0.087, 'USD', 0.6438, 0, NULL, '2025-05'),
+
+-- App 1 with special discount
+(1, 1, 1, 1, 1, 1, '2025-05-02 00:00:00', '2025-05-02 01:00:00', 8.0, 0.0456, 'USD', 0.3283, 10, 'Volume discount', '2025-05'),
+(2, 1, 1, 1, 1, 1, '2025-05-02 00:00:00', '2025-05-02 01:00:00', 16.0, 0.0125, 'USD', 0.1800, 10, 'Volume discount', '2025-05'),
+
+-- Reserved instance example
+(1, 1, 1, 5, 5, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 8.0, 0.0290, 'USD', 0.2320, 0, 'Reserved instance', '2025-05'),
+(2, 1, 1, 5, 5, 1, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 16.0, 0.0125, 'USD', 0.2000, 0, NULL, '2025-05'),
+
+-- Spot instance example
+(1, 1, 1, 6, 6, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 8.0, 0.0137, 'USD', 0.1096, 0, 'Spot instance', '2025-05'),
+(2, 1, 1, 6, 6, 2, '2025-05-01 00:00:00', '2025-05-01 01:00:00', 16.0, 0.0125, 'USD', 0.2000, 0, NULL, '2025-05');
+
+-- Sample cost projections
+INSERT INTO cost_projections (org_id, app_id, projection_period, start_date, end_date, projected_cost, currency, 
+                           projection_model, confidence_level, metadata) VALUES
+-- Organization 1 projections
+(1, NULL, 'monthly', '2025-05-01', '2025-05-31', 15420.50, 'USD', 'linear', 0.95, 
+ '{"basis": "last_30_days", "growth_factor": 1.05}'),
+(1, 1, 'monthly', '2025-05-01', '2025-05-31', 5280.75, 'USD', 'linear', 0.95, 
+ '{"basis": "last_30_days", "growth_factor": 1.02}'),
+(1, 2, 'monthly', '2025-05-01', '2025-05-31', 2640.40, 'USD', 'linear', 0.95, 
+ '{"basis": "last_30_days", "growth_factor": 1.03}'),
+
+-- Organization 2 projections
+(2, NULL, 'monthly', '2025-05-01', '2025-05-31', 28750.25, 'USD', 'linear', 0.95, 
+ '{"basis": "last_30_days", "growth_factor": 1.08}'),
+(2, 3, 'monthly', '2025-05-01', '2025-05-31', 18250.30, 'USD', 'linear', 0.95, 
+ '{"basis": "last_30_days", "growth_factor": 1.07}'),
+(2, 4, 'monthly', '2025-05-01', '2025-05-31', 10500.60, 'USD', 'linear', 0.95, 
+ '{"basis": "last_30_days", "growth_factor": 1.04}'),
+
+-- Quarterly projections
+(1, NULL, 'quarterly', '2025-05-01', '2025-07-31', 48250.75, 'USD', 'linear', 0.90, 
+ '{"basis": "last_90_days", "growth_factor": 1.10}'),
+(2, NULL, 'quarterly', '2025-05-01', '2025-07-31', 89250.50, 'USD', 'linear', 0.90, 
+ '{"basis": "last_90_days", "growth_factor": 1.15}');
+
+-- Sample budget thresholds
+INSERT INTO cost_budgets (org_id, app_id, budget_name, budget_amount, currency, budget_period, 
+                        period_start, period_end, alert_threshold_percentage, alert_contacts, 
+                        is_active, created_by) VALUES
+-- Organization 1 budgets
+(1, NULL, 'Org 1 Monthly Budget', 20000.00, 'USD', 'monthly', '2025-05-01', '2025-05-31', 80.00, 
+ '["admin@org1.com", "finance@org1.com"]', TRUE, 1),
+(1, 1, 'App 1 Monthly Budget', 6000.00, 'USD', 'monthly', '2025-05-01', '2025-05-31', 75.00, 
+ '["app1-team@org1.com", "finance@org1.com"]', TRUE, 1),
+(1, 2, 'App 2 Monthly Budget', 3000.00, 'USD', 'monthly', '2025-05-01', '2025-05-31', 75.00, 
+ '["app2-team@org1.com", "finance@org1.com"]', TRUE, 1),
+
+-- Organization 2 budgets
+(2, NULL, 'Org 2 Monthly Budget', 30000.00, 'USD', 'monthly', '2025-05-01', '2025-05-31', 80.00, 
+ '["admin@org2.com", "finance@org2.com"]', TRUE, 2),
+(2, 3, 'App 3 Monthly Budget', 20000.00, 'USD', 'monthly', '2025-05-01', '2025-05-31', 75.00, 
+ '["app3-team@org2.com", "finance@org2.com"]', TRUE, 2),
+(2, 4, 'App 4 Monthly Budget', 12000.00, 'USD', 'monthly', '2025-05-01', '2025-05-31', 75.00, 
+ '["app4-team@org2.com", "finance@org2.com"]', TRUE, 2),
+
+-- Quarterly budgets
+(1, NULL, 'Org 1 Q2 Budget', 55000.00, 'USD', 'quarterly', '2025-04-01', '2025-06-30', 80.00, 
+ '["admin@org1.com", "finance@org1.com", "cfo@org1.com"]', TRUE, 1),
+(2, NULL, 'Org 2 Q2 Budget', 95000.00, 'USD', 'quarterly', '2025-04-01', '2025-06-30', 80.00, 
+ '["admin@org2.com", "finance@org2.com", "cfo@org2.com"]', TRUE, 2);
+
+-- Sample cost allocation tags
+INSERT INTO cost_allocation_tags (tag_key, tag_value, resource_id, resource_type) VALUES
+-- Project tags
+('project', 'e-commerce', 1, 'app'),
+('project', 'e-commerce', 2, 'app'),
+('project', 'analytics', 3, 'app'),
+('project', 'crm', 4, 'app'),
+
+-- Department tags
+('department', 'engineering', 1, 'app'),
+('department', 'engineering', 2, 'app'),
+('department', 'data-science', 3, 'app'),
+('department', 'sales', 4, 'app'),
+
+-- Environment tags
+('environment', 'production', 1, 'app'),
+('environment', 'staging', 2, 'app'),
+('environment', 'production', 3, 'app'),
+('environment', 'production', 4, 'app'),
+
+-- Team tags
+('team', 'backend', 1, 'app'),
+('team', 'frontend', 2, 'app'),
+('team', 'data', 3, 'app'),
+('team', 'integrations', 4, 'app'),
+
+-- Cost center tags
+('cost-center', 'cc-1001', 1, 'app'),
+('cost-center', 'cc-1001', 2, 'app'),
+('cost-center', 'cc-2001', 3, 'app'),
+('cost-center', 'cc-3001', 4, 'app');
+
 -- Re-enable foreign key checks and unique checks
 SET FOREIGN_KEY_CHECKS = 1;
 SET UNIQUE_CHECKS = 1;
