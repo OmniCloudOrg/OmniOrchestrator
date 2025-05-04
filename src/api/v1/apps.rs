@@ -349,7 +349,9 @@ pub async fn delete_app(
 }
 
 /// Releases a new version of the target application by uploading an artifact.
-///
+/// TODO: @tristanpoland Review if we actually need this or should drop in favor
+///       of using the deploy route.
+/// 
 /// # Arguments
 ///
 /// * `app_id` - The ID of the application to release a new version for
