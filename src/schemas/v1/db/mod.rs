@@ -1,6 +1,5 @@
 pub mod queries;
-pub mod tables;
-pub  mod utils;
+pub mod utils;
 
 use sqlx::{Acquire, MySql};
 use utils::split_sql_statements;
