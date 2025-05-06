@@ -13,3 +13,14 @@ cluster.db-wal
 .cargo/sql_formatter/target/
 .cargo/sql_formatter/Cargo.lock
 .env
+
+# Ignore common editor/project files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.code-workspace
+*.sw?
+*~
+.DS_Store
+Thumbs.db
