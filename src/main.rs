@@ -16,18 +16,20 @@
 // +-------------+
 // | MODULES     |
 // +-------------+
-mod db;
-mod api;
+// mod db;
+// mod api;
 mod state;
 mod leader;
 mod config;
-mod backup;
+// mod backup;
 mod network;
 mod cluster;
 mod app_autoscaler;
 mod worker_autoscaler;
 
-use api::auth::AuthConfig;
+mod schemas;
+
+// use api::auth::AuthConfig;
 // +-------------+
 // | IMPORTS     |
 // +-------------+
@@ -36,6 +38,7 @@ use rocket::Build;
 use anyhow::anyhow;
 use rocket::Rocket;
 use anyhow::Result;
+use schemas::auth::AuthConfig;
 use std::io::Write;
 use reqwest::Client;
 use colored::Colorize;
@@ -61,11 +64,17 @@ use crate::config::SERVER_CONFIG;
 use crate::leader::LeaderElection;
 use crate::cluster::{ClusterManager, NodeInfo};
 
+use schemas::v1::{
+    models,
+    api,
+    db
+};
+
 // We ignore this import as it always says
 // unused even when that is not the case
 #[allow(unused_imports)]
 // Import all API routes
-use api::*;
+// use api::*;
 
 #[macro_use]
 extern crate rocket;
@@ -372,7 +381,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // when to update the schema and initialize sample data before we actually
     // touch any data or start the API.
     log::info!("{}", "Initializing metadata system...".blue());
-    db::v1::queries::metadata::initialize_metadata_system(&pool).await?;
+    schemas::v1::db::queries::metadata::initialize_metadata_system(&pool).await?;
     log::info!("{}", "✓ Metadata system initialized".green());
 
     // Check database schema version and update if necessary
@@ -381,7 +390,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // If they differ, it prompts the user for confirmation before proceeding
     // with the schema update and sample data initialization
     let target_version = "1";
-    let current_version = db::v1::queries::metadata::get_meta_value(&pool, "omni_schema_version")
+    let current_version = schemas::v1::db::queries::metadata::get_meta_value(&pool, "omni_schema_version")
         .await
         .unwrap_or_else(|_| "0".to_string());
 
@@ -399,10 +408,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if input.trim() == "confirm" {
             // Initialize database schema
             log::info!("{}", "Initializing database schema...".blue());
-            match db::init_schema(1, &pool).await {
+            match schemas::v1::db::init_schema(1, &pool).await {
                 Ok(_) => {
                     log::info!("{}", "✓ Database schema initialized".green());
-                    db::v1::queries::metadata::set_meta_value(
+                    schemas::v1::db::queries::metadata::set_meta_value(
                         &pool,
                         "omni_schema_version",
                         target_version,
@@ -415,7 +424,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Initialize sample data for the schema
             log::info!("{}", "Initializing sample data...".blue());
-            match db::sample_data(&pool).await {
+            match schemas::v1::db::sample_data(&pool).await {
                 Ok(_) => log::info!("{}", "✓ Sample data initialized".green()),
                 Err(e) => log::error!("{}", format!("Failed to initialize sample data: {:?}", e).red()),
             };
@@ -589,7 +598,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("{}", "Defining API routes".cyan());
     let routes = vec![
         ("/", routes![health_check, api::index::routes_ui, cluster_status, cors_preflight]), 
-        ("/api/v1", api::v1::routes())
+        ("/api/v1", api::routes())
     ];
 
     let auth_config = AuthConfig {
