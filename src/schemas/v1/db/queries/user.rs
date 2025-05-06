@@ -1,5 +1,4 @@
-use super::super::super::models::user::User;
-use super::super::super::db::tables::{UserMeta, UserPii, UserSession};
+use crate::models::user::{UserMeta, UserPii, UserSession, User};
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 

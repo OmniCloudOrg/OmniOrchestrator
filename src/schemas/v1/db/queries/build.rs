@@ -1,4 +1,4 @@
-use super::super::tables::Build;
+use crate::models::build::Build;
 use anyhow::Context;
 use sqlx::{FromRow, MySql, Pool};
 

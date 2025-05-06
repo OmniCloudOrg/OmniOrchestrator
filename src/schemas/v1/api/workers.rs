@@ -9,7 +9,7 @@
 //! - Scaling workers
 //! - Deleting workers
 
-use crate::db::tables::Worker;
+use crate::models::worker::Worker;
 use super::super::db::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};

@@ -4,7 +4,7 @@
 //! alerts in the system. It includes endpoints for managing alerts
 //! associated with applications and organizations.
 
-use crate::db::tables::{
+use crate::models::alert::{
     Alert, AlertWithRelatedData, AlertAcknowledgment, AlertEscalation
 };
 use super::super::db::queries as db;
@@ -15,7 +15,7 @@ use rocket::{delete, get, http::ContentType, post, put, State};
 use serde::{Deserialize, Serialize};
 use rocket::time::OffsetDateTime;
 use std::collections::HashMap;
-use crate::db::tables::User; // Add this at the top if not already present
+use crate::models::user::User; // Add this at the top if not already present
 
 // Request and response structs
 

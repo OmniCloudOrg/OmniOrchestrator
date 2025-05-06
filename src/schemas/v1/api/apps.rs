@@ -10,7 +10,7 @@
 //! - Deleting applications
 //! - Releasing new versions of applications
 
-use crate::db::tables::{App, AppWithInstanceCount, AppWithInstances};
+use crate::models::app::{App, AppWithInstanceCount, AppWithInstances};
 use super::super::db::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};

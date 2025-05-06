@@ -1,4 +1,5 @@
-use super::super::tables::{App, AppWithInstanceCount, Instance, AppWithInstances};
+use crate::models::app::{App, AppWithInstanceCount, AppWithInstances};
+use crate::models::instance::Instance;
 use anyhow::Context;
 use serde::Serialize;
 use sqlx::{MySql, Pool};

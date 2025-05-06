@@ -1,12 +1,12 @@
-use super::super::tables::{
-    Provider,
-    Region,
+use crate::models::provider::Provider;
+use crate::models::storage::{
     StorageClass,
     StorageVolume,
     StorageSnapshot,
-    StorageQosPolicy,
+    StorageQosPolicy,    
     StorageMigration,
 };
+use crate::models::region::Region;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 use sqlx::Row;

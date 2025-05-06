@@ -1,6 +1,6 @@
 use rocket::{serde::json::Json, State};
 use sqlx::MySql;
-use super::super::tables::Backup;
+use crate::models::backup::Backup;
 
 /// Paginated backups list
 pub async fn list_backups_paginated(

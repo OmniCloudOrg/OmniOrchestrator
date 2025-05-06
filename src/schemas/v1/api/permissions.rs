@@ -1,5 +1,5 @@
 use crate::schemas::v1::db::queries::{self as db};
-use crate::schemas::v1::db::tables;
+use crate::models::permission::Permission;
 use rocket::{delete, get, post, serde::json::Json, State};
 use sqlx::MySql;
 // #[post("/app")]
@@ -11,7 +11,7 @@ use sqlx::MySql;
 pub async fn get_permission_by_id(
     pool: &State<sqlx::Pool<MySql>>,
     id: i64,
-) -> Json<tables::Permission> {
+) -> Json<Permission> {
     let permission = db::permission::get_permission_by_id(pool, id)
         .await
         .unwrap();
@@ -20,7 +20,7 @@ pub async fn get_permission_by_id(
 }
 
 #[get("/permissions")]
-pub async fn list_permission(pool: &State<sqlx::Pool<MySql>>) -> Json<Vec<tables::Permission>> {
+pub async fn list_permission(pool: &State<sqlx::Pool<MySql>>) -> Json<Vec<Permission>> {
     let permissions = db::permission::list_permissions(pool).await.unwrap();
 
     Json(permissions)
@@ -28,8 +28,8 @@ pub async fn list_permission(pool: &State<sqlx::Pool<MySql>>) -> Json<Vec<tables
 #[post("/permissions", format = "json", data = "<permission>")]
 pub async fn create_permission(
     pool: &State<sqlx::Pool<MySql>>,
-    permission: Json<tables::Permission>,
-) -> Json<tables::Permission> {
+    permission: Json<Permission>,
+) -> Json<Permission> {
     let permission = db::permission::create_permission(
         pool,
         &permission.name,

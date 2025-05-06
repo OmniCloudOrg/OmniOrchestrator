@@ -1,4 +1,5 @@
-use super::super::tables::{ResourceType, CostMetric, CostMetricWithType, ResourcePricing, CostBudget, CostProjection, CostAllocationTag};
+use crate::models::cost::{CostMetric, CostMetricWithType, ResourcePricing, CostBudget, CostProjection, CostAllocationTag};
+use crate::models::util_tables::ResourceType;
 use anyhow::Context;
 use serde::Serialize;
 use sqlx::{MySql, Pool};

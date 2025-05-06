@@ -4,8 +4,7 @@
 //! - Creating new audit log entries
 //! - Listing audit logs with pagination support
 
-use crate::schemas::v1::db::tables::AuditLog;
-
+use crate::models::audit_log::AuditLog;
 use super::super::db::queries as db;
 use rocket::get;
 use rocket::post;

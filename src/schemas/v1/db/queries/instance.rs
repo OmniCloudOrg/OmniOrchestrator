@@ -1,4 +1,4 @@
-use super::super::tables::Instance;
+use crate::models::instance::Instance;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 

@@ -1,4 +1,4 @@
-use super::super::tables::AuditLog;
+use crate::models::audit_log::AuditLog;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 

@@ -5,9 +5,8 @@
 //! - Listing builds for a specific application
 //! - Getting details of a specific build
 
-use crate::db::tables::Build;
+use crate::models::build::Build;
 use super::super::db::queries as db;
-use rocket::http::Status;
 use rocket::serde::json::{self, json, Json};
 use rocket::{delete, get, http::ContentType, post, put, Data, State};
 use sqlx::MySql;

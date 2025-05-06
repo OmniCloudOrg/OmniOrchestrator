@@ -1,7 +1,14 @@
-use jsonwebtoken::{decode, Algorithm, Validation, DecodingKey};
-use serde::{Serialize, Deserialize};
+use sqlx::types::{chrono::NaiveDateTime, JsonValue};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use chrono::{DateTime, Utc};
-use sqlx::{FromRow, MySql, Pool};
+use sqlx::types::Json;
+use sqlx::Pool;
+use sqlx::MySql;
+use sqlx::FromRow;
+use serde_json::Value; 
+use sqlx::Row;
+use jsonwebtoken::{decode, encode, DecodingKey, Validation, Algorithm};
 
 use crate::schemas::auth::{AuthConfig, Claims};
 

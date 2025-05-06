@@ -1,6 +1,7 @@
-use super::super::tables::{Permission, Role};
-use anyhow::Context;
+use crate::models::permission::Permission;
+use crate::models::role::Role;
 use sqlx::{MySql, Pool};
+use anyhow::Context;
 
 //=============================================================================
 // Role Operations
