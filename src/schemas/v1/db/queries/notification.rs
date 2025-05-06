@@ -1,4 +1,4 @@
-use super::super::tables::{
+use crate::models::notification::{
     Notification, NotificationWithCount, UserNotification, RoleNotification, 
     NotificationAcknowledgment, UserNotificationWithRoleNotifications
 };

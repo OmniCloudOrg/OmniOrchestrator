@@ -4,8 +4,15 @@
 //! notifications in the system. It includes endpoints for managing both
 //! user notifications and role-based notifications.
 
-use crate::db::tables::{
-    NotificationAcknowledgment, NotificationWithCount, RoleNotification, User, UserNotification, UserNotificationWithRoleNotifications
+use crate::models::{
+    user::User,
+    notification::{
+        NotificationAcknowledgment,
+        NotificationWithCount,
+        RoleNotification,
+        UserNotification,
+        UserNotificationWithRoleNotifications
+    },
 };
 use crate::schemas::v1::db::queries::{self as db};
 use rocket::http::Status;

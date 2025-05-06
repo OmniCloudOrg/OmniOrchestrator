@@ -1,4 +1,4 @@
-use crate::schemas::v1::db::tables::Instance;
+use crate::models::instance::Instance;
 use rocket::get;
 use rocket::serde::json::Json;
 use rocket::State;

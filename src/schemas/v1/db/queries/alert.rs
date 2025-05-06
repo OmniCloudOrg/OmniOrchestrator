@@ -1,4 +1,4 @@
-use super::super::tables::{
+use crate::models::alert::{
     Alert, AlertWithAcknowledgments, AlertAcknowledgment, 
     AlertEscalation, AlertHistory, AlertWithRelatedData
 };

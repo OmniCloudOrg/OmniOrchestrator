@@ -9,7 +9,17 @@
 //! - Cost allocation tagging
 
 use super::super::super::auth::User;
-use crate::db::tables::{ResourceType, CostMetric, CostMetricWithType, ResourcePricing, CostBudget, CostProjection, CostAllocationTag};
+use crate::models::{
+    util_tables::ResourceType,
+    cost::{
+        CostBudget,
+        CostMetric,
+        CostProjection,
+        ResourcePricing,
+        CostAllocationTag,
+        CostMetricWithType,
+    }
+};
 use super::super::db::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};

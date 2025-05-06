@@ -1,4 +1,5 @@
-use crate::db::tables::{Region, ProviderRegion};
+use crate::models::region::Region;
+use crate::models::provider::ProviderRegion;
 use crate::schemas::v1::db::queries::{self as db};
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};

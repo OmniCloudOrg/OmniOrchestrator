@@ -1,4 +1,5 @@
-use super::super::tables::{Region, ProviderRegion};
+use crate::models::region::Region;
+use crate::models::provider::ProviderRegion;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 

@@ -1,4 +1,4 @@
-use super::super::tables::Org;
+use crate::models::org::Org;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 

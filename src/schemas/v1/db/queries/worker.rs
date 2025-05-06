@@ -1,4 +1,4 @@
-use super::super::tables::Worker;
+use crate::models::worker::Worker;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 use tracing;

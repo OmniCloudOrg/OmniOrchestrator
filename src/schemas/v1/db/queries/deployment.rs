@@ -1,7 +1,8 @@
-use super::super::tables::{Build, Deployment};
-use anyhow::Context;
-use chrono::{DateTime, Utc};
+use crate::models::deployment::Deployment;
+use crate::models::build::Build;
 use sqlx::{FromRow, MySql, Pool};
+use chrono::{DateTime, Utc};
+use anyhow::Context;
 
 //=============================================================================
 // Build Operations
