@@ -49,6 +49,7 @@ RUN adduser \
 
 # Correct config file permissions
 COPY --chown=appuser:appuser ./config.json /config.json
+COPY .env_docker .env
 RUN chmod a+rwx /config.json
 
 USER appuser
