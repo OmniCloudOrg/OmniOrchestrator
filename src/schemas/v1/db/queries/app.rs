@@ -421,3 +421,63 @@ pub async fn set_maintenance_mode(
     tx.commit().await?;
     Ok(app)
 }
+
+/// Retrieves a paginated list of instances for a specific application.
+///
+/// This function fetches a subset of instances associated with an application,
+/// ordered by creation time with the most recent first. Pagination helps manage
+/// large datasets by retrieving only a specific "page" of results.
+///
+/// # Arguments
+///
+/// * `pool` - Database connection pool for executing the query
+/// * `app_id` - Unique identifier of the application whose instances to retrieve
+/// * `page` - Zero-based page number (e.g., 0 for first page, 1 for second page)
+/// * `per_page` - Number of records to fetch per page
+///
+/// # Returns
+///
+/// * `Ok(Vec<Instance>)` - Successfully retrieved list of instances
+/// * `Err(anyhow::Error)` - Failed to fetch instances
+///
+/// # Use Cases
+///
+/// Common use cases include:
+/// - Displaying paginated instances in an application dashboard
+/// - Monitoring resource usage across an application
+/// - Auditing instance allocation and lifecycle
+pub async fn list_instances(
+    pool: &Pool<MySql>,
+    app_id: i64,
+    page: i64,
+    per_page: i64,
+) -> anyhow::Result<Vec<Instance>> {
+    let instances = sqlx::query_as::<_, Instance>(
+        "SELECT * FROM instances WHERE app_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+    )
+    .bind(app_id)
+    .bind(per_page)
+    .bind(page * per_page)
+    .fetch_all(pool)
+    .await
+    .context("Failed to fetch instances")?;
+
+    Ok(instances)
+}
+
+/// Counts the number of instances for each application (grouped by app_id).
+///
+/// This function returns a vector of tuples, where each tuple contains an app_id
+/// and the corresponding count of instances for that app. Useful for dashboards
+/// or analytics where you want to see instance distribution per app.
+pub async fn count_instances_by_app(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<i64> {
+    let count = sqlx::query_scalar::<_, i64>(
+        "SELECT COUNT(*) FROM instances where app_id = ?"
+    )
+    .bind(app_id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to count instances by app_id")?;
+
+    Ok(count)
+}

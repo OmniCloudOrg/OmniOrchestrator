@@ -6,16 +6,6 @@ use sqlx::MySql;
 
 use crate::schemas::v1::db::queries::{self as db};
 
-// List all applications
-#[get("/apps/<app_id>/instances")]
-pub async fn list_instances(pool: &State<sqlx::Pool<MySql>>, app_id: i64) -> Json<Vec<Instance>> {
-    let instances = db::instance::list_instances(pool, app_id).await.unwrap();
-    println!("Found {} instances", instances.len());
-    let instances_vec: Vec<Instance> = instances.into_iter().collect();
-    println!("Returning {} apps", instances_vec.len());
-    Json(instances_vec)
-}
-
 /// List all instances by `region_id` and `app_id`
 #[get("/apps/<app_id>/instances/region/<region_id>?<page>&<per_page>")]
 pub async fn list_instances_by_region(

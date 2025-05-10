@@ -1,3 +1,6 @@
+-- OmniCloud platform database schema
+-- This script creates the database schema for the OmniCloud platform.
+
 -- Drop all tables first (in correct dependency order)
 SET FOREIGN_KEY_CHECKS = 0;
 

@@ -2,40 +2,6 @@ use crate::models::instance::Instance;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 
-/// Retrieves all instances for a specific application.
-///
-/// This function fetches all instances associated with an application, ordered by
-/// creation time with the most recent first. It provides a complete view of all
-/// compute resources allocated to an application.
-///
-/// # Arguments
-///
-/// * `pool` - Database connection pool for executing the query
-/// * `app_id` - Unique identifier of the application whose instances to retrieve
-///
-/// # Returns
-///
-/// * `Ok(Vec<Instance>)` - Successfully retrieved list of instances
-/// * `Err(anyhow::Error)` - Failed to fetch instances
-///
-/// # Use Cases
-///
-/// Common use cases include:
-/// - Displaying all instances in an application dashboard
-/// - Monitoring resource usage across an application
-/// - Auditing instance allocation and lifecycle
-pub async fn list_instances(pool: &Pool<MySql>, app_id: i64) -> anyhow::Result<Vec<Instance>> {
-    let instances = sqlx::query_as::<_, Instance>(
-        "SELECT * FROM instances WHERE app_id = ? ORDER BY created_at DESC",
-    )
-    .bind(app_id)
-    .fetch_all(pool)
-    .await
-    .context("Failed to fetch instances")?;
-
-    Ok(instances)
-}
-
 /// List instances by `region_id` and `app_id` paginated by `page` and `per_page` using a where clause.
 pub async fn list_instances_by_region(
     pool: &Pool<MySql>,

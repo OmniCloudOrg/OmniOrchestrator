@@ -11,6 +11,7 @@
 //! - Releasing new versions of applications
 
 use crate::models::app::{App, AppWithInstanceCount, AppWithInstances};
+use crate::models::instance::Instance;
 use super::super::db::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
@@ -115,7 +116,7 @@ pub async fn list_apps(
         (Some(p), Some(pp)) => {
             let apps = db::app::list_apps(pool, p, pp).await.unwrap();
             let total_count = db::app::count_apps(pool).await.unwrap();
-            let total_pages = (total_count as f64 / pp as f64).ceil() as i64;
+            let total_pages = (total_count / pp);
 
             let response = json!({
                 "apps": apps,
@@ -391,4 +392,40 @@ pub async fn release(
     // Accept the release tarball and save it to the filesystem
 
     super::helpers::release::release(app_id, release_version, content_type, data).await
+}
+
+// List all instances for an application with pagination
+#[get("/apps/<app_id>/instances?<page>&<per_page>")]
+pub async fn list_instances(
+    pool: &State<sqlx::Pool<MySql>>,
+    app_id: i64,
+    page: Option<i64>,
+    per_page: Option<i64>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    match (page, per_page) {
+        (Some(p), Some(pp)) => {
+            let instances = db::app::list_instances(pool, app_id, p, pp).await.unwrap();
+            let total_count = db::app::count_instances_by_app(pool, app_id).await.unwrap();;
+            let total_pages = (total_count as f64 / pp as f64).ceil() as i64;
+
+            let response = json!({
+                "instances": instances,
+                "pagination": {
+                    "page": p,
+                    "per_page": pp,
+                    "total_count": total_count,
+                    "total_pages": total_pages
+                }
+            });
+
+            Ok(Json(response))
+        }
+        _ => Err((
+            Status::BadRequest,
+            Json(json!({
+                "error": "Missing pagination parameters",
+                "message": "Please provide both 'page' and 'per_page' parameters"
+            }))
+        ))
+    }
 }
