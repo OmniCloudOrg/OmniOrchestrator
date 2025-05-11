@@ -57,6 +57,7 @@ use worker_autoscaler::create_default_cpu_memory_scaling_policy;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::http::Header;
 use rocket::{Request, Response};
+use clickhouse;
 
 // Internal imports
 use crate::state::SharedState;
