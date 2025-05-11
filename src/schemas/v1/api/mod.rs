@@ -1,3 +1,34 @@
+//-----------------------------------------------------------------------------
+// OmniOrchestrator V1 API route registration module
+//-----------------------------------------------------------------------------
+// Authors: Tristan Poland, Maxine DeAndreade, Caznix
+//
+// This module contains the route registration for the V1 API of OmniOrchestrator.
+// It includes all the necessary routes for various functionalities such as
+// apps, alerts, notifications, instances, users, permissions, metadata,
+// audit logs, builds, regions, providers, workers, metrics, storage,
+// cost, deployments, and logging.
+//
+// Each module corresponds to a specific functionality and contains the
+// implementation of the routes related to that functionality.
+// The `routes` function aggregates all the routes from the individual
+// modules and returns them as a vector of Rocket routes.
+// The routes are defined using the Rocket framework, which is a web
+// framework for Rust.
+//
+// The modules are organized in a way that allows for easy navigation
+// and understanding of the different functionalities provided by
+// OmniOrchestrator. Each module is responsible for a specific area of
+// functionality, and the routes defined within that module are related
+// to that functionality.
+//
+// The `routes` function is the entry point for registering all the
+// routes in the V1 API. It uses the `routes!` macro from Rocket to
+// define the routes and their corresponding handlers. The routes
+// are then returned as a vector, which can be used to register the
+// routes with the Rocket application.
+//-----------------------------------------------------------------------------
+
 use rocket::routes;
 
 pub mod alerts;
@@ -14,126 +45,106 @@ pub mod metrics;
 pub mod notifications;
 pub mod permissions;
 // pub mod platforms;
+pub mod deployments;
+pub mod index;
+pub mod logging;
 pub mod providers;
 pub mod regions;
 pub mod storage;
 pub mod users;
 pub mod workers;
-pub mod index;
-pub mod deployments;
-
-use alerts::*;
-use apps::*;
-use audit_log::*;
-use builds::*;
-use control::*;
-use cost::*;
-use deploy::*;
-use instances::*;
-use metadata::*;
-use metrics::*;
-use notifications::*;
-use permissions::*;
-// use platforms::*;
-use providers::*;
-use regions::*;
-use storage::*;
-use users::*;
-use workers::*;
-// use platforms::*;
-use deployments::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
         // apps
-        get_app,
-        count_apps,
-        list_apps,
-        create_app,
-        release,
-        delete_app,
-        scale_app,
-        start_app,
-        stop_app,
-        get_app_stats,
-        update_app,
-        get_app_with_instances,
+        apps::release,
+        apps::get_app,
+        apps::stop_app,
+        apps::list_apps,
+        apps::start_app,
+        apps::scale_app,
+        apps::count_apps,
+        apps::create_app,
+        apps::update_app,
+        apps::delete_app,
+        apps::get_app_stats,
+        apps::list_instances,
+        apps::get_app_with_instances,
         // alerts
-        list_alerts,
-        get_alert,
-        create_alert,
-        update_alert_status,
-        acknowledge_alert,
-        resolve_alert,
-        escalate_alert,
-        get_app_alerts,
-        get_org_active_alerts,
-        get_org_alert_stats,
-        get_alerts_needing_escalation,
-        auto_resolve_old_alerts,
-        search_alerts,
-        bulk_update_alert_status,
+        alerts::list_alerts,
+        alerts::get_alert,
+        alerts::create_alert,
+        alerts::update_alert_status,
+        alerts::acknowledge_alert,
+        alerts::resolve_alert,
+        alerts::escalate_alert,
+        alerts::get_app_alerts,
+        alerts::get_org_active_alerts,
+        alerts::get_org_alert_stats,
+        alerts::get_alerts_needing_escalation,
+        alerts::auto_resolve_old_alerts,
+        alerts::search_alerts,
+        alerts::bulk_update_alert_status,
         // Notifications
-        list_user_notifications,
-        count_unread_user_notifications,
-        get_user_notification_by_id,
-        create_user_notification,
-        mark_user_notification_as_read,
-        mark_all_user_notifications_as_read,
-        delete_user_notification,
-        delete_read_user_notifications,
-        list_role_notifications,
-        create_role_notification,
-        acknowledge_notification,
-        get_all_user_notifications_with_count,
-        // instances
-        list_instances,
-        list_instances_by_region,
-        count_instances,
-        get_instance,
+        notifications::list_user_notifications,
+        notifications::count_unread_user_notifications,
+        notifications::get_user_notification_by_id,
+        notifications::create_user_notification,
+        notifications::mark_user_notification_as_read,
+        notifications::mark_all_user_notifications_as_read,
+        notifications::delete_user_notification,
+        notifications::delete_read_user_notifications,
+        notifications::list_role_notifications,
+        notifications::create_role_notification,
+        notifications::acknowledge_notification,
+        notifications::get_all_user_notifications_with_count,
+        // Instances
+        instances::list_instances_by_region,
+        instances::count_instances,
+        instances::get_instance,
         // deploy
-        deploy_permissions,
-        // users
-        handle_register,
-        handle_login,
-        update_profile,
-        get_current_user,
-        change_password,
-        logout,
-        get_user_profile,
-        list_user_sessions,
-        invalidate_user_session,
-        list_users,
+        deploy::deploy_permissions,
+        // Users
+        users::handle_register,
+        users::handle_login,
+        users::update_profile,
+        users::get_current_user,
+        users::change_password,
+        users::logout,
+        users::get_user_profile,
+        users::list_user_sessions,
+        users::invalidate_user_session,
+        users::list_users,
         // permissions
-        list_permission,
-        get_permission_by_id,
-        create_permission,
-        delete_permission,
+        permissions::list_permission,
+        permissions::get_permission_by_id,
+        permissions::create_permission,
+        permissions::delete_permission,
         // update_permission,
-        // metadata
-        get_meta_value,
-        set_meta_value,
-        // audit log
-        create_audit_log,
-        list_audit_logs,
-        list_audit_logs_for_app,
+
+        // Metadata
+        metadata::get_meta_value,
+        metadata::set_meta_value,
+        // Audit log
+        audit_log::create_audit_log,
+        audit_log::list_audit_logs,
+        audit_log::list_audit_logs_for_app,
         //Builds
-        list_builds,
-        list_builds_for_app,
-        get_build,
-        list_regions,
-        list_providers,
-        get_provider_instances,
-        get_provider_audit_logs_paginated,
-        list_provider_regions,
-        // regions
-        // get_region,
-        // delete_region,
-        // create_region,
-        // update_region
-        // deployments
-        // list_deployments
-        
+        builds::list_builds,
+        builds::list_builds_for_app,
+        builds::get_build,
+        // Regions
+        regions::list_regions,
+        regions::list_provider_regions,
+        //        regions::get_region,
+        //        regions::delete_region,
+        //        regions::create_region,
+        //        regions::update_region,
+
+        // Providers
+        providers::list_providers,
+        providers::get_provider_instances,
+        providers::get_provider_audit_logs_paginated,
         // TODO: @tristanpoland Migration broke these
         //init_platform,
         //check_platform_status,
@@ -141,74 +152,77 @@ pub fn routes() -> Vec<rocket::Route> {
         //configure_network,
         //setup_monitoring,
         //setup_backups,
-        
-        // workers
-        list_workers,
-        get_worker_by_id,
+
+        // Workers
+        workers::list_workers,
+        workers::get_worker_by_id,
         // Metrics
-        get_metrics,
-        get_metrics_by_app_id,
+        metrics::get_metrics,
+        metrics::get_metrics_by_app_id,
         // Storage
-        list_storage_classes,
-        get_storage_class,
-        list_storage_volumes,
-        get_volumes_by_storage_class,
-        list_qos_policies,
-        list_volumes_by_write_concern,
-        list_volumes_by_persistence_level,
-        get_volumes_for_region_route,
-        get_storage_volumes_for_provider,
+        storage::list_storage_classes,
+        storage::get_storage_class,
+        storage::list_storage_volumes,
+        storage::get_volumes_by_storage_class,
+        storage::list_qos_policies,
+        storage::list_volumes_by_write_concern,
+        storage::list_volumes_by_persistence_level,
+        storage::get_volumes_for_region_route,
+        storage::get_storage_volumes_for_provider,
         // Cost
-
         // Resource Type routes
-        list_resource_types,
-        count_resource_types,
-        get_resource_type,
-        create_resource_type,
-        update_resource_type,
-        delete_resource_type,
+        cost::list_resource_types,
+        cost::count_resource_types,
+        cost::get_resource_type,
+        cost::create_resource_type,
+        cost::update_resource_type,
+        cost::delete_resource_type,
         // Cost Metric routes
-        list_cost_metrics,
-        get_cost_metric,
-        create_cost_metric,
-        delete_cost_metric,
-        analyze_costs_by_dimension,
-        analyze_cost_over_time,
+        cost::list_cost_metrics,
+        cost::get_cost_metric,
+        cost::create_cost_metric,
+        cost::delete_cost_metric,
+        cost::analyze_costs_by_dimension,
+        cost::analyze_cost_over_time,
         // Cost Budget routes
-        list_cost_budgets,
-        get_cost_budget,
-        create_cost_budget,
-        update_cost_budget,
-        delete_cost_budget,
+        cost::list_cost_budgets,
+        cost::get_cost_budget,
+        cost::create_cost_budget,
+        cost::update_cost_budget,
+        cost::delete_cost_budget,
         // Cost Projection routes
-        list_cost_projections,
-        get_cost_projection,
-        create_cost_projection,
-        delete_cost_projection,
+        cost::list_cost_projections,
+        cost::get_cost_projection,
+        cost::create_cost_projection,
+        cost::delete_cost_projection,
         // Resource Pricing routes
-        list_resource_pricing,
-        get_resource_pricing,
-        create_resource_pricing,
-        update_resource_pricing,
-        delete_resource_pricing,
+        cost::list_resource_pricing,
+        cost::get_resource_pricing,
+        cost::create_resource_pricing,
+        cost::update_resource_pricing,
+        cost::delete_resource_pricing,
         // Cost Allocation Tag routes
-        get_cost_allocation_tags,
-        create_cost_allocation_tag,
-        delete_cost_allocation_tag,
-
+        cost::get_cost_allocation_tags,
+        cost::create_cost_allocation_tag,
+        cost::delete_cost_allocation_tag,
         // CLI
         // control::backup::get_backup,
         // control::backup::list_backups,
         // control::backup::create_backup,
         // control::backup::list_backups_by_app_id,
-
-
-        list_deployments,
-        count_deployments,
-        get_deployment,
-        list_app_deployments,
-        create_deployment,
-        update_deployment_status,
-        delete_deployment,
+        deployments::list_deployments,
+        deployments::count_deployments,
+        deployments::get_deployment,
+        deployments::list_app_deployments,
+        deployments::create_deployment,
+        deployments::update_deployment_status,
+        deployments::delete_deployment,
+        // Logging
+        logging::list_logs,
+        logging::list_platform_logs,
+        logging::list_org_logs,
+        logging::list_app_logs,
+        logging::list_instance_logs,
+        logging::insert_logs
     ]
 }

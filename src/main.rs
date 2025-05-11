@@ -39,6 +39,7 @@ use anyhow::anyhow;
 use rocket::Rocket;
 use anyhow::Result;
 use schemas::auth::AuthConfig;
+use core::panic;
 use std::io::Write;
 use reqwest::Client;
 use colored::Colorize;
@@ -436,6 +437,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log::info!("{}", format!("Schema version check: OK (version {})", current_version).green());
     }
 
+
+    // ======================= ClickHouse SETUP ======================
+    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_red());
+    println!("{}", "║                  CLICKHOUSE CONNECTION                        ║".bright_red());
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_red());
+    // Initialize ClickHouse connection pool
+    let clickhouse_url = env::var("CLICKHOUSE_URL")
+        .unwrap_or_else(|_| {
+            dotenv::dotenv().ok(); // Load environment variables from a .env file if available
+            env::var("DEFAULT_CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".to_string())
+        });
+    log::info!("{}", format!("ClickHouse URL: {}", clickhouse_url).red());
+    log::info!("{}", "Initializing ClickHouse connection...".red());
+    
+    let clickhouse_client = clickhouse::Client::default()
+        .with_url(&clickhouse_url)
+        .with_database("default");
+
+    log::info!("{}", "✓ ClickHouse connection established".green());
+    log::info!("{}", "✓ ClickHouse connection pool initialized".green());
+    log::info!("{}", "✓ ClickHouse connection pool created".green());
+
+
     // ====================== CLUSTER SETUP ======================
     println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_magenta());
     println!("{}", "║                     CLUSTER MANAGEMENT                        ║".bright_magenta());
@@ -624,10 +648,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //     let count = db::app::count_apps(pool).await.unwrap();
         //     Json(count)
         // }
+        .manage(CLUSTER_MANAGER.clone())
+        .manage(clickhouse_client)
+        .manage(shared_state)
         .manage(auth_config)
         .manage(pool)
-        .manage(shared_state)
-        .manage(CLUSTER_MANAGER.clone())
         .attach(CORS); // Attach the CORS fairing
 
     // Mount routes to the Rocket instance
