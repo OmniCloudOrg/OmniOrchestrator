@@ -83,11 +83,30 @@ pub async fn init_clickhouse_db(client: &Client, schema_path: &str) -> Result<()
         }
     };
     
-    // Split the SQL statements and execute them
-    for statement in schema_sql.split(';') {
-        let stmt = statement.trim();
-        if !stmt.is_empty() {
-            client.query(stmt).execute().await?;
+    // Proper SQL parsing: Split by semicolons and handle each statement carefully
+    let statements: Vec<String> = schema_sql
+        .split(';')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty() && !s.starts_with("--"))
+        .map(|s| s.to_string())
+        .collect();
+    
+    println!("Found {} SQL statements to execute", statements.len());
+    
+    // Execute each statement separately
+    for (i, stmt) in statements.iter().enumerate() {
+        if stmt.trim().is_empty() {
+            continue; // Skip truly empty statements
+        }
+        
+        println!("Executing statement {}/{}: {} characters", i+1, statements.len(), stmt.len());
+        match client.query(stmt).execute().await {
+            Ok(_) => println!("Statement {}/{} executed successfully", i+1, statements.len()),
+            Err(e) => {
+                eprintln!("Failed to execute statement {}/{}: {:?}", i+1, statements.len(), e);
+                eprintln!("Statement content: {}", stmt);
+                return Err(e);
+            }
         }
     }
     
