@@ -20,7 +20,7 @@ pub mod storage;
 pub mod users;
 pub mod workers;
 pub mod index;
-// pub mod deployments;
+pub mod deployments;
 
 use alerts::*;
 use apps::*;
@@ -41,7 +41,7 @@ use storage::*;
 use users::*;
 use workers::*;
 // use platforms::*;
-// use deployments::*;
+use deployments::*;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -201,5 +201,14 @@ pub fn routes() -> Vec<rocket::Route> {
         // control::backup::list_backups,
         // control::backup::create_backup,
         // control::backup::list_backups_by_app_id,
+
+
+        list_deployments,
+        count_deployments,
+        get_deployment,
+        list_app_deployments,
+        create_deployment,
+        update_deployment_status,
+        delete_deployment,
     ]
 }
