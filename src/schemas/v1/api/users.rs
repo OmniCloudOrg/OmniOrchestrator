@@ -12,7 +12,7 @@ use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use log;
 use rand::rngs::OsRng;
-use rand::Rng;
+use rand::{RngCore, TryRngCore};
 use rocket::{http::Status, http::Cookie, http::CookieJar};
 use rocket::serde::json::json;
 use rocket::{get, post, put};
@@ -75,7 +75,8 @@ pub async fn handle_register(
 
     // Generate a random salt and hash the password
     let mut rng = OsRng;
-    let salt: [u8; 16] = rng.gen();
+    let mut salt = [0u8; 16];
+    rng.try_fill_bytes(&mut salt);
     let salt_hex = hex::encode(salt);
     let salted = format!("{}{}", password, salt_hex);
     let mut hasher = Sha256::new();
@@ -358,7 +359,8 @@ pub async fn change_password(
 
     // Generate a new salt for the new password
     let mut rng = OsRng;
-    let new_salt: [u8; 16] = rng.gen();
+    let mut new_salt = [0u8; 16];
+    rng.try_fill_bytes(&mut new_salt);
     let new_salt_hex = hex::encode(new_salt);
     
     // Hash the new password

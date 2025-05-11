@@ -339,14 +339,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //.target(Target::Pipe(Box::new(file)))
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| {
-            let _style = buf.style();
             // Get default style
             let style = buf.default_level_style(record.level());
             writeln!(
                 buf,
                 "{}: {}",
                 record.level(),
-                style.value(format!("{}", record.args()))
+                format!("{}", record.args())
             )
         })
         .init();
