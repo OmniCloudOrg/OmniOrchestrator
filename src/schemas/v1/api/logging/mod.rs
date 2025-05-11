@@ -447,7 +447,6 @@ pub async fn list_instance_logs(
     ).await
 }
 
-
 // Efficient bulk log insertion - using multiple rows approach instead of tuples
 #[post("/logs", format = "json", data = "<log_batch>")]
 pub async fn insert_logs(
