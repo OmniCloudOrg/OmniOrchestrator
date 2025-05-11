@@ -72,26 +72,6 @@ struct ErrorStat {
     event_date: chrono::NaiveDate,
 }
 
-// Implement the Row trait for this struct
-impl clickhouse::Row for ErrorStat {
-    // Required constant for the column names
-    const COLUMN_NAMES: &'static [&'static str] = &[
-        "platform_id", "org_id", "app_id", "level", "count", "event_date"
-    ];
-
-    // Implement from_row instead of deserialize
-    fn from_row(row: clickhouse::Row) -> Result<Self, clickhouse::error::Error> {
-        Ok(Self {
-            platform_id: row.get("platform_id")?,
-            org_id: row.get("org_id")?,
-            app_id: row.get("app_id")?,
-            level: row.get("level")?,
-            count: row.get("count")?,
-            event_date: row.get("event_date")?,
-        })
-    }
-}
-
 // ClickHouse DB initialization
 pub async fn init_clickhouse_db(client: &Client, schema_path: &str) -> Result<(), clickhouse::error::Error> {
     // Read the SQL schema file
@@ -103,11 +83,30 @@ pub async fn init_clickhouse_db(client: &Client, schema_path: &str) -> Result<()
         }
     };
     
-    // Split the SQL statements and execute them
-    for statement in schema_sql.split(';') {
-        let stmt = statement.trim();
-        if !stmt.is_empty() {
-            client.query(stmt).execute().await?;
+    // Proper SQL parsing: Split by semicolons and handle each statement carefully
+    let statements: Vec<String> = schema_sql
+        .split(';')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty() && !s.starts_with("--"))
+        .map(|s| s.to_string())
+        .collect();
+    
+    println!("Found {} SQL statements to execute", statements.len());
+    
+    // Execute each statement separately
+    for (i, stmt) in statements.iter().enumerate() {
+        if stmt.trim().is_empty() {
+            continue; // Skip truly empty statements
+        }
+        
+        println!("Executing statement {}/{}: {} characters", i+1, statements.len(), stmt.len());
+        match client.query(stmt).execute().await {
+            Ok(_) => println!("Statement {}/{} executed successfully", i+1, statements.len()),
+            Err(e) => {
+                eprintln!("Failed to execute statement {}/{}: {:?}", i+1, statements.len(), e);
+                eprintln!("Statement content: {}", stmt);
+                return Err(e);
+            }
         }
     }
     
@@ -448,101 +447,6 @@ pub async fn list_instance_logs(
     ).await
 }
 
-// Endpoints for aggregation views
-#[get("/stats/errors?<start_date>&<end_date>&<platform_id>&<org_id>&<app_id>")]
-pub async fn get_error_stats(
-    start_date: Option<String>,
-    end_date: Option<String>,
-    platform_id: Option<String>,
-    org_id: Option<String>,
-    app_id: Option<String>,
-    clickhouse: &State<Client>,
-) -> Result<Json<Value>, (Status, Json<Value>)> {
-    // Build query conditions
-    let mut conditions = Vec::new();
-    
-    if let Some(sd) = start_date {
-        conditions.push(format!("event_date >= toDate('{}')", sd));
-    }
-    
-    if let Some(ed) = end_date {
-        conditions.push(format!("event_date <= toDate('{}')", ed));
-    }
-    
-    if let Some(pid) = platform_id {
-        conditions.push(format!("platform_id = '{}'", pid.replace('\'', "''")));
-    }
-    
-    if let Some(oid) = org_id {
-        conditions.push(format!("org_id = '{}'", oid.replace('\'', "''")));
-    }
-    
-    if let Some(aid) = app_id {
-        conditions.push(format!("app_id = '{}'", aid.replace('\'', "''")));
-    }
-    
-    // Default condition if none provided
-    let query_conditions = if conditions.is_empty() {
-        "1=1".to_string()
-    } else {
-        conditions.join(" AND ")
-    };
-    
-    // Query the materialized view for fast results
-    let query = format!(
-        r#"
-        SELECT 
-            platform_id,
-            org_id,
-            app_id,
-            level,
-            sum(error_count) as count,
-            event_date
-        FROM omni_logs.error_counts_mv
-        WHERE {}
-        GROUP BY platform_id, org_id, app_id, level, event_date
-        ORDER BY event_date DESC, count DESC
-        "#,
-        query_conditions
-    );
-    
-    // Execute the query with the specific struct
-    match clickhouse.query(&query).fetch_all::<ErrorStat>().await {
-        Ok(rows) => {
-            let mut results = Vec::with_capacity(rows.len());
-            
-            for row in rows {
-                let level = match row.level {
-                    1 => "debug",
-                    2 => "info",
-                    3 => "warn", 
-                    4 => "error",
-                    5 => "fatal",
-                    _ => "unknown",
-                };
-                
-                results.push(json!({
-                    "platform_id": row.platform_id,
-                    "org_id": row.org_id,
-                    "app_id": row.app_id,
-                    "level": level,
-                    "count": row.count,
-                    "date": row.event_date.format("%Y-%m-%d").to_string()
-                }));
-            }
-            
-            Ok(Json(json!({ "results": results })))
-        },
-        Err(err) => Err((
-            Status::InternalServerError,
-            Json(json!({
-                "error": "Database error",
-                "message": err.to_string()
-            }))
-        ))
-    }
-}
-
 // Efficient bulk log insertion - using multiple rows approach instead of tuples
 #[post("/logs", format = "json", data = "<log_batch>")]
 pub async fn insert_logs(
@@ -646,7 +550,6 @@ pub fn routes() -> Vec<rocket::Route> {
         list_org_logs,
         list_app_logs,
         list_instance_logs,
-        get_error_stats,
         insert_logs
     ]
 }

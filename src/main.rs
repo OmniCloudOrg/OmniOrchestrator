@@ -39,6 +39,7 @@ use anyhow::anyhow;
 use rocket::Rocket;
 use anyhow::Result;
 use schemas::auth::AuthConfig;
+use core::panic;
 use std::io::Write;
 use reqwest::Client;
 use colored::Colorize;
@@ -56,6 +57,7 @@ use worker_autoscaler::create_default_cpu_memory_scaling_policy;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::http::Header;
 use rocket::{Request, Response};
+use clickhouse;
 
 // Internal imports
 use crate::state::SharedState;
@@ -435,6 +437,62 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         log::info!("{}", format!("Schema version check: OK (version {})", current_version).green());
     }
 
+
+    // ======================= ClickHouse SETUP ======================
+    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".blue());
+    println!("{}", "║                  CLICKHOUSE CONNECTION                        ║".blue());
+    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".blue());
+    // Initialize ClickHouse connection pool
+    let clickhouse_url = env::var("CLICKHOUSE_URL")
+        .unwrap_or_else(|_| {
+            dotenv::dotenv().ok(); // Load environment variables from a .env file if available
+            env::var("DEFAULT_CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".to_string())
+        });
+    log::info!("{}", format!("ClickHouse URL: {}", clickhouse_url).blue());
+    log::info!("{}", "Initializing ClickHouse connection...".blue());
+    
+    // Modify your connection to include more debugging info
+    let clickhouse_client = clickhouse::Client::default()
+        .with_url(&clickhouse_url)
+        .with_database("default")
+        .with_user("default")
+        .with_password("your_secure_password");
+        
+    // Add a simple ping test before attempting schema initialization
+    match clickhouse_client.query("SELECT 1").execute().await {
+        Ok(_) => log::info!("✓ ClickHouse connection test successful"),
+        Err(e) => {
+            log::error!("ClickHouse connection test failed: {:?}", e);
+            panic!("Cannot connect to ClickHouse");
+        }
+    }
+
+    log::info!("{}", "✓ ClickHouse connection established".green());
+    log::info!("{}", "✓ ClickHouse connection pool initialized".green());
+
+    // ====================== Schema SETUP ======================
+
+    // Load schema based on version
+    log::info!("{}", "Loading schema files...".blue());
+    let schema_version = schemas::v1::db::queries::metadata::get_meta_value(&pool, "omni_schema_version")
+        .await
+        .unwrap_or_else(|_| "1".to_string());
+
+    let schema_path = format!("sql/v{}/clickhouse.sql", schema_version);
+    log::info!("{}", format!("Loading schema from path: {}", schema_path).blue());
+
+    // Initialize ClickHouse schema
+    log::info!("{}", "Initializing ClickHouse schema...".blue());
+    match api::logging::init_clickhouse_db(&clickhouse_client, &schema_path).await {
+        Ok(_) => log::info!("{}", "✓ ClickHouse schema initialized".green()),
+        Err(e) => {
+            log::error!("{}", format!("Failed to initialize ClickHouse schema: {:?}", e).red());
+            panic!("Failed to initialize ClickHouse schema");
+        },
+    };
+
+
+
     // ====================== CLUSTER SETUP ======================
     println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_magenta());
     println!("{}", "║                     CLUSTER MANAGEMENT                        ║".bright_magenta());
@@ -623,10 +681,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         //     let count = db::app::count_apps(pool).await.unwrap();
         //     Json(count)
         // }
+        .manage(CLUSTER_MANAGER.clone())
+        .manage(clickhouse_client)
+        .manage(shared_state)
         .manage(auth_config)
         .manage(pool)
-        .manage(shared_state)
-        .manage(CLUSTER_MANAGER.clone())
         .attach(CORS); // Attach the CORS fairing
 
     // Mount routes to the Rocket instance

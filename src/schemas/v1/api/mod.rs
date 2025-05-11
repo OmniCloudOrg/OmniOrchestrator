@@ -45,14 +45,14 @@ pub mod metrics;
 pub mod notifications;
 pub mod permissions;
 // pub mod platforms;
+pub mod deployments;
+pub mod index;
+pub mod logging;
 pub mod providers;
 pub mod regions;
 pub mod storage;
 pub mod users;
 pub mod workers;
-pub mod index;
-pub mod deployments;
-// pub mod logging;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -70,7 +70,7 @@ pub fn routes() -> Vec<rocket::Route> {
         apps::get_app_stats,
         apps::list_instances,
         apps::get_app_with_instances,
-        
+
         // alerts
         alerts::list_alerts,
         alerts::get_alert,
@@ -105,10 +105,9 @@ pub fn routes() -> Vec<rocket::Route> {
         instances::list_instances_by_region,
         instances::count_instances,
         instances::get_instance,
-
         // deploy
         deploy::deploy_permissions,
-        
+
         // Users
         users::handle_register,
         users::handle_login,
@@ -120,28 +119,33 @@ pub fn routes() -> Vec<rocket::Route> {
         users::list_user_sessions,
         users::invalidate_user_session,
         users::list_users,
-        
+
         // permissions
         permissions::list_permission,
         permissions::get_permission_by_id,
         permissions::create_permission,
         permissions::delete_permission,
         // update_permission,
+
+        // Metadata
+        metadata::get_meta_value,
+        metadata::set_meta_value,
+
         
         // Metadata
         metadata::get_meta_value,
         metadata::set_meta_value,
-        
+      
         // Audit log
         audit_log::create_audit_log,
         audit_log::list_audit_logs,
         audit_log::list_audit_logs_for_app,
-        
+
         //Builds
         builds::list_builds,
         builds::list_builds_for_app,
         builds::get_build,
-        
+
         // Regions
         regions::list_regions,
         regions::list_provider_regions,
@@ -149,12 +153,12 @@ pub fn routes() -> Vec<rocket::Route> {
         //        regions::delete_region,
         //        regions::create_region,
         //        regions::update_region,
-        
+
         // Providers
         providers::list_providers,
         providers::get_provider_instances,
         providers::get_provider_audit_logs_paginated,
-        
+
         // TODO: @tristanpoland Migration broke these
         //init_platform,
         //check_platform_status,
@@ -162,15 +166,13 @@ pub fn routes() -> Vec<rocket::Route> {
         //configure_network,
         //setup_monitoring,
         //setup_backups,
-        
         // Workers
         workers::list_workers,
         workers::get_worker_by_id,
-        
         // Metrics
         metrics::get_metrics,
         metrics::get_metrics_by_app_id,
-        
+
         // Storage
         storage::list_storage_classes,
         storage::get_storage_class,
@@ -218,14 +220,13 @@ pub fn routes() -> Vec<rocket::Route> {
         cost::get_cost_allocation_tags,
         cost::create_cost_allocation_tag,
         cost::delete_cost_allocation_tag,
-        
+
         // CLI
         // control::backup::get_backup,
         // control::backup::list_backups,
         // control::backup::create_backup,
         // control::backup::list_backups_by_app_id,
-        
-        
+
         deployments::list_deployments,
         deployments::count_deployments,
         deployments::get_deployment,
@@ -233,15 +234,13 @@ pub fn routes() -> Vec<rocket::Route> {
         deployments::create_deployment,
         deployments::update_deployment_status,
         deployments::delete_deployment,
-        
+
         // Logging
-        //  logging::list_logs,
-        //  logging::list_platform_logs,
-        //  logging::list_org_logs,
-        //  logging::list_app_logs,
-        //  logging::list_instance_logs,
-        //  logging::get_error_stats,
-        //  logging::insert_logs
-        ]
-    }
-    
+        logging::list_logs,
+        logging::list_platform_logs,
+        logging::list_org_logs,
+        logging::list_app_logs,
+        logging::list_instance_logs,
+        logging::insert_logs
+    ]
+}
