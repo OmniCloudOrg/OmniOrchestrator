@@ -1,5 +1,10 @@
+-------------------------------------------------------------------------------
 -- OmniCloud platform database schema
--- This script creates the database schema for the OmniCloud platform.
+-------------------------------------------------------------------------------
+-- This script creates the database schema for the V1 schema for an OmniCloud
+-- platform. Multiple of these platforms can exist on a single deployment of
+-- OmniCloud and are referenced by the 'omni' database in the platforms table.
+-------------------------------------------------------------------------------
 
 -- Drop all tables first (in correct dependency order)
 SET FOREIGN_KEY_CHECKS = 0;

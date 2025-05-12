@@ -16,3 +16,4 @@ pub mod provider;
 pub mod storage;
 pub mod notification;
 pub mod cost;
+pub mod platforms;

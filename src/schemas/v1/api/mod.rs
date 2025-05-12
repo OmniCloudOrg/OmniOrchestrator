@@ -131,11 +131,6 @@ pub fn routes() -> Vec<rocket::Route> {
         metadata::get_meta_value,
         metadata::set_meta_value,
 
-        
-        // Metadata
-        metadata::get_meta_value,
-        metadata::set_meta_value,
-      
         // Audit log
         audit_log::create_audit_log,
         audit_log::list_audit_logs,

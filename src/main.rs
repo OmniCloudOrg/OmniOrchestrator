@@ -16,70 +16,396 @@
 // +-------------+
 // | MODULES     |
 // +-------------+
-// mod db;
-// mod api;
-mod state;
-mod leader;
 mod config;
-// mod backup;
-mod network;
-mod cluster;
+mod leader;
+mod state;
 mod app_autoscaler;
+mod cluster;
+mod network;
 mod worker_autoscaler;
 
 mod schemas;
 
-// use api::auth::AuthConfig;
 // +-------------+
 // | IMPORTS     |
 // +-------------+
 // Third-party dependencies
-use rocket::Build;
 use anyhow::anyhow;
-use rocket::Rocket;
 use anyhow::Result;
-use schemas::auth::AuthConfig;
-use core::panic;
-use std::io::Write;
-use reqwest::Client;
+use anyhow::Error;
+use clickhouse;
 use colored::Colorize;
+use schemas::v1::models::platform;
+use schemas::v1::models::platform::Platform;
+use core::panic;
 use env_logger::Builder;
-use tokio::sync::RwLock;
-use std::time::Duration;
-use std::{env, sync::Arc};
-use sqlx::mysql::MySqlPool;
 use lazy_static::lazy_static;
-use std::collections::HashMap;
-use serde::{Deserialize, Serialize};
-use worker_autoscaler::WorkerAutoscaler;
-use worker_autoscaler::{VMTemplate, VMConfig, CloudDirector};
-use worker_autoscaler::create_default_cpu_memory_scaling_policy;
+use reqwest::Client;
 use rocket::fairing::{Fairing, Info, Kind};
 use rocket::http::Header;
+use rocket::Build;
+use rocket::Rocket;
 use rocket::{Request, Response};
-use clickhouse;
+use schemas::auth::AuthConfig;
+use serde::{Deserialize, Serialize};
+use sqlx::mysql::MySqlPool;
+use sqlx::{MySql, Pool};
+use std::collections::HashMap;
+use std::io::Write;
+use std::time::Duration;
+use std::{env, sync::Arc};
+use tokio::sync::RwLock;
+use worker_autoscaler::create_default_cpu_memory_scaling_policy;
+use worker_autoscaler::WorkerAutoscaler;
+use worker_autoscaler::{CloudDirector, VMConfig, VMTemplate};
 
 // Internal imports
-use crate::state::SharedState;
+use crate::cluster::{ClusterManager, NodeInfo};
 use crate::config::ServerConfig;
 use crate::config::SERVER_CONFIG;
 use crate::leader::LeaderElection;
-use crate::cluster::{ClusterManager, NodeInfo};
+use crate::state::SharedState;
 
-use schemas::v1::{
-    models,
-    api,
-    db
-};
+use schemas::v1::{api, models};
 
 // We ignore this import as it always says
 // unused even when that is not the case
 #[allow(unused_imports)]
-// Import all API routes
-// use api::*;
-
 #[macro_use]
 extern crate rocket;
+
+// +---------------------+
+// | DATABASE MANAGER    |
+// +---------------------+
+// Database Manager struct to handle database connections
+struct DatabaseManager {
+    base_url: String,
+    main_pool: Pool<MySql>,
+    platform_pools: RwLock<HashMap<i64, Pool<MySql>>>,
+}
+
+impl DatabaseManager {
+    async fn new() -> Result<Self, Error> {
+        let base_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
+            dotenv::dotenv().ok();
+            env::var("DEFAULT_DATABASE_URL")
+                .unwrap_or_else(|_| "mysql://root:root@localhost:4001".to_string())
+        });
+
+        println!(
+            "{}",
+            "╔═══════════════════════════════════════════════════════════════╗".bright_blue()
+        );
+        println!(
+            "{}",
+            "║                 Deployment Database Connection                ║".bright_blue()
+        );
+        println!(
+            "{}",
+            "╚═══════════════════════════════════════════════════════════════╝".bright_blue()
+        );
+
+        // Connect to main database
+        let main_db_url = format!("{}/omni", base_url);
+        log::info!("{}", format!("Main Database URL: {}", main_db_url).blue());
+
+        // First, try to connect to MySQL server without specifying a database
+        let server_pool = MySqlPool::connect(&base_url)
+            .await
+            .expect("Failed to connect to MySQL server");
+
+        // Check if main database exists, create if it doesn't
+        Self::ensure_database_exists(&server_pool, "omni").await?;
+
+        // Now connect to the main database
+        let main_pool = MySqlPool::connect(&main_db_url)
+            .await
+            .expect("Failed to connect to main database");
+
+        log::info!("{}", "✓ Main database connection established".green());
+
+        // Initialize the main database schema
+        log::info!("{}", "Initializing main database schema...".blue());
+        
+        let target_version = std::env::var("OMNI_ORCH_SCHEMA_VERSION")
+            .unwrap_or_else(|_| "1".to_string())
+            .parse::<i64>()
+            .unwrap_or(1);
+
+        let current_version =
+            schemas::v1::db::queries::metadata::get_meta_value(&main_pool, "omni_schema_version")
+                .await
+                .unwrap_or_else(|_| "0".to_string())
+                .parse::<i64>()
+                .unwrap_or(0);
+
+        // Fixed: Call as a static method without self
+        Self::update_deployment_schema(
+            &main_pool,
+            current_version,
+            target_version,
+        ).await?;
+
+        Ok(Self {
+            base_url,
+            main_pool,
+            platform_pools: RwLock::new(HashMap::new()),
+        })
+    }
+
+    // Create database if it doesn't exist
+    async fn ensure_database_exists(pool: &Pool<MySql>, db_name: &str) -> Result<(), Error> {
+        let query = format!("CREATE DATABASE IF NOT EXISTS `{}`", db_name);
+        sqlx::query(&query).execute(pool).await?;
+        log::info!(
+            "{}",
+            format!("✓ Ensured database exists: {}", db_name).green()
+        );
+        Ok(())
+    }
+
+    // Get main database pool
+    fn get_main_pool(&self) -> &Pool<MySql> {
+        &self.main_pool
+    }
+
+    // Get or create platform database pool (lazy initialization)
+    async fn get_platform_pool(
+        &self,
+        platform: &Platform,
+    ) -> Result<Pool<MySql>, Error> {
+
+        let platform_id = platform.id;
+        let platform_name = platform.name.clone();
+
+        // First check if we already have this pool
+        {
+            let pools = self.platform_pools.read().await;
+            if let Some(pool) = pools.get(&platform_id) {
+                return Ok(pool.clone());
+            }
+        }
+
+        // If not found, create the pool
+        let db_name = format!("omni_p_{}", platform_name);
+
+        // Check if database exists, create if it doesn't
+        let server_pool = MySqlPool::connect(&self.base_url)
+            .await
+            .expect("Failed to connect to MySQL server");
+        Self::ensure_database_exists(&server_pool, &db_name).await?;
+
+        // Create platform database URL and connect
+        let platform_db_url = format!("{}/{}", self.base_url, db_name);
+        log::info!(
+            "{}",
+            format!(
+                "Creating pool for platform {}: {}",
+                platform_name, platform_db_url
+            )
+            .blue()
+        );
+
+        let pool = MySqlPool::connect(&platform_db_url).await.expect(&format!(
+            "Failed to connect to platform database: {}",
+            db_name
+        ));
+
+        // Initialize this platform's database
+        self.initialize_platform_database(&pool, &platform)
+            .await?;
+
+        // Store the pool
+        {
+            let mut pools = self.platform_pools.write().await;
+            pools.insert(platform_id, pool.clone());
+        }
+
+        Ok(pool)
+    }
+
+    // Initialize platform database (schema, metadata, etc.)
+    async fn initialize_platform_database(
+        &self,
+        pool: &Pool<MySql>,
+        platform: &Platform,
+    ) -> Result<(), Error> {
+        // Initialize metadata system
+        log::info!("{}", "Initializing metadata system...".blue());
+        schemas::v1::db::queries::metadata::initialize_metadata_system(pool).await?;
+        log::info!("{}", "✓ Metadata system initialized".green());
+
+        // Check and update schema if needed
+        let target_version = "1";
+        let current_version =
+            schemas::v1::db::queries::metadata::get_meta_value(pool, "omni_schema_version")
+                .await
+                .unwrap_or_else(|_| "0".to_string());
+
+        if current_version != target_version {
+            // Schema update logic
+            self.update_platform_schema(pool, &current_version, target_version, platform)
+                .await?;
+        } else {
+            log::info!(
+                "{}",
+                format!("Schema version check: OK (version {})", current_version).green()
+            );
+        }
+
+        Ok(())
+    }
+
+    // Update schema for a platform database
+    async fn update_platform_schema(
+        &self,
+        pool: &Pool<MySql>,
+        current_version: &str,
+        target_version: &str,
+        platform: &Platform,
+    ) -> Result<(), Error> {
+        let mut input = String::new();
+        log::warn!(
+            "{}",
+            format!(
+                "Schema version mismatch! Current: {}, Target: {}",
+                current_version, target_version
+            )
+            .yellow()
+        );
+
+        if env::var("OMNI_ORCH_BYPASS_CONFIRM").unwrap_or_default() == "confirm" {
+            log::warn!(
+                "{}",
+                "Bypassing schema update confirmation due to env var".yellow()
+            );
+            input = "confirm".to_string();
+        } else {
+            println!("{}", "Type 'confirm' to update schema version:".yellow());
+            std::io::stdin().read_line(&mut input)?;
+        }
+
+        if input.trim() == "confirm" {
+            // Initialize database schema
+            log::info!("{}", "Initializing database schema...".blue());
+
+            let schema_version = std::env::var("OMNI_ORCH_SCHEMA_VERSION")
+                .unwrap_or_else(|_| "1".to_string())
+                .parse::<i64>()
+                .unwrap_or(1);
+
+            match schemas::v1::db::init_platform_schema(platform, schema_version, pool).await {
+                Ok(_) => {
+                    log::info!("{}", "✓ Database schema initialized".green());
+                    schemas::v1::db::queries::metadata::set_meta_value(
+                        pool,
+                        "omni_schema_version",
+                        target_version,
+                    )
+                    .await
+                    .expect("Failed to set meta value")
+                }
+                Err(e) => log::error!(
+                    "{}",
+                    format!("Failed to initialize database schema: {:?}", e).red()
+                ),
+            };
+
+            // Initialize sample data
+            log::info!("{}", "Initializing sample data...".blue());
+            match schemas::v1::db::sample_data(pool, schema_version).await {
+                Ok(_) => log::info!("{}", "✓ Sample data initialized".green()),
+                Err(e) => log::error!(
+                    "{}",
+                    format!("Failed to initialize sample data: {:?}", e).red()
+                ),
+            };
+        } else {
+            log::warn!("{}", "Schema update cancelled".yellow());
+            return Err(anyhow::anyhow!("Schema update cancelled by user"));
+        }
+
+        Ok(())
+    }
+
+    // Update Schema for deployment database - Fixed to be a static method
+    async fn update_deployment_schema(
+        pool: &Pool<MySql>,
+        current_version: i64,
+        target_version: i64,
+    ) -> Result<(), Error> {
+        let mut input = String::new();
+        log::warn!(
+            "{}",
+            format!(
+                "Deployment schema version mismatch! Current: {}, Target: {}",
+                current_version, target_version
+            )
+            .yellow()
+        );
+
+        if env::var("OMNI_ORCH_BYPASS_CONFIRM").unwrap_or_default() == "confirm" {
+            log::warn!(
+                "{}",
+                "Bypassing deployment schema update confirmation due to env var".yellow()
+            );
+            input = "confirm".to_string();
+        } else {
+            println!("{}", "Type 'confirm' to update deployment schema version:".yellow());
+            std::io::stdin().read_line(&mut input)?;
+        }
+
+        if input.trim() == "confirm" {
+            // Initialize deployment database schema
+            log::info!("{}", "Initializing deployment database schema...".blue());
+
+            let schema_version = std::env::var("OMNI_ORCH_SCHEMA_VERSION")
+                .unwrap_or_else(|_| "1".to_string())
+                .parse::<i64>()
+                .unwrap_or(1);
+
+            match schemas::v1::db::init_deployment_schema(schema_version, pool).await {
+                Ok(_) => {
+                    log::info!("{}", "✓ Deployment database schema initialized".green());
+                    // Convert i64 to String for set_meta_value
+                    schemas::v1::db::queries::metadata::set_meta_value(
+                        pool,
+                        "omni_schema_version",
+                        &target_version.to_string(),
+                    )
+                    .await
+                    .expect("Failed to set deployment meta value")
+                }
+                Err(e) => log::error!(
+                    "{}",
+                    format!("Failed to initialize deployment database schema: {:?}", e).red()
+                ),
+            };
+
+            // Initialize sample data for deployment database
+            log::info!("{}", "Initializing deployment sample data...".blue());
+            match schemas::v1::db::sample_data(pool, schema_version).await {
+                Ok(_) => log::info!("{}", "✓ Deployment sample data initialized".green()),
+                Err(e) => log::error!(
+                    "{}",
+                    format!("Failed to initialize deployment sample data: {:?}", e).red()
+                ),
+            };
+        } else {
+            log::warn!("{}", "Deployment schema update cancelled".yellow());
+            return Err(anyhow::anyhow!("Deployment schema update cancelled by user"));
+        }
+
+        Ok(())
+    }
+
+    // Get all available platforms
+    async fn get_all_platforms(&self) -> Result<Vec<schemas::v1::models::platform::Platform>, Error> {
+        schemas::v1::db::queries::platforms::get_all_platforms(&self.main_pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to retrieve platform IDs: {:?}", e))
+    }
+}
 
 // +---------------------+
 // | CORS IMPLEMENTATION |
@@ -99,12 +425,12 @@ impl Fairing for CORS {
     async fn on_response<'r>(&self, _request: &'r Request<'_>, response: &mut Response<'r>) {
         response.set_header(Header::new("Access-Control-Allow-Origin", "*"));
         response.set_header(Header::new(
-            "Access-Control-Allow-Methods", 
-            "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+            "Access-Control-Allow-Methods",
+            "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD",
         ));
         response.set_header(Header::new(
-            "Access-Control-Allow-Headers", 
-            "Authorization, Content-Type, Accept, Origin, X-Requested-With"
+            "Access-Control-Allow-Headers",
+            "Authorization, Content-Type, Accept, Origin, X-Requested-With",
         ));
         response.set_header(Header::new("Access-Control-Allow-Credentials", "true"));
         response.set_header(Header::new("Access-Control-Max-Age", "86400")); // Cache preflight for 24 hours
@@ -209,9 +535,15 @@ impl ClusterManager {
             let node_uri = format!("{}", node_address);
 
             match self.connect_to_peer(&client, &node_uri.clone()).await {
-                Ok(_) => log::info!("{}", format!("Successfully connected to peer: {}", node_uri).green()),
+                Ok(_) => log::info!(
+                    "{}",
+                    format!("Successfully connected to peer: {}", node_uri).green()
+                ),
                 Err(e) => {
-                    log::warn!("{}", format!("Failed to connect to peer: {} {}", node_uri, e).yellow());
+                    log::warn!(
+                        "{}",
+                        format!("Failed to connect to peer: {} {}", node_uri, e).yellow()
+                    );
                     self.remove_node(node_uri.into()).await;
                 }
             }
@@ -234,7 +566,7 @@ impl ClusterManager {
     async fn connect_to_peer(&self, client: &Client, node_address: &str) -> Result<()> {
         let health_url = format!("{}/health", node_address);
         log::debug!("Checking health at: {}", health_url);
-        
+
         let response = client
             .get(&health_url)
             .timeout(Duration::from_secs(5))
@@ -308,7 +640,7 @@ async fn cluster_status(
     } else {
         "follower".to_string()
     };
-    
+
     log::info!("{}", format!("Current node role: {}", role).cyan());
 
     let response = ApiResponse {
@@ -330,134 +662,100 @@ async fn cluster_status(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ====================== INITIALIZATION ======================
     let port = SERVER_CONFIG.port;
-    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_cyan());
-    println!("{}", "║               OMNI ORCHESTRATOR SERVER STARTING               ║".bright_cyan());
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_cyan());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║               OMNI ORCHESTRATOR SERVER STARTING               ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".bright_cyan()
+    );
     println!("{}", format!("⇒ Starting server on port {}", port).green());
 
     // Setup logging
-    // let file = File::create(format!("cluster-{}.log", port))?;
     Builder::new()
-        //.target(Target::Pipe(Box::new(file)))
         .filter_level(log::LevelFilter::Info)
         .format(|buf, record| {
             // Get default style
-            let style = buf.default_level_style(record.level());
-            writeln!(
-                buf,
-                "{}: {}",
-                record.level(),
-                format!("{}", record.args())
-            )
+            let _style = buf.default_level_style(record.level());
+            writeln!(buf, "{}: {}", record.level(), format!("{}", record.args()))
         })
         .init();
 
     log::info!("{}", "Logger initialized successfully".green());
 
     // ====================== DATABASE SETUP ======================
-    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_blue());
-    println!("{}", "║                    DATABASE CONNECTION                        ║".bright_blue());
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_blue());
-    
-    // Initialize database pool
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| {
-            dotenv::dotenv().ok(); // Load environment variables from a .env file if available
-            env::var("DEFAULT_DATABASE_URL").unwrap_or_else(|_| "mysql://root:root@localhost:4001/omni".to_string())
-        });
+    // Initialize database manager
+    log::info!("{}", "Initializing database manager...".blue());
+    let db_manager = Arc::new(DatabaseManager::new().await?);
 
-    log::info!("{}", format!("Database URL: {}", database_url).blue());
-    log::info!("{}", "Initializing database connection pool...".blue());
-    
-    let pool = MySqlPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to MySQL database");
-    log::info!("{}", "✓ Database connection established".green());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".bright_blue()
+    );
+    println!(
+        "{}",
+        "║                 Platform Database Registration                ║".bright_blue()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".bright_blue()
+    );
 
-    // Initialize metadata system properly with mutex protection
-    //
-    // The metadata system is used to store and manage metadata for the OmniCloud
-    // platform. It is initialized with a connection pool to the database as it lives
-    // outside of the database schema and is used by the platform to determine
-    // when to update the schema and initialize sample data before we actually
-    // touch any data or start the API.
-    log::info!("{}", "Initializing metadata system...".blue());
-    schemas::v1::db::queries::metadata::initialize_metadata_system(&pool).await?;
-    log::info!("{}", "✓ Metadata system initialized".green());
+    // Get all platforms
+    let platforms = db_manager.get_all_platforms().await?;
+    log::info!("{}", format!("Found {} platforms", platforms.len()).blue());
 
-    // Check database schema version and update if necessary
-    //
-    // This section checks the current schema version against the target version
-    // If they differ, it prompts the user for confirmation before proceeding
-    // with the schema update and sample data initialization
-    let target_version = "1";
-    let current_version = schemas::v1::db::queries::metadata::get_meta_value(&pool, "omni_schema_version")
-        .await
-        .unwrap_or_else(|_| "0".to_string());
-
-    if current_version != target_version {
-        let mut input = String::new();
-        log::warn!("{}", format!("Schema version mismatch! Current: {}, Target: {}", current_version, target_version).yellow());
-        if env::var("OMNI_ORCH_BYPASS_CONFIRM").unwrap_or_default() == "confirm" {
-            log::warn!("{}", "Bypassing schema update confirmation due to env var".yellow());
-            input = "confirm".to_string();
-        } else {
-            println!("{}", "Type 'confirm' to update schema version:".yellow());
-            std::io::stdin().read_line(&mut input)?;
-        }
-
-        if input.trim() == "confirm" {
-            // Initialize database schema
-            log::info!("{}", "Initializing database schema...".blue());
-            match schemas::v1::db::init_schema(1, &pool).await {
-                Ok(_) => {
-                    log::info!("{}", "✓ Database schema initialized".green());
-                    schemas::v1::db::queries::metadata::set_meta_value(
-                        &pool,
-                        "omni_schema_version",
-                        target_version,
-                    )
-                    .await
-                    .expect("Failed to set meta value")
-                }
-                Err(e) => log::error!("{}", format!("Failed to initialize database schema: {:?}", e).red()),
-            };
-
-            // Initialize sample data for the schema
-            log::info!("{}", "Initializing sample data...".blue());
-            match schemas::v1::db::sample_data(&pool).await {
-                Ok(_) => log::info!("{}", "✓ Sample data initialized".green()),
-                Err(e) => log::error!("{}", format!("Failed to initialize sample data: {:?}", e).red()),
-            };
-        } else {
-            log::warn!("{}", "Schema update cancelled".yellow());
-            return Ok(());
-        }
-    } else {
-        log::info!("{}", format!("Schema version check: OK (version {})", current_version).green());
+    // Pre-initialize connection pools for existing platforms if desired
+    for platform in &platforms {
+        log::info!(
+            "{}",
+            format!(
+                "Pre-initializing connection for platform: {}",
+                platform.name
+            )
+            .blue()
+        );
+        db_manager
+            .get_platform_pool(&platform)
+            .await?;
     }
 
+    // Get main database pool for ClickHouse schema initialization
+    let pool = db_manager.get_main_pool();
 
     // ======================= ClickHouse SETUP ======================
-    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".blue());
-    println!("{}", "║                  CLICKHOUSE CONNECTION                        ║".blue());
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".blue());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".blue()
+    );
+    println!(
+        "{}",
+        "║                  CLICKHOUSE CONNECTION                        ║".blue()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".blue()
+    );
     // Initialize ClickHouse connection pool
-    let clickhouse_url = env::var("CLICKHOUSE_URL")
-        .unwrap_or_else(|_| {
-            dotenv::dotenv().ok(); // Load environment variables from a .env file if available
-            env::var("DEFAULT_CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".to_string())
-        });
+    let clickhouse_url = env::var("CLICKHOUSE_URL").unwrap_or_else(|_| {
+        dotenv::dotenv().ok(); // Load environment variables from a .env file if available
+        env::var("DEFAULT_CLICKHOUSE_URL").unwrap_or_else(|_| "http://localhost:8123".to_string())
+    });
     log::info!("{}", format!("ClickHouse URL: {}", clickhouse_url).blue());
     log::info!("{}", "Initializing ClickHouse connection...".blue());
-    
+
     // Modify your connection to include more debugging info
     let clickhouse_client = clickhouse::Client::default()
         .with_url(&clickhouse_url)
         .with_database("default")
         .with_user("default")
         .with_password("your_secure_password");
-        
+
     // Add a simple ping test before attempting schema initialization
     match clickhouse_client.query("SELECT 1").execute().await {
         Ok(_) => log::info!("✓ ClickHouse connection test successful"),
@@ -474,44 +772,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load schema based on version
     log::info!("{}", "Loading schema files...".blue());
-    let schema_version = schemas::v1::db::queries::metadata::get_meta_value(&pool, "omni_schema_version")
-        .await
-        .unwrap_or_else(|_| "1".to_string());
+    let schema_version =
+        schemas::v1::db::queries::metadata::get_meta_value(pool, "omni_schema_version")
+            .await
+            .unwrap_or_else(|_| "1".to_string());
 
-    let schema_path = format!("sql/v{}/clickhouse.sql", schema_version);
-    log::info!("{}", format!("Loading schema from path: {}", schema_path).blue());
+    let schema_path = format!("sql/v{}/up_clickhouse.sql", schema_version);
+    log::info!(
+        "{}",
+        format!("Loading schema from path: {}", schema_path).blue()
+    );
 
     // Initialize ClickHouse schema
     log::info!("{}", "Initializing ClickHouse schema...".blue());
     match api::logging::init_clickhouse_db(&clickhouse_client, &schema_path).await {
         Ok(_) => log::info!("{}", "✓ ClickHouse schema initialized".green()),
         Err(e) => {
-            log::error!("{}", format!("Failed to initialize ClickHouse schema: {:?}", e).red());
+            log::error!(
+                "{}",
+                format!("Failed to initialize ClickHouse schema: {:?}", e).red()
+            );
             panic!("Failed to initialize ClickHouse schema");
-        },
+        }
     };
 
-
-
     // ====================== CLUSTER SETUP ======================
-    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_magenta());
-    println!("{}", "║                     CLUSTER MANAGEMENT                        ║".bright_magenta());
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_magenta());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".bright_magenta()
+    );
+    println!(
+        "{}",
+        "║                     CLUSTER MANAGEMENT                        ║".bright_magenta()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".bright_magenta()
+    );
 
     // Initialize node state and cluster management
     let node_id: Arc<str> =
         format!("{}:{}", SERVER_CONFIG.address.clone(), SERVER_CONFIG.port).into();
     log::info!("{}", format!("Node ID: {}", node_id).magenta());
-    
+
     let shared_state: Arc<RwLock<SharedState>> =
         Arc::new(RwLock::new(SharedState::new(node_id.clone())));
 
     // Start peer discovery in background task
-    //
-    // This task will run in the background and periodically check for peer nodes
-    // in the cluster, performing discovery and connection operations
-    // for each discovered node. It will also log any errors encountered during
-    // discovery or connection operations.
     log::info!("{}", "Starting peer discovery background task".magenta());
     tokio::task::spawn({
         let cluster_manager = CLUSTER_MANAGER.clone();
@@ -532,12 +839,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // ====================== AUTOSCALER SETUP ======================
-    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_yellow());
-    println!("{}", "║                    AUTOSCALER SETUP                           ║".bright_yellow());
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_yellow());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".bright_yellow()
+    );
+    println!(
+        "{}",
+        "║                    AUTOSCALER SETUP                           ║".bright_yellow()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".bright_yellow()
+    );
 
     // Initialize worker autoscaler with default policy
-    log::info!("{}", "Creating worker autoscaler with default policy".yellow());
+    log::info!(
+        "{}",
+        "Creating worker autoscaler with default policy".yellow()
+    );
     let policy = create_default_cpu_memory_scaling_policy();
     let mut autoscaler = WorkerAutoscaler::new(1, 1, policy);
 
@@ -545,8 +864,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("{}", "Adding cloud director (AWS/us-east-1)".yellow());
     let cloud_director = Arc::new(CloudDirector::new(
         "cloud-1".to_string(),
-        "aws".to_string(), 
-        "us-east-1".to_string()
+        "aws".to_string(),
+        "us-east-1".to_string(),
     ));
     autoscaler.add_director(cloud_director);
 
@@ -558,17 +877,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cpu: 2,
         memory: 4096, // 4GB
         storage: 80,  // 80GB
-        options: HashMap::new()
+        options: HashMap::new(),
     };
     autoscaler.set_vm_template(vm_template);
     log::info!("{}", "✓ Worker autoscaler configured".green());
 
     // Start discovery tasks
-    //
-    // This task will run in the background and periodically check for nodes
-    // and VMs in the cluster, performing discovery and scaling operations
-    // for worker nodes. It will also log any errors encountered during
-    // discovery or scaling operations.
     log::info!("{}", "Starting worker autoscaler discovery tasks".yellow());
     tokio::spawn({
         let mut autoscaler = autoscaler;
@@ -582,7 +896,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     log::error!("{}", format!("Node discovery error: {}", e).red());
                 }
                 if let Err(e) = autoscaler.discover_vms().await {
-                    log::error!("{}", format!("VM discovery error: {}", e).red()); 
+                    log::error!("{}", format!("VM discovery error: {}", e).red());
                 }
                 let metrics: HashMap<String, f32> = HashMap::new(); // TODO: populate with actual metrics
                 if let Err(e) = autoscaler.check_scaling(&metrics) {
@@ -596,22 +910,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Initialize the app autoscaler
-    log::info!("{}", "Creating application autoscaler with default policy".yellow());
+    log::info!(
+        "{}",
+        "Creating application autoscaler with default policy".yellow()
+    );
     let app_policy = app_autoscaler::policy::create_default_cpu_memory_scaling_policy();
     let app_autoscaler = app_autoscaler::app_autoscaler::AppAutoscaler::new(
-        1, // min instances
+        1,  // min instances
         10, // max instances
         app_policy,
     );
     log::info!("{}", "✓ Application autoscaler configured".green());
 
     // Spawn a task to run the app autoscaler discovery and scaling loop
-    //
-    // This task will run in the background and periodically check for app instances
-    // and perform scaling operations based on the configured policy
-    // It will also log any errors encountered during discovery or scaling
-    // operations.
-    log::info!("{}", "Starting application autoscaler discovery tasks".yellow());
+    log::info!(
+        "{}",
+        "Starting application autoscaler discovery tasks".yellow()
+    );
     tokio::spawn({
         let mut app_autoscaler = app_autoscaler;
         async move {
@@ -628,7 +943,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Err(e) = app_autoscaler.check_scaling(&metrics) {
                     log::error!("{}", format!("App scaling error: {}", e).red());
                 }
-                
+
                 // Sleep for 3 seconds before next discovery
                 log::debug!("Sleeping app autoscaling thread for 3 seconds...");
                 tokio::time::sleep(Duration::from_secs(3)).await;
@@ -637,9 +952,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // ====================== LEADER ELECTION ======================
-    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_green());
-    println!("{}", "║                      LEADER ELECTION                          ║".bright_green());
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_green());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".bright_green()
+    );
+    println!(
+        "{}",
+        "║                      LEADER ELECTION                          ║".bright_green()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".bright_green()
+    );
 
     // Initialize and start leader election
     log::info!("{}", "Initializing leader election process".green());
@@ -647,19 +971,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("{}", "✓ Leader election initialized".green());
 
     // ====================== SERVER STARTUP ======================
-    println!("{}", "╔═══════════════════════════════════════════════════════════════╗".bright_cyan());
-    println!("{}", "║                       SERVER STARTUP                          ║".bright_cyan());
-    println!("{}", "╚═══════════════════════════════════════════════════════════════╝".bright_cyan());
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║                       SERVER STARTUP                          ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".bright_cyan()
+    );
 
     // Define routes to mount
     log::info!("{}", "Defining API routes".cyan());
     let routes = vec![
-        ("/", routes![health_check, api::index::routes_ui, cluster_status, cors_preflight]), 
-        ("/api/v1", api::routes())
+        (
+            "/",
+            routes![
+                health_check,
+                api::index::routes_ui,
+                cluster_status,
+                cors_preflight
+            ],
+        ),
+        ("/api/v1", api::routes()),
     ];
 
     let auth_config = AuthConfig {
-        jwt_secret: std::env::var("JWT_SECRET").expect("Environment variable JWT_SECRET must be set for secure operation."),
+        jwt_secret: std::env::var("JWT_SECRET")
+            .expect("Environment variable JWT_SECRET must be set for secure operation."),
         token_expiry_hours: std::env::var("TOKEN_EXPIRY_HOURS")
             .unwrap_or_else(|_| "24".to_string())
             .parse()
@@ -674,30 +1016,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             address: std::net::IpAddr::V4(std::net::Ipv4Addr::new(0, 0, 0, 0)),
             ..Default::default()
         })
-
-        // Add database pool to Rocket's state (used by any route that needs to talk to the database) can be used in a route like:
-        // #[get("/apps/count")]
-        // pub async fn count_apps(pool: &State<sqlx::Pool<MySql>>) -> Json<i64> {
-        //     let count = db::app::count_apps(pool).await.unwrap();
-        //     Json(count)
-        // }
+        // Add database manager to Rocket's state
+        .manage(db_manager.clone())
         .manage(CLUSTER_MANAGER.clone())
         .manage(clickhouse_client)
         .manage(shared_state)
         .manage(auth_config)
-        .manage(pool)
         .attach(CORS); // Attach the CORS fairing
 
     // Mount routes to the Rocket instance
     log::info!("{}", "Mounting API routes".cyan());
     let rocket_with_routes = rocket_instance.mount_routes(routes);
-    
+
     // Collect routes information before launch
     api::index::collect_routes(&rocket_with_routes);
-    
+
     // Launch server
     log::info!("{}", "🚀 LAUNCHING SERVER...".bright_cyan().bold());
     let _rocket = rocket_with_routes.launch().await?;
-    
+
     Ok(())
 }

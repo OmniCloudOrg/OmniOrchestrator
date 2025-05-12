@@ -18,3 +18,4 @@ pub mod notification;
 pub mod cost;
 pub mod util_tables;
 pub mod role;
+pub mod platform;
