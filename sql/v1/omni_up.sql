@@ -7,8 +7,9 @@
 -- platform.
 -------------------------------------------------------------------------------
 
-DROP IF EXISTS TABLE omni_users;
-DROP IF EXISTS TABLE platforms;
+DROP TABLE IF EXISTS omni_users;
+DROP TABLE IF EXISTS platforms;
+DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -39,8 +40,8 @@ CREATE TABLE platforms (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    table_name VARCHAR(255) NOT NULL,
-    subdomain VARCHAR(255) NOT NULL,
+    table_name VARCHAR(255),
+    subdomain VARCHAR(255),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at DATETIME,

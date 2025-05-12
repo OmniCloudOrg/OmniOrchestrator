@@ -23,7 +23,7 @@ mod app_autoscaler;
 mod cluster;
 mod network;
 mod worker_autoscaler;
-
+mod db_manager;
 mod schemas;
 
 // +-------------+
@@ -65,6 +65,7 @@ use crate::config::ServerConfig;
 use crate::config::SERVER_CONFIG;
 use crate::leader::LeaderElection;
 use crate::state::SharedState;
+use crate::db_manager::DatabaseManager; // New database manager import
 
 use schemas::v1::{api, models};
 
@@ -74,338 +75,14 @@ use schemas::v1::{api, models};
 #[macro_use]
 extern crate rocket;
 
-// +---------------------+
-// | DATABASE MANAGER    |
-// +---------------------+
-// Database Manager struct to handle database connections
-struct DatabaseManager {
-    base_url: String,
-    main_pool: Pool<MySql>,
-    platform_pools: RwLock<HashMap<i64, Pool<MySql>>>,
-}
+pub static PROJECT_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
-impl DatabaseManager {
-    async fn new() -> Result<Self, Error> {
-        let base_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
-            dotenv::dotenv().ok();
-            env::var("DEFAULT_DATABASE_URL")
-                .unwrap_or_else(|_| "mysql://root:root@localhost:4001".to_string())
-        });
 
-        println!(
-            "{}",
-            "╔═══════════════════════════════════════════════════════════════╗".bright_blue()
-        );
-        println!(
-            "{}",
-            "║                 Deployment Database Connection                ║".bright_blue()
-        );
-        println!(
-            "{}",
-            "╚═══════════════════════════════════════════════════════════════╝".bright_blue()
-        );
 
-        // Connect to main database
-        let main_db_url = format!("{}/omni", base_url);
-        log::info!("{}", format!("Main Database URL: {}", main_db_url).blue());
 
-        // First, try to connect to MySQL server without specifying a database
-        let server_pool = MySqlPool::connect(&base_url)
-            .await
-            .expect("Failed to connect to MySQL server");
 
-        // Check if main database exists, create if it doesn't
-        Self::ensure_database_exists(&server_pool, "omni").await?;
 
-        // Now connect to the main database
-        let main_pool = MySqlPool::connect(&main_db_url)
-            .await
-            .expect("Failed to connect to main database");
 
-        log::info!("{}", "✓ Main database connection established".green());
-
-        // Initialize the main database schema
-        log::info!("{}", "Initializing main database schema...".blue());
-        
-        let target_version = std::env::var("OMNI_ORCH_SCHEMA_VERSION")
-            .unwrap_or_else(|_| "1".to_string())
-            .parse::<i64>()
-            .unwrap_or(1);
-
-        let current_version =
-            schemas::v1::db::queries::metadata::get_meta_value(&main_pool, "omni_schema_version")
-                .await
-                .unwrap_or_else(|_| "0".to_string())
-                .parse::<i64>()
-                .unwrap_or(0);
-
-        // Fixed: Call as a static method without self
-        Self::update_deployment_schema(
-            &main_pool,
-            current_version,
-            target_version,
-        ).await?;
-
-        Ok(Self {
-            base_url,
-            main_pool,
-            platform_pools: RwLock::new(HashMap::new()),
-        })
-    }
-
-    // Create database if it doesn't exist
-    async fn ensure_database_exists(pool: &Pool<MySql>, db_name: &str) -> Result<(), Error> {
-        let query = format!("CREATE DATABASE IF NOT EXISTS `{}`", db_name);
-        sqlx::query(&query).execute(pool).await?;
-        log::info!(
-            "{}",
-            format!("✓ Ensured database exists: {}", db_name).green()
-        );
-        Ok(())
-    }
-
-    // Get main database pool
-    fn get_main_pool(&self) -> &Pool<MySql> {
-        &self.main_pool
-    }
-
-    // Get or create platform database pool (lazy initialization)
-    async fn get_platform_pool(
-        &self,
-        platform: &Platform,
-    ) -> Result<Pool<MySql>, Error> {
-
-        let platform_id = platform.id;
-        let platform_name = platform.name.clone();
-
-        // First check if we already have this pool
-        {
-            let pools = self.platform_pools.read().await;
-            if let Some(pool) = pools.get(&platform_id) {
-                return Ok(pool.clone());
-            }
-        }
-
-        // If not found, create the pool
-        let db_name = format!("omni_p_{}", platform_name);
-
-        // Check if database exists, create if it doesn't
-        let server_pool = MySqlPool::connect(&self.base_url)
-            .await
-            .expect("Failed to connect to MySQL server");
-        Self::ensure_database_exists(&server_pool, &db_name).await?;
-
-        // Create platform database URL and connect
-        let platform_db_url = format!("{}/{}", self.base_url, db_name);
-        log::info!(
-            "{}",
-            format!(
-                "Creating pool for platform {}: {}",
-                platform_name, platform_db_url
-            )
-            .blue()
-        );
-
-        let pool = MySqlPool::connect(&platform_db_url).await.expect(&format!(
-            "Failed to connect to platform database: {}",
-            db_name
-        ));
-
-        // Initialize this platform's database
-        self.initialize_platform_database(&pool, &platform)
-            .await?;
-
-        // Store the pool
-        {
-            let mut pools = self.platform_pools.write().await;
-            pools.insert(platform_id, pool.clone());
-        }
-
-        Ok(pool)
-    }
-
-    // Initialize platform database (schema, metadata, etc.)
-    async fn initialize_platform_database(
-        &self,
-        pool: &Pool<MySql>,
-        platform: &Platform,
-    ) -> Result<(), Error> {
-        // Initialize metadata system
-        log::info!("{}", "Initializing metadata system...".blue());
-        schemas::v1::db::queries::metadata::initialize_metadata_system(pool).await?;
-        log::info!("{}", "✓ Metadata system initialized".green());
-
-        // Check and update schema if needed
-        let target_version = "1";
-        let current_version =
-            schemas::v1::db::queries::metadata::get_meta_value(pool, "omni_schema_version")
-                .await
-                .unwrap_or_else(|_| "0".to_string());
-
-        if current_version != target_version {
-            // Schema update logic
-            self.update_platform_schema(pool, &current_version, target_version, platform)
-                .await?;
-        } else {
-            log::info!(
-                "{}",
-                format!("Schema version check: OK (version {})", current_version).green()
-            );
-        }
-
-        Ok(())
-    }
-
-    // Update schema for a platform database
-    async fn update_platform_schema(
-        &self,
-        pool: &Pool<MySql>,
-        current_version: &str,
-        target_version: &str,
-        platform: &Platform,
-    ) -> Result<(), Error> {
-        let mut input = String::new();
-        log::warn!(
-            "{}",
-            format!(
-                "Schema version mismatch! Current: {}, Target: {}",
-                current_version, target_version
-            )
-            .yellow()
-        );
-
-        if env::var("OMNI_ORCH_BYPASS_CONFIRM").unwrap_or_default() == "confirm" {
-            log::warn!(
-                "{}",
-                "Bypassing schema update confirmation due to env var".yellow()
-            );
-            input = "confirm".to_string();
-        } else {
-            println!("{}", "Type 'confirm' to update schema version:".yellow());
-            std::io::stdin().read_line(&mut input)?;
-        }
-
-        if input.trim() == "confirm" {
-            // Initialize database schema
-            log::info!("{}", "Initializing database schema...".blue());
-
-            let schema_version = std::env::var("OMNI_ORCH_SCHEMA_VERSION")
-                .unwrap_or_else(|_| "1".to_string())
-                .parse::<i64>()
-                .unwrap_or(1);
-
-            match schemas::v1::db::init_platform_schema(platform, schema_version, pool).await {
-                Ok(_) => {
-                    log::info!("{}", "✓ Database schema initialized".green());
-                    schemas::v1::db::queries::metadata::set_meta_value(
-                        pool,
-                        "omni_schema_version",
-                        target_version,
-                    )
-                    .await
-                    .expect("Failed to set meta value")
-                }
-                Err(e) => log::error!(
-                    "{}",
-                    format!("Failed to initialize database schema: {:?}", e).red()
-                ),
-            };
-
-            // Initialize sample data
-            log::info!("{}", "Initializing sample data...".blue());
-            match schemas::v1::db::sample_data(pool, schema_version).await {
-                Ok(_) => log::info!("{}", "✓ Sample data initialized".green()),
-                Err(e) => log::error!(
-                    "{}",
-                    format!("Failed to initialize sample data: {:?}", e).red()
-                ),
-            };
-        } else {
-            log::warn!("{}", "Schema update cancelled".yellow());
-            return Err(anyhow::anyhow!("Schema update cancelled by user"));
-        }
-
-        Ok(())
-    }
-
-    // Update Schema for deployment database - Fixed to be a static method
-    async fn update_deployment_schema(
-        pool: &Pool<MySql>,
-        current_version: i64,
-        target_version: i64,
-    ) -> Result<(), Error> {
-        let mut input = String::new();
-        log::warn!(
-            "{}",
-            format!(
-                "Deployment schema version mismatch! Current: {}, Target: {}",
-                current_version, target_version
-            )
-            .yellow()
-        );
-
-        if env::var("OMNI_ORCH_BYPASS_CONFIRM").unwrap_or_default() == "confirm" {
-            log::warn!(
-                "{}",
-                "Bypassing deployment schema update confirmation due to env var".yellow()
-            );
-            input = "confirm".to_string();
-        } else {
-            println!("{}", "Type 'confirm' to update deployment schema version:".yellow());
-            std::io::stdin().read_line(&mut input)?;
-        }
-
-        if input.trim() == "confirm" {
-            // Initialize deployment database schema
-            log::info!("{}", "Initializing deployment database schema...".blue());
-
-            let schema_version = std::env::var("OMNI_ORCH_SCHEMA_VERSION")
-                .unwrap_or_else(|_| "1".to_string())
-                .parse::<i64>()
-                .unwrap_or(1);
-
-            match schemas::v1::db::init_deployment_schema(schema_version, pool).await {
-                Ok(_) => {
-                    log::info!("{}", "✓ Deployment database schema initialized".green());
-                    // Convert i64 to String for set_meta_value
-                    schemas::v1::db::queries::metadata::set_meta_value(
-                        pool,
-                        "omni_schema_version",
-                        &target_version.to_string(),
-                    )
-                    .await
-                    .expect("Failed to set deployment meta value")
-                }
-                Err(e) => log::error!(
-                    "{}",
-                    format!("Failed to initialize deployment database schema: {:?}", e).red()
-                ),
-            };
-
-            // Initialize sample data for deployment database
-            log::info!("{}", "Initializing deployment sample data...".blue());
-            match schemas::v1::db::sample_data(pool, schema_version).await {
-                Ok(_) => log::info!("{}", "✓ Deployment sample data initialized".green()),
-                Err(e) => log::error!(
-                    "{}",
-                    format!("Failed to initialize deployment sample data: {:?}", e).red()
-                ),
-            };
-        } else {
-            log::warn!("{}", "Deployment schema update cancelled".yellow());
-            return Err(anyhow::anyhow!("Deployment schema update cancelled by user"));
-        }
-
-        Ok(())
-    }
-
-    // Get all available platforms
-    async fn get_all_platforms(&self) -> Result<Vec<schemas::v1::models::platform::Platform>, Error> {
-        schemas::v1::db::queries::platforms::get_all_platforms(&self.main_pool)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to retrieve platform IDs: {:?}", e))
-    }
-}
 
 // +---------------------+
 // | CORS IMPLEMENTATION |
@@ -689,10 +366,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("{}", "Logger initialized successfully".green());
 
     // ====================== DATABASE SETUP ======================
-    // Initialize database manager
-    log::info!("{}", "Initializing database manager...".blue());
-    let db_manager = Arc::new(DatabaseManager::new().await?);
+    println!(
+        "{}",
+        "╔═══════════════════════════════════════════════════════════════╗".bright_blue()
+    );
+    println!(
+        "{}",
+        "║                 Deployment Database Connection                ║".bright_blue()
+    );
+    println!(
+        "{}",
+        "╚═══════════════════════════════════════════════════════════════╝".bright_blue()
+    );
 
+    // Get the database URL from environment or use default
+    let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
+        dotenv::dotenv().ok();
+        env::var("DEFAULT_DATABASE_URL")
+            .unwrap_or_else(|_| "mysql://root:root@localhost:4001".to_string())
+    });
+
+    // Initialize database manager
+    log::info!("{}", format!("Database URL: {}", database_url).blue());
+    let db_manager = Arc::new(DatabaseManager::new(&database_url).await?);
+    
+    // Get main database pool for further operations
+    let pool = db_manager.get_main_pool();
+
+    // Platform database initialization
     println!(
         "{}",
         "╔═══════════════════════════════════════════════════════════════╗".bright_blue()
@@ -706,11 +407,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "╚═══════════════════════════════════════════════════════════════╝".bright_blue()
     );
 
-    // Get all platforms
+    // Get all platforms and initialize their database pools
     let platforms = db_manager.get_all_platforms().await?;
     log::info!("{}", format!("Found {} platforms", platforms.len()).blue());
 
-    // Pre-initialize connection pools for existing platforms if desired
     for platform in &platforms {
         log::info!(
             "{}",
@@ -720,13 +420,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .blue()
         );
-        db_manager
-            .get_platform_pool(&platform)
-            .await?;
+        db_manager.get_platform_pool(&platform.name, platform.id.unwrap_or(0)).await?;
     }
-
-    // Get main database pool for ClickHouse schema initialization
-    let pool = db_manager.get_main_pool();
 
     // ======================= ClickHouse SETUP ======================
     println!(
@@ -777,7 +472,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await
             .unwrap_or_else(|_| "1".to_string());
 
-    let schema_path = format!("sql/v{}/up_clickhouse.sql", schema_version);
+    let schema_path = format!("{}/sql/v{}/clickhouse_up.sql", PROJECT_ROOT, schema_version);
     log::info!(
         "{}",
         format!("Loading schema from path: {}", schema_path).blue()
@@ -849,7 +544,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!(
         "{}",
-        "╚═══════════════════════════════════════════════════════════════╝".bright_yellow()
+        "╚═══════════════════════════════════════════════════════════════╝".bright_magenta()
     );
 
     // Initialize worker autoscaler with default policy
@@ -962,7 +657,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!(
         "{}",
-        "╚═══════════════════════════════════════════════════════════════╝".bright_green()
+        "╚═══════════════════════════════════════════════════════════════╝".bright_magenta()
     );
 
     // Initialize and start leader election
@@ -981,7 +676,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!(
         "{}",
-        "╚═══════════════════════════════════════════════════════════════╝".bright_cyan()
+        "╚═══════════════════════════════════════════════════════════════╝".bright_magenta()
     );
 
     // Define routes to mount
@@ -1018,6 +713,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         // Add database manager to Rocket's state
         .manage(db_manager.clone())
+        .manage(pool.clone())  // This is the pool for the core deployment
+                               // database. This is meant to store SYSTEM METADATA and not platform-specific data.
         .manage(CLUSTER_MANAGER.clone())
         .manage(clickhouse_client)
         .manage(shared_state)

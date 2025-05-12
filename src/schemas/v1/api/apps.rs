@@ -133,7 +133,7 @@ pub async fn list_apps(
     };
 
     // Get platform-specific database pool
-    let pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
@@ -220,7 +220,7 @@ pub async fn get_app_with_instances(
     };
 
     // Get platform-specific database pool
-    let pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
@@ -248,7 +248,7 @@ pub async fn get_app_with_instances(
 }
 
 /// Count the total number of applications.
-#[get("/platform/<platform_id>/apps/count")]
+#[get("/platform/<platform_id>/app-count")]
 pub async fn count_apps(
     platform_id: i64,
     db_manager: &State<Arc<DatabaseManager>>
@@ -268,7 +268,7 @@ pub async fn count_apps(
     };
 
     // Get platform-specific database pool
-    let pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
@@ -325,7 +325,7 @@ pub async fn get_app(
     };
 
     // Get platform-specific database pool
-    let pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
@@ -384,7 +384,7 @@ pub async fn create_app(
     };
 
     // Get platform-specific database pool
-    let pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
@@ -453,7 +453,7 @@ pub async fn update_app(
     };
 
     // Get platform-specific database pool
-    let pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
@@ -521,7 +521,7 @@ pub async fn get_app_stats(
     };
 
     // Get platform-specific database pool (we'll need this for future implementations)
-    let _pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let _pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
@@ -645,7 +645,7 @@ pub async fn delete_app(
     };
 
     // Get platform-specific database pool
-    let pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
@@ -764,7 +764,7 @@ pub async fn list_instances(
     };
 
     // Get platform-specific database pool
-    let pool = match db_manager.get_platform_pool(platform_id, &platform.name).await {
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
         Ok(pool) => pool,
         Err(_) => {
             return Err((
