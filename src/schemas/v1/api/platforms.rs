@@ -1,5 +1,5 @@
 use crate::schemas::v1::models::platform::Platform;
-use crate::db_manager::DatabaseManager;
+use crate::db_manager::{self, DatabaseManager};
 use rocket::{get, post, delete};
 use rocket::serde::json::Json;
 use rocket::http::Status;
@@ -32,7 +32,10 @@ pub async fn add_platform(
 
     info!("Platform Data: {:?}", platform);
 
-    match db_manager.create_platform(platform.clone()).await {
+    match db_manager.create_platform(
+        db_manager,
+        platform.clone()
+    ).await {
         Ok(platform_id) => {
             info!("Platform created with id: {}", platform_id);
             if let Err(_e) = db_manager.get_platform_pool(&platform.name, platform_id).await {

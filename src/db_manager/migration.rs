@@ -2,17 +2,22 @@ use sqlx::{MySql, Pool};
 use std::env;
 use log::{info, warn, error};
 use colored::Colorize;
+use crate::db_manager;
 use crate::db_manager::error::DatabaseError;
-use crate::schemas::v1::models::platform::Platform;
+use crate::schemas::v1::models::platform::{self, Platform};
 
 /// Manages database schema migrations
 pub struct MigrationManager;
 
 impl MigrationManager {
     /// Initializes and migrates the main database schema
-    pub async fn initialize_main_schema(pool: &Pool<MySql>) -> Result<(), DatabaseError> {
+    pub async fn initialize_main_schema(
+        db_manager: &db_manager::DatabaseManager
+    ) -> Result<(), DatabaseError> {
         info!("Initializing main database schema...");
         
+        let pool = db_manager.get_main_pool();
+
         Self::initialize_metadata_system(pool).await?;
 
         let target_version = Self::get_target_schema_version()?;
@@ -23,25 +28,31 @@ impl MigrationManager {
             return Ok(());
         }
         
-        Self::migrate_schema(pool, current_version, target_version, None).await
+        Self::migrate_schema(db_manager, current_version, target_version, None, None).await
     }
     
     /// Initializes and migrates a platform database schema
-    pub async fn initialize_platform_schema(pool: &Pool<MySql>, platform: &Platform) -> Result<(), DatabaseError> {
-        info!("Initializing platform database schema for {}...", platform.name);
+    pub async fn initialize_platform_schema(
+        db_manager: &db_manager::DatabaseManager,
+        platform_name: String,
+        platform_id: i64
+    ) -> Result<(), DatabaseError> {
+        info!("Initializing platform database schema for {}...", platform_name);
         
+        let pool = db_manager.get_platform_pool(&platform_name, platform_id).await?;
+
         // Initialize metadata system if needed
-        Self::initialize_metadata_system(pool).await?;
+        Self::initialize_metadata_system(&pool).await?;
         
         let target_version = Self::get_target_schema_version()?;
-        let current_version = Self::get_current_schema_version(pool).await?;
+        let current_version = Self::get_current_schema_version(&pool).await?;
         
         if current_version == target_version {
             info!("Schema version check: OK (version {})", current_version);
             return Ok(());
         }
         
-        Self::migrate_schema(pool, current_version, target_version, Some(platform)).await
+        Self::migrate_schema(db_manager, current_version, target_version, Some(platform_name), Some(platform_id)).await
     }
     
     /// Gets the target schema version from environment or defaults to 1
@@ -92,10 +103,11 @@ impl MigrationManager {
     
     /// Migrates a schema from one version to another
     async fn migrate_schema(
-        pool: &Pool<MySql>, 
+        db_manager: &super::DatabaseManager,
         current_version: i64, 
         target_version: i64,
-        platform: Option<&Platform>
+        platform_name: Option<String>,
+        platform_id: Option<i64>,
     ) -> Result<(), DatabaseError> {
         warn!(
             "{}",
@@ -121,12 +133,17 @@ impl MigrationManager {
             return Err(DatabaseError::Other("Schema update cancelled by user".into()));
         }
         
+        let mut pool: Pool<MySql>;
+
         // Perform the migration
-        match platform {
-            Some(platform) => {
+        match (&platform_name, platform_id) {
+            (Some(platform), Some(platform_id_val)) => {
                 // Platform-specific schema
                 info!("Initializing platform database schema...");
-                crate::schemas::v1::db::init_platform_schema(platform, target_version, pool)
+
+                pool = db_manager.get_platform_pool(platform, platform_id_val).await?;
+
+                crate::schemas::v1::db::init_platform_schema(platform, platform_id_val, target_version, db_manager)
                     .await
                     .map_err(|e| DatabaseError::MigrationError(format!(
                         "Failed to migrate platform schema: {}", e
@@ -136,7 +153,7 @@ impl MigrationManager {
                     
                 // Also initialize sample data
                 info!("Initializing platform sample data...");
-                crate::schemas::v1::db::sample_platform_data(pool, target_version)
+                crate::schemas::v1::db::sample_platform_data(&pool, target_version)
                     .await
                     .map_err(|e| DatabaseError::MigrationError(format!(
                         "Failed to initialize platform sample data: {}", e
@@ -144,10 +161,13 @@ impl MigrationManager {
                 
                 info!("✓ Platform sample data initialized");
             },
-            None => {
+            _ => {
                 // Main schema
                 info!("Initializing deployment database schema...");
-                crate::schemas::v1::db::init_deployment_schema(target_version, pool)
+
+                pool = db_manager.get_main_pool().clone();
+
+                crate::schemas::v1::db::init_deployment_schema(target_version, &pool)
                     .await
                     .map_err(|e| DatabaseError::MigrationError(format!(
                         "Failed to migrate deployment schema: {}", e
@@ -157,7 +177,7 @@ impl MigrationManager {
                     
                 // Also initialize sample data
                 info!("Initializing deployment sample data...");
-                crate::schemas::v1::db::sample_deployment_data(pool, target_version)
+                crate::schemas::v1::db::sample_deployment_data(&pool, target_version)
                     .await
                     .map_err(|e| DatabaseError::MigrationError(format!(
                         "Failed to initialize deployment sample data: {}", e
@@ -169,7 +189,7 @@ impl MigrationManager {
         
         // Update schema version
         crate::schemas::v1::db::queries::metadata::set_meta_value(
-            pool,
+            &pool,
             "omni_schema_version",
             &target_version.to_string(),
         )

@@ -1,6 +1,8 @@
 pub mod utils;
 pub mod queries;
 
+use rocket::{http::Status, serde::json::{self, Json}};
+use rocket::serde::json::json;
 use sqlx::{Acquire, MySql};
 use utils::split_sql_statements;
 use crate::{models::platform::Platform, PROJECT_ROOT};
@@ -30,7 +32,7 @@ pub async fn init_deployment_schema(version: i64, pool: &sqlx::Pool<MySql>) -> R
     for statement in statements {
         if !statement.trim().is_empty() {
             println!("Executing statement: {}", statement);
-            sqlx::query(&statement).execute(pool).await?;
+            sqlx::query(&statement).execute(&*pool).await?;
         }
     }
 
@@ -38,11 +40,25 @@ pub async fn init_deployment_schema(version: i64, pool: &sqlx::Pool<MySql>) -> R
 }
 
 pub async fn init_platform_schema(
-    platform: &Platform,
+    platform_name: &str,
+    platform_id: i64,
     version: i64,
-    pool: &sqlx::Pool<MySql>
+    db_manager: &crate::db_manager::DatabaseManager,
 ) -> Result<(), sqlx::Error> {
     println!("Initializing schema version {}", version);
+
+    // Get platform-specific database pool
+    let platform_name_string = platform_name.to_string();
+    let pool = match db_manager.get_platform_pool(&platform_name_string, platform_id).await {
+        Ok(pool) => pool,
+        Err(e) => {
+            println!("Failed to connect to platform database: {}", e);
+            return Err(sqlx::Error::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Failed to connect to platform database",
+            )));
+        }
+    };
 
     // Load base schema
     let base_schema_path = format!("{}/sql/v{}/platform_up.sql", PROJECT_ROOT, version);
@@ -66,7 +82,7 @@ pub async fn init_platform_schema(
     for statement in statements {
         if !statement.trim().is_empty() {
             println!("Executing statement: {}", statement);
-            sqlx::query(&statement).execute(pool).await?;
+            sqlx::query(&statement).execute(&pool).await?;
         }
     }
 

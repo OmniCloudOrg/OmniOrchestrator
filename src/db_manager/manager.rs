@@ -1,3 +1,4 @@
+use crate::db_manager;
 use crate::db_manager::connection::ConnectionManager;
 use crate::db_manager::error::DatabaseError;
 use crate::db_manager::migration::MigrationManager;
@@ -29,8 +30,7 @@ impl DatabaseManager {
 
     /// Initializes the main database schema
     pub async fn initialize_main_schema(&self) -> Result<(), DatabaseError> {
-        let pool = self.connection_manager.main_pool();
-        MigrationManager::initialize_main_schema(pool).await
+        MigrationManager::initialize_main_schema(self).await
     }
 
     /// Gets the main database pool
@@ -67,7 +67,11 @@ impl DatabaseManager {
     }
 
     /// Creates a new platform in the main database and initializes its schema
-    pub async fn create_platform(&self, platform: Platform) -> Result<i64, DatabaseError> {
+    pub async fn create_platform(
+        &self,
+        db_manager: &db_manager::DatabaseManager,
+        platform: Platform
+    ) -> Result<i64, DatabaseError> {
         // First, create the platform entry in the main database
         let platform = self.create_platform_entry(&platform).await?;
 
@@ -75,7 +79,7 @@ impl DatabaseManager {
             DatabaseError::Other("Platform ID is missing after creation".to_string())
         })?;
 
-        self.initialize_platform_database(&platform.name, platform_id)
+        self.initialize_platform_database(&db_manager, &platform.name, platform_id)
             .await?;
 
         info!(
@@ -102,6 +106,7 @@ impl DatabaseManager {
     /// Initializes a platform database schema
     async fn initialize_platform_database(
         &self,
+        db_manager: &db_manager::DatabaseManager,
         platform_name: &String,
         platform_id: i64,
     ) -> Result<(), DatabaseError> {
@@ -113,7 +118,7 @@ impl DatabaseManager {
 
         // TODO: @Caznix @tristanpoland We need to find a new home for this
         // Initialize the schema
-        // MigrationManager::initialize_platform_schema(&pool, platform_id).await?;
+        MigrationManager::initialize_platform_schema(db_manager, platform_name.clone(), platform_id).await?;
 
         info!(
             "Platform database initialized for platform: {} (ID: {})",
