@@ -7,6 +7,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 SET UNIQUE_CHECKS = 0;
 SET SQL_MODE = '';
 
+
 INSERT INTO users (email, email_verified, password, salt, password_changed_at, login_attempts, two_factor_enabled, active, status, created_at, last_login_at)
 VALUES
 ('user1@example.com'       , 1 , SHA2('password1', 256)  , SHA2('salt1', 256)  , '2023-01-15 08:30:00' , 0 , 0 , 1 , 'active' , '2022-05-10 14:20:00' , '2024-02-28 09:15:00'),
@@ -43,3 +44,27 @@ VALUES
 (@USER_COUNT + 1 , 'admin@cloudplatform.io'   , 1 , SHA2('admin_password_hash', 256)   , SHA2('admin_salt', 256)   , 1 , 'active' , '2022-01-01 00:00:00'),
 (@USER_COUNT + 2 , 'support@cloudplatform.io' , 1 , SHA2('support_password_hash', 256) , SHA2('support_salt', 256) , 1 , 'active' , '2022-01-01 00:00:00'),
 (@USER_COUNT + 3 , 'billing@cloudplatform.io' , 1 , SHA2('billing_password_hash', 256) , SHA2('billing_salt', 256) , 1 , 'active' , '2022-01-01 00:00:00');
+
+INSERT INTO user_meta (user_id, timezone, language, theme, notification_preferences, profile_image, dashboard_layout, onboarding_completed)
+VALUES
+(1 , 'UTC'              , 'en' , 'light'  , JSON_OBJECT('email', 1, 'push', 1, 'deployment', 1, 'billing', 1, 'marketing', 0) , 'https://example.com/profile/1.jpg' , JSON_OBJECT('widgets', JSON_ARRAY('deployments', 'metrics', 'instances')) , 1),
+(2 , 'America/New_York' , 'en' , 'dark'   , JSON_OBJECT('email', 1, 'push', 0, 'deployment', 1, 'billing', 1, 'marketing', 0) , 'https://example.com/profile/2.jpg' , NULL                                                                      , 1),
+(3 , 'Europe/London'    , 'en' , 'system' , JSON_OBJECT('email', 1, 'push', 1, 'deployment', 1, 'billing', 1, 'marketing', 1) , 'https://example.com/profile/3.jpg' , NULL                                                                      , 1),
+(4 , 'Asia/Tokyo'       , 'ja' , 'light'  , JSON_OBJECT('email', 1, 'push', 0, 'deployment', 1, 'billing', 1, 'marketing', 0) , NULL                                , NULL                                                                      , 1),
+(5 , 'Australia/Sydney' , 'en' , 'dark'   , JSON_OBJECT('email', 1, 'push', 1, 'deployment', 1, 'billing', 1, 'marketing', 0) , 'https://example.com/profile/5.jpg' , JSON_OBJECT('widgets', JSON_ARRAY('deployments', 'metrics'))              , 1);
+INSERT INTO user_pii (user_id, first_name, last_name, full_name, identity_verified)
+VALUES
+(1 , 'John'    , 'Smith'    , 'John Smith'       , 1),
+(2 , 'Jane'    , 'Johnson'  , 'Jane Johnson'     , 1),
+(3 , 'Michael' , 'Williams' , 'Michael Williams' , 1),
+(4 , 'Sarah'   , 'Jones'    , 'Sarah Jones'      , 0),
+(5 , 'David'   , 'Brown'    , 'David Brown'      , 1);
+
+INSERT INTO user_sessions (user_id, session_token, refresh_token, ip_address, user_agent, device_info, location_info, is_active, last_activity, expires_at)
+VALUES
+(1  , SHA2('session1', 256)  , SHA2('refresh1', 256)  , '192.168.1.1'  , 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'               , JSON_OBJECT('type', 'desktop', 'os', 'macOS')   , JSON_OBJECT('city', 'New York', 'country', 'United States')    , 1 , NOW() - INTERVAL 1 HOUR  , NOW() + INTERVAL 2 DAY),
+(2  , SHA2('session2', 256)  , SHA2('refresh2', 256)  , '192.168.1.2'  , 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'                     , JSON_OBJECT('type', 'desktop', 'os', 'Windows') , JSON_OBJECT('city', 'Los Angeles', 'country', 'United States') , 1 , NOW() - INTERVAL 2 HOUR  , NOW() + INTERVAL 3 DAY),
+(3  , SHA2('session3', 256)  , SHA2('refresh3', 256)  , '192.168.1.3'  , 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1' , JSON_OBJECT('type', 'mobile', 'os', 'iOS')      , JSON_OBJECT('city', 'Chicago', 'country', 'United States')     , 1 , NOW() - INTERVAL 3 HOUR  , NOW() + INTERVAL 1 DAY),
+(5  , SHA2('session5', 256)  , SHA2('refresh5', 256)  , '192.168.1.5'  , 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'               , JSON_OBJECT('type', 'desktop', 'os', 'macOS')   , JSON_OBJECT('city', 'Phoenix', 'country', 'United States')     , 1 , NOW() - INTERVAL 5 HOUR  , NOW() + INTERVAL 5 DAY),
+(7  , SHA2('session7', 256)  , SHA2('refresh7', 256)  , '192.168.1.7'  , 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36'                     , JSON_OBJECT('type', 'desktop', 'os', 'Windows') , JSON_OBJECT('city', 'San Antonio', 'country', 'United States') , 1 , NOW() - INTERVAL 7 HOUR  , NOW() + INTERVAL 7 DAY),
+(10 , SHA2('session10', 256) , SHA2('refresh10', 256) , '192.168.1.10' , 'Mozilla/5.0 (iPad; CPU OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1'          , JSON_OBJECT('type', 'tablet', 'os', 'iOS')      , JSON_OBJECT('city', 'San Jose', 'country', 'United States')    , 1 , NOW() - INTERVAL 10 HOUR , NOW() + INTERVAL 2 DAY);
