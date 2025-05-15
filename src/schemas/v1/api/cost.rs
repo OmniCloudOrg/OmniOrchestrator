@@ -8,7 +8,9 @@
 //! - Resource pricing management
 //! - Cost allocation tagging
 
+use std::sync::Arc;
 use super::super::super::auth::User;
+use crate::DatabaseManager;
 use crate::models::{
     util_tables::ResourceType,
     cost::{
@@ -25,10 +27,7 @@ use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
 use rocket::{delete, get, post, put, State};
 use serde::{Deserialize, Serialize};
-use sqlx::MySql;
 use chrono::{DateTime, Utc};
-
-// Types
 
 /// Request data for creating a new resource type.
 #[derive(Debug, Serialize, Deserialize)]
@@ -250,19 +249,70 @@ pub struct CostOverTimeRequest {
     end_date: DateTime<Utc>,
 }
 
-// Resource Type Routes
-
 /// List all resource types with pagination support.
-#[get("/resource_types?<page>&<per_page>")]
+#[get("/platform/<platform_id>/resource_types?<page>&<per_page>")]
 pub async fn list_resource_types(
+    platform_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match (page, per_page) {
         (Some(p), Some(pp)) => {
-            let resource_types = db::cost::list_resource_types(pool, p, pp).await.unwrap();
-            let total_count = db::cost::count_resource_types(pool).await.unwrap();
+            let resource_types = match db::cost::list_resource_types(&pool, p, pp).await {
+                Ok(types) => types,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to retrieve resource types"
+                        }))
+                    ));
+                }
+            };
+            
+            let total_count = match db::cost::count_resource_types(&pool).await {
+                Ok(count) => count,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to count resource types"
+                        }))
+                    ));
+                }
+            };
+            
             let total_pages = (total_count as f64 / pp as f64).ceil() as i64;
 
             let response = json!({
@@ -288,33 +338,135 @@ pub async fn list_resource_types(
 }
 
 /// Count the total number of resource types.
-#[get("/resource_types/count")]
-pub async fn count_resource_types(pool: &State<sqlx::Pool<MySql>>) -> Json<i64> {
-    let count = db::cost::count_resource_types(pool).await.unwrap();
-    Json(count)
+#[get("/platform/<platform_id>/count/resource_types")]
+pub async fn count_resource_types(
+    platform_id: i64,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<i64>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::count_resource_types(&pool).await {
+        Ok(count) => Ok(Json(count)),
+        Err(_) => Err((
+            Status::InternalServerError,
+            Json(json!({
+                "error": "Database error",
+                "message": "Failed to count resource types"
+            }))
+        )),
+    }
 }
 
 /// Get a specific resource type by ID.
-#[get("/resource_types/<id>")]
-pub async fn get_resource_type(id: i32, pool: &State<sqlx::Pool<MySql>>) -> Option<Json<ResourceType>> {
-    let result = db::cost::get_resource_type_by_id(pool, id).await;
-    match result {
-        Ok(resource_type) => Some(Json(resource_type)),
+#[get("/platform/<platform_id>/resource_types/<id>")]
+pub async fn get_resource_type(
+    platform_id: i64,
+    id: i32,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<ResourceType>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
         Err(_) => {
-            println!("Client requested resource type: {} but it could not be found", id);
-            None
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
         }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::get_resource_type_by_id(&pool, id).await {
+        Ok(resource_type) => Ok(Json(resource_type)),
+        Err(_) => Err((
+            Status::NotFound,
+            Json(json!({
+                "error": "Resource type not found",
+                "message": format!("Resource type with ID {} could not be found", id)
+            }))
+        )),
     }
 }
 
 /// Create a new resource type.
-#[post("/resource_types", format = "json", data = "<request>")]
+#[post("/platform/<platform_id>/resource_types", format = "json", data = "<request>")]
 pub async fn create_resource_type(
+    platform_id: i64,
     request: Json<CreateResourceTypeRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<ResourceType>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::create_resource_type(
-        pool,
+        &pool,
         &request.name,
         &request.category,
         &request.unit_of_measurement,
@@ -332,14 +484,43 @@ pub async fn create_resource_type(
 }
 
 /// Update an existing resource type.
-#[put("/resource_types/<id>", format = "json", data = "<request>")]
+#[put("/platform/<platform_id>/resource_types/<id>", format = "json", data = "<request>")]
 pub async fn update_resource_type(
+    platform_id: i64,
     id: i32,
     request: Json<UpdateResourceTypeRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<ResourceType>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::update_resource_type(
-        pool,
+        &pool,
         id,
         request.name.as_deref(),
         request.category.as_deref(),
@@ -358,12 +539,41 @@ pub async fn update_resource_type(
 }
 
 /// Delete a resource type.
-#[delete("/resource_types/<id>")]
+#[delete("/platform/<platform_id>/resource_types/<id>")]
 pub async fn delete_resource_type(
+    platform_id: i64,
     id: i32,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
-    match db::cost::delete_resource_type(pool, id).await {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::delete_resource_type(&pool, id).await {
         Ok(_) => Ok(Json(json!({ "status": "deleted" }))),
         Err(e) => Err((
             Status::InternalServerError,
@@ -378,8 +588,9 @@ pub async fn delete_resource_type(
 // Cost Metrics Routes
 
 /// List cost metrics with pagination and filtering support.
-#[get("/cost_metrics?<page>&<per_page>&<resource_type_id>&<provider_id>&<app_id>&<start_date>&<end_date>&<billing_period>")]
+#[get("/platform/<platform_id>/cost_metrics?<page>&<per_page>&<resource_type_id>&<provider_id>&<app_id>&<start_date>&<end_date>&<billing_period>")]
 pub async fn list_cost_metrics(
+    platform_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
     resource_type_id: Option<i32>,
@@ -388,8 +599,36 @@ pub async fn list_cost_metrics(
     start_date: Option<String>,
     end_date: Option<String>,
     billing_period: Option<String>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     use chrono::TimeZone;
 
     // Parse start_date and end_date from Option<String> to Option<DateTime<Utc>>
@@ -410,13 +649,35 @@ pub async fn list_cost_metrics(
 
     match (page, per_page) {
         (Some(p), Some(pp)) => {
-            let cost_metrics = db::cost::list_cost_metrics(
-                pool, p, pp, resource_type_id, provider_id, app_id, parsed_start_date, parsed_end_date, billing_period.as_deref()
-            ).await.unwrap();
+            let cost_metrics = match db::cost::list_cost_metrics(
+                &pool, p, pp, resource_type_id, provider_id, app_id, parsed_start_date, parsed_end_date, billing_period.as_deref()
+            ).await {
+                Ok(metrics) => metrics,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to retrieve cost metrics"
+                        }))
+                    ));
+                }
+            };
             
-            let total_count = db::cost::count_cost_metrics(
-                pool, resource_type_id, provider_id, app_id, parsed_start_date, parsed_end_date, billing_period.as_deref()
-            ).await.unwrap();
+            let total_count = match db::cost::count_cost_metrics(
+                &pool, resource_type_id, provider_id, app_id, parsed_start_date, parsed_end_date, billing_period.as_deref()
+            ).await {
+                Ok(count) => count,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to count cost metrics"
+                        }))
+                    ));
+                }
+            };
             
             let total_pages = (total_count as f64 / pp as f64).ceil() as i64;
 
@@ -443,27 +704,89 @@ pub async fn list_cost_metrics(
 }
 
 /// Get a specific cost metric by ID.
-#[get("/cost_metrics/<id>")]
-pub async fn get_cost_metric(id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Json<CostMetricWithType>> {
-    let result = db::cost::get_cost_metric_by_id(pool, id).await;
-    match result {
-        Ok(cost_metric) => Some(Json(cost_metric)),
-        Err(e) => {
-            println!("Client requested cost metric: {} but it could not be found", id);
-            println!("Error: {}", e);
-            None
+#[get("/platform/<platform_id>/cost_metrics/<id>")]
+pub async fn get_cost_metric(
+    platform_id: i64,
+    id: i64,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<CostMetricWithType>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
         }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::get_cost_metric_by_id(&pool, id).await {
+        Ok(cost_metric) => Ok(Json(cost_metric)),
+        Err(e) => Err((
+            Status::NotFound,
+            Json(json!({
+                "error": "Cost metric not found",
+                "message": format!("Cost metric with ID {} could not be found: {}", id, e)
+            }))
+        )),
     }
 }
 
 /// Create a new cost metric.
-#[post("/cost_metrics", format = "json", data = "<request>")]
+#[post("/platform/<platform_id>/cost_metrics", format = "json", data = "<request>")]
 pub async fn create_cost_metric(
+    platform_id: i64,
     request: Json<CreateCostMetricRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<CostMetric>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::create_cost_metric(
-        pool,
+        &pool,
         request.resource_type_id,
         request.provider_id,
         request.region_id,
@@ -492,12 +815,41 @@ pub async fn create_cost_metric(
 }
 
 /// Delete a cost metric.
-#[delete("/cost_metrics/<id>")]
+#[delete("/platform/<platform_id>/cost_metrics/<id>")]
 pub async fn delete_cost_metric(
+    platform_id: i64,
     id: i64,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
-    match db::cost::delete_cost_metric(pool, id).await {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::delete_cost_metric(&pool, id).await {
         Ok(_) => Ok(Json(json!({ "status": "deleted" }))),
         Err(e) => Err((
             Status::InternalServerError,
@@ -510,13 +862,42 @@ pub async fn delete_cost_metric(
 }
 
 /// Get cost analysis by dimension (app, provider, resource_type, etc.)
-#[post("/cost_analysis/by_dimension", format = "json", data = "<request>")]
+#[post("/platform/<platform_id>/cost_analysis/by_dimension", format = "json", data = "<request>")]
 pub async fn analyze_costs_by_dimension(
+    platform_id: i64,
     request: Json<CostAnalysisByDimensionRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Vec<(String, f64)>>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::get_cost_metrics_by_dimension(
-        pool,
+        &pool,
         &request.dimension,
         request.start_date,
         request.end_date,
@@ -534,13 +915,42 @@ pub async fn analyze_costs_by_dimension(
 }
 
 /// Get application cost over time
-#[post("/cost_analysis/over_time", format = "json", data = "<request>")]
+#[post("/platform/<platform_id>/cost_analysis/over_time", format = "json", data = "<request>")]
 pub async fn analyze_cost_over_time(
+    platform_id: i64,
     request: Json<CostOverTimeRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Vec<(DateTime<Utc>, f64)>>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::get_app_cost_over_time(
-        pool,
+        &pool,
         request.app_id,
         &request.interval,
         request.start_date,
@@ -560,16 +970,69 @@ pub async fn analyze_cost_over_time(
 // Cost Budget Routes
 
 /// List all cost budgets with pagination support.
-#[get("/cost_budgets?<page>&<per_page>")]
+#[get("/platform/<platform_id>/cost_budgets?<page>&<per_page>")]
 pub async fn list_cost_budgets(
+    platform_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match (page, per_page) {
         (Some(p), Some(pp)) => {
-            let cost_budgets = db::cost::list_cost_budgets(pool, p, pp).await.unwrap();
-            let total_count = db::cost::count_cost_budgets(pool).await.unwrap();
+            let cost_budgets = match db::cost::list_cost_budgets(&pool, p, pp).await {
+                Ok(budgets) => budgets,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to retrieve cost budgets"
+                        }))
+                    ));
+                }
+            };
+            
+            let total_count = match db::cost::count_cost_budgets(&pool).await {
+                Ok(count) => count,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to count cost budgets"
+                        }))
+                    ));
+                }
+            };
+            
             let total_pages = (total_count as f64 / pp as f64).ceil() as i64;
 
             let response = json!({
@@ -595,31 +1058,94 @@ pub async fn list_cost_budgets(
 }
 
 /// Get a specific cost budget by ID.
-#[get("/cost_budgets/<id>")]
-pub async fn get_cost_budget(id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Json<CostBudget>> {
-    let result = db::cost::get_cost_budget_by_id(pool, id).await;
-    match result {
-        Ok(budget) => Some(Json(budget)),
+#[get("/platform/<platform_id>/cost_budgets/<id>")]
+pub async fn get_cost_budget(
+    platform_id: i64,
+    id: i64,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<CostBudget>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
         Err(_) => {
-            println!("Client requested cost budget: {} but it could not be found", id);
-            None
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
         }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::get_cost_budget_by_id(&pool, id).await {
+        Ok(budget) => Ok(Json(budget)),
+        Err(_) => Err((
+            Status::NotFound,
+            Json(json!({
+                "error": "Cost budget not found",
+                "message": format!("Cost budget with ID {} could not be found", id)
+            }))
+        )),
     }
 }
 
 /// Create a new cost budget.
-#[post("/cost_budgets", format = "json", data = "<request>")]
+#[post("/platform/<platform_id>/cost_budgets", format = "json", data = "<request>")]
 pub async fn create_cost_budget(
+    platform_id: i64,
     request: Json<CreateCostBudgetRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
     user: User,
 ) -> Result<Json<CostBudget>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     let user_id = user.id;
 
     //TODO: Validate user permissions here later
 
     match db::cost::create_cost_budget(
-        pool,
+        &pool,
         request.org_id,
         request.app_id,
         &request.budget_name,
@@ -644,14 +1170,43 @@ pub async fn create_cost_budget(
 }
 
 /// Update an existing cost budget.
-#[put("/cost_budgets/<id>", format = "json", data = "<request>")]
+#[put("/platform/<platform_id>/cost_budgets/<id>", format = "json", data = "<request>")]
 pub async fn update_cost_budget(
+    platform_id: i64,
     id: i64,
     request: Json<UpdateCostBudgetRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<CostBudget>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::update_cost_budget(
-        pool,
+        &pool,
         id,
         request.budget_name.as_deref(),
         request.budget_amount,
@@ -671,12 +1226,41 @@ pub async fn update_cost_budget(
 }
 
 /// Delete a cost budget.
-#[delete("/cost_budgets/<id>")]
+#[delete("/platform/<platform_id>/cost_budgets/<id>")]
 pub async fn delete_cost_budget(
+    platform_id: i64,
     id: i64,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
-    match db::cost::delete_cost_budget(pool, id).await {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::delete_cost_budget(&pool, id).await {
         Ok(_) => Ok(Json(json!({ "status": "deleted" }))),
         Err(e) => Err((
             Status::InternalServerError,
@@ -691,15 +1275,55 @@ pub async fn delete_cost_budget(
 // Cost Projection Routes
 
 /// List all cost projections with pagination support.
-#[get("/cost_projections?<page>&<per_page>")]
+#[get("/platform/<platform_id>/cost_projections?<page>&<per_page>")]
 pub async fn list_cost_projections(
+    platform_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match (page, per_page) {
         (Some(p), Some(pp)) => {
-            let projections = db::cost::list_cost_projections(pool, p, pp).await.unwrap();
+            let projections = match db::cost::list_cost_projections(&pool, p, pp).await {
+                Ok(projections) => projections,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to retrieve cost projections"
+                        }))
+                    ));
+                }
+            };
             
             let response = json!({
                 "cost_projections": projections,
@@ -722,26 +1346,89 @@ pub async fn list_cost_projections(
 }
 
 /// Get a specific cost projection by ID.
-#[get("/cost_projections/<id>")]
-pub async fn get_cost_projection(id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Json<CostProjection>> {
-    let result = db::cost::get_cost_projection_by_id(pool, id).await;
-    match result {
-        Ok(projection) => Some(Json(projection)),
+#[get("/platform/<platform_id>/cost_projections/<id>")]
+pub async fn get_cost_projection(
+    platform_id: i64,
+    id: i64,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<CostProjection>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
         Err(_) => {
-            println!("Client requested cost projection: {} but it could not be found", id);
-            None
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
         }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::get_cost_projection_by_id(&pool, id).await {
+        Ok(projection) => Ok(Json(projection)),
+        Err(_) => Err((
+            Status::NotFound,
+            Json(json!({
+                "error": "Cost projection not found",
+                "message": format!("Cost projection with ID {} could not be found", id)
+            }))
+        )),
     }
 }
 
 /// Create a new cost projection.
-#[post("/cost_projections", format = "json", data = "<request>")]
+#[post("/platform/<platform_id>/cost_projections", format = "json", data = "<request>")]
 pub async fn create_cost_projection(
+    platform_id: i64,
     request: Json<CreateCostProjectionRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<CostProjection>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::create_cost_projection(
-        pool,
+        &pool,
         request.org_id,
         request.app_id,
         &request.projection_period,
@@ -765,12 +1452,41 @@ pub async fn create_cost_projection(
 }
 
 /// Delete a cost projection.
-#[delete("/cost_projections/<id>")]
+#[delete("/platform/<platform_id>/cost_projections/<id>")]
 pub async fn delete_cost_projection(
+    platform_id: i64,
     id: i64,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
-    match db::cost::delete_cost_projection(pool, id).await {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::delete_cost_projection(&pool, id).await {
         Ok(_) => Ok(Json(json!({ "status": "deleted" }))),
         Err(e) => Err((
             Status::InternalServerError,
@@ -785,8 +1501,9 @@ pub async fn delete_cost_projection(
 // Resource Pricing Routes
 
 /// List resource pricing with pagination and filtering support.
-#[get("/resource_pricing?<page>&<per_page>&<resource_type_id>&<provider_id>&<region_id>&<pricing_model>&<tier_name>")]
+#[get("/platform/<platform_id>/resource_pricing?<page>&<per_page>&<resource_type_id>&<provider_id>&<region_id>&<pricing_model>&<tier_name>")]
 pub async fn list_resource_pricing(
+    platform_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
     resource_type_id: Option<i32>,
@@ -794,13 +1511,52 @@ pub async fn list_resource_pricing(
     region_id: Option<i64>,
     pricing_model: Option<String>,
     tier_name: Option<String>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match (page, per_page) {
         (Some(p), Some(pp)) => {
-            let pricing = db::cost::list_resource_pricing(
-                pool, p, pp, resource_type_id, provider_id, region_id, pricing_model.as_deref(), tier_name.as_deref()
-            ).await.unwrap();
+            let pricing = match db::cost::list_resource_pricing(
+                &pool, p, pp, resource_type_id, provider_id, region_id, pricing_model.as_deref(), tier_name.as_deref()
+            ).await {
+                Ok(pricing) => pricing,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to retrieve resource pricing"
+                        }))
+                    ));
+                }
+            };
             
             let response = json!({
                 "resource_pricing": pricing,
@@ -823,26 +1579,89 @@ pub async fn list_resource_pricing(
 }
 
 /// Get a specific resource pricing entry by ID.
-#[get("/resource_pricing/<id>")]
-pub async fn get_resource_pricing(id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Json<ResourcePricing>> {
-    let result = db::cost::get_resource_pricing_by_id(pool, id).await;
-    match result {
-        Ok(pricing) => Some(Json(pricing)),
+#[get("/platform/<platform_id>/resource_pricing/<id>")]
+pub async fn get_resource_pricing(
+    platform_id: i64,
+    id: i64,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<ResourcePricing>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
         Err(_) => {
-            println!("Client requested resource pricing: {} but it could not be found", id);
-            None
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
         }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::get_resource_pricing_by_id(&pool, id).await {
+        Ok(pricing) => Ok(Json(pricing)),
+        Err(_) => Err((
+            Status::NotFound,
+            Json(json!({
+                "error": "Resource pricing not found",
+                "message": format!("Resource pricing with ID {} could not be found", id)
+            }))
+        )),
     }
 }
 
 /// Create a new resource pricing entry.
-#[post("/resource_pricing", format = "json", data = "<request>")]
+#[post("/platform/<platform_id>/resource_pricing", format = "json", data = "<request>")]
 pub async fn create_resource_pricing(
+    platform_id: i64,
     request: Json<CreateResourcePricingRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<ResourcePricing>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::create_resource_pricing(
-        pool,
+        &pool,
         request.resource_type_id,
         request.provider_id,
         request.region_id,
@@ -867,14 +1686,43 @@ pub async fn create_resource_pricing(
 }
 
 /// Update an existing resource pricing entry.
-#[put("/resource_pricing/<id>", format = "json", data = "<request>")]
+#[put("/platform/<platform_id>/resource_pricing/<id>", format = "json", data = "<request>")]
 pub async fn update_resource_pricing(
+    platform_id: i64,
     id: i64,
     request: Json<UpdateResourcePricingRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<ResourcePricing>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::update_resource_pricing(
-        pool,
+        &pool,
         id,
         request.unit_price,
         request.effective_to,
@@ -892,12 +1740,41 @@ pub async fn update_resource_pricing(
 }
 
 /// Delete a resource pricing entry.
-#[delete("/resource_pricing/<id>")]
+#[delete("/platform/<platform_id>/resource_pricing/<id>")]
 pub async fn delete_resource_pricing(
+    platform_id: i64,
     id: i64,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
-    match db::cost::delete_resource_pricing(pool, id).await {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::delete_resource_pricing(&pool, id).await {
         Ok(_) => Ok(Json(json!({ "status": "deleted" }))),
         Err(e) => Err((
             Status::InternalServerError,
@@ -912,13 +1789,42 @@ pub async fn delete_resource_pricing(
 // Cost Allocation Tag Routes
 
 /// Get cost allocation tags for a specific resource.
-#[get("/cost_allocation_tags/<resource_id>/<resource_type>")]
+#[get("/platform/<platform_id>/cost_allocation_tags/<resource_id>/<resource_type>")]
 pub async fn get_cost_allocation_tags(
+    platform_id: i64,
     resource_id: i64,
     resource_type: String,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Vec<CostAllocationTag>>, (Status, Json<Value>)> {
-    match db::cost::get_cost_allocation_tags(pool, resource_id, &resource_type).await {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::get_cost_allocation_tags(&pool, resource_id, &resource_type).await {
         Ok(tags) => Ok(Json(tags)),
         Err(e) => Err((
             Status::InternalServerError,
@@ -931,13 +1837,42 @@ pub async fn get_cost_allocation_tags(
 }
 
 /// Create a new cost allocation tag.
-#[post("/cost_allocation_tags", format = "json", data = "<request>")]
+#[post("/platform/<platform_id>/cost_allocation_tags", format = "json", data = "<request>")]
 pub async fn create_cost_allocation_tag(
+    platform_id: i64,
     request: Json<CreateCostAllocationTagRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<CostAllocationTag>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::cost::create_cost_allocation_tag(
-        pool,
+        &pool,
         &request.tag_key,
         &request.tag_value,
         request.resource_id,
@@ -955,12 +1890,41 @@ pub async fn create_cost_allocation_tag(
 }
 
 /// Delete a cost allocation tag.
-#[delete("/cost_allocation_tags/<id>")]
+#[delete("/platform/<platform_id>/cost_allocation_tags/<id>")]
 pub async fn delete_cost_allocation_tag(
+    platform_id: i64,
     id: i64,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
-    match db::cost::delete_cost_allocation_tag(pool, id).await {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::cost::delete_cost_allocation_tag(&pool, id).await {
         Ok(_) => Ok(Json(json!({ "status": "deleted" }))),
         Err(e) => Err((
             Status::InternalServerError,
