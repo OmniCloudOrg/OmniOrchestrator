@@ -1,55 +1,97 @@
-// routes/deployment.rs
+use std::sync::Arc;
+use crate::DatabaseManager;
 use crate::models::deployment::Deployment;
 use super::super::db::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
 use rocket::{delete, get, post, put, State};
 use serde::{Deserialize, Serialize};
-use sqlx::MySql;
 
-/// Request data for creating a new deployment.
-#[derive(Debug, Serialize, Deserialize)]
+/// Request body for creating a deployment.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateDeploymentRequest {
-    /// ID of the application being deployed
-    app_id: i64,
-    /// ID of the build being deployed
-    build_id: i64,
-    /// Version tag for this deployment
-    version: String,
-    /// Strategy for deployment (e.g., "rolling", "blue-green")
-    deployment_strategy: String,
-    /// Optional ID of the previous deployment
-    previous_deployment_id: Option<i64>,
-    /// Percentage of traffic for canary deployments
-    canary_percentage: Option<i64>,
-    /// Environment variables for the deployment
-    environment_variables: Option<serde_json::Value>,
-    /// Annotations for the deployment
-    annotations: Option<serde_json::Value>,
-    /// Labels for the deployment
-    labels: Option<serde_json::Value>,
+    pub app_id: i64,
+    pub build_id: i64,
+    pub version: String,
+    pub deployment_strategy: String,
+    pub previous_deployment_id: Option<i64>,
+    pub canary_percentage: Option<i64>,
+    pub environment_variables: Option<serde_json::Value>,
+    pub annotations: Option<serde_json::Value>,
+    pub labels: Option<serde_json::Value>,
 }
 
-/// Request data for updating a deployment's status.
-#[derive(Debug, Serialize, Deserialize)]
+/// Request body for updating a deployment's status.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateDeploymentStatusRequest {
-    /// New status for the deployment
-    status: String,
-    /// Optional error message if the deployment failed
-    error_message: Option<String>,
+    pub status: String,
+    pub error_message: Option<String>,
 }
 
 /// List all deployments with pagination support.
-#[get("/deployments?<page>&<per_page>")]
+#[get("/platform/<platform_id>/deployments?<page>&<per_page>")]
 pub async fn list_deployments(
+    platform_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match (page, per_page) {
         (Some(p), Some(pp)) => {
-            let deployments = db::deployment::list_deployments(pool, p, pp).await.unwrap();
-            let total_count = db::deployment::count_deployments(pool).await.unwrap();
+            let deployments = match db::deployment::list_deployments(&pool, p, pp).await {
+                Ok(deployments) => deployments,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to retrieve deployments"
+                        }))
+                    ));
+                }
+            };
+            
+            let total_count = match db::deployment::count_deployments(&pool).await {
+                Ok(count) => count,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to count deployments"
+                        }))
+                    ));
+                }
+            };
+            
             let total_pages = (total_count as f64 / pp as f64).ceil() as i64;
 
             let response = json!({
@@ -75,41 +117,163 @@ pub async fn list_deployments(
 }
 
 /// Count the total number of deployments.
-#[get("/deployments/count")]
-pub async fn count_deployments(pool: &State<sqlx::Pool<MySql>>) -> Json<i64> {
-    let count = db::deployment::count_deployments(pool).await.unwrap();
-    Json(count)
+#[get("/platform/<platform_id>/count/deployments")]
+pub async fn count_deployments(
+    platform_id: i64,
+    db_manager: &State<Arc<DatabaseManager>>
+) -> Result<Json<i64>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::deployment::count_deployments(&pool).await {
+        Ok(count) => Ok(Json(count)),
+        Err(_) => Err((
+            Status::InternalServerError,
+            Json(json!({
+                "error": "Database error",
+                "message": "Failed to count deployments"
+            }))
+        )),
+    }
 }
 
 /// Get a specific deployment by ID.
-#[get("/deployments/<deployment_id>")]
-pub async fn get_deployment(deployment_id: i64, pool: &State<sqlx::Pool<MySql>>) -> Option<Json<Deployment>> {
-    let deployment_result = db::deployment::get_deployment_by_id(pool, deployment_id).await;
-    let deployment: Option<Deployment> = match deployment_result {
-        Ok(deployment) => Some(deployment),
+#[get("/platform/<platform_id>/deployments/<deployment_id>")]
+pub async fn get_deployment(
+    platform_id: i64,
+    deployment_id: i64,
+    db_manager: &State<Arc<DatabaseManager>>
+) -> Result<Json<Deployment>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
         Err(_) => {
-            println!(
-                "Client requested deployment: {} but the deployment could not be found by the DB query",
-                deployment_id
-            );
-            None
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
         }
     };
-    deployment.map(Json)
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::deployment::get_deployment_by_id(&pool, deployment_id).await {
+        Ok(deployment) => Ok(Json(deployment)),
+        Err(_) => Err((
+            Status::NotFound,
+            Json(json!({
+                "error": "Deployment not found",
+                "message": format!("Deployment with ID {} could not be found", deployment_id)
+            }))
+        )),
+    }
 }
 
 /// List all deployments for a specific application with pagination.
-#[get("/apps/<app_id>/deployments?<page>&<per_page>")]
+#[get("/platform/<platform_id>/apps/<app_id>/deployments?<page>&<per_page>")]
 pub async fn list_app_deployments(
+    platform_id: i64,
     app_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match (page, per_page) {
         (Some(p), Some(pp)) => {
-            let deployments = db::deployment::list_deployments_by_app(pool, app_id, p, pp).await.unwrap();
-            let total_count = db::deployment::count_deployments_by_app(pool, app_id).await.unwrap();
+            let deployments = match db::deployment::list_deployments_by_app(&pool, app_id, p, pp).await {
+                Ok(deployments) => deployments,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to retrieve deployments"
+                        }))
+                    ));
+                }
+            };
+            
+            let total_count = match db::deployment::count_deployments_by_app(&pool, app_id).await {
+                Ok(count) => count,
+                Err(_) => {
+                    return Err((
+                        Status::InternalServerError,
+                        Json(json!({
+                            "error": "Database error",
+                            "message": "Failed to count deployments"
+                        }))
+                    ));
+                }
+            };
+            
             let total_pages = (total_count as f64 / pp as f64).ceil() as i64;
 
             let response = json!({
@@ -135,13 +299,42 @@ pub async fn list_app_deployments(
 }
 
 /// Create a new deployment.
-#[post("/deployments", format = "json", data = "<deployment_request>")]
+#[post("/platform/<platform_id>/deployments", format = "json", data = "<deployment_request>")]
 pub async fn create_deployment(
+    platform_id: i64,
     deployment_request: Json<CreateDeploymentRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
-) -> Json<Deployment> {
-    let deployment = db::deployment::create_deployment(
-        pool,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Deployment>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::deployment::create_deployment(
+        &pool,
         deployment_request.app_id,
         deployment_request.build_id,
         &deployment_request.version,
@@ -152,22 +345,56 @@ pub async fn create_deployment(
         deployment_request.annotations.clone(),
         deployment_request.labels.clone(),
         None, // created_by would typically come from auth middleware
-    )
-    .await
-    .unwrap();
-    
-    Json(deployment)
+    ).await {
+        Ok(deployment) => Ok(Json(deployment)),
+        Err(e) => Err((
+            Status::InternalServerError,
+            Json(json!({
+                "error": "Failed to create deployment",
+                "message": e.to_string()
+            }))
+        )),
+    }
 }
 
 /// Update a deployment's status.
-#[put("/deployments/<deployment_id>/status", format = "json", data = "<status_request>")]
+#[put("/platform/<platform_id>/deployments/<deployment_id>/status", format = "json", data = "<status_request>")]
 pub async fn update_deployment_status(
+    platform_id: i64,
     deployment_id: i64,
     status_request: Json<UpdateDeploymentStatusRequest>,
-    pool: &State<sqlx::Pool<MySql>>,
+    db_manager: &State<Arc<DatabaseManager>>,
 ) -> Result<Json<Deployment>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
     match db::deployment::update_deployment_status(
-        pool,
+        &pool,
         deployment_id,
         &status_request.status,
         status_request.error_message.as_deref(),
@@ -184,13 +411,48 @@ pub async fn update_deployment_status(
 }
 
 /// Delete a specific deployment.
-#[delete("/deployments/<deployment_id>")]
+#[delete("/platform/<platform_id>/deployments/<deployment_id>")]
 pub async fn delete_deployment(
+    platform_id: i64,
     deployment_id: i64,
-    pool: &State<sqlx::Pool<MySql>>,
-) -> Result<Json<Value>, (Status, String)> {
-    match db::deployment::delete_deployment(pool, deployment_id).await {
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    match db::deployment::delete_deployment(&pool, deployment_id).await {
         Ok(_) => Ok(Json(json!({ "status": "deleted" }))),
-        Err(e) => Err((Status::InternalServerError, e.to_string())),
+        Err(e) => Err((
+            Status::InternalServerError, 
+            Json(json!({
+                "error": "Database error",
+                "message": e.to_string()
+            }))
+        )),
     }
 }
