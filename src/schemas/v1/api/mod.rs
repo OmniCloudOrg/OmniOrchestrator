@@ -53,6 +53,7 @@ pub mod regions;
 pub mod storage;
 pub mod users;
 pub mod workers;
+pub mod platforms;
 
 pub fn routes() -> Vec<rocket::Route> {
     routes![
@@ -130,7 +131,7 @@ pub fn routes() -> Vec<rocket::Route> {
         // Metadata
         metadata::get_meta_value,
         metadata::set_meta_value,
-      
+
         // Audit log
         audit_log::create_audit_log,
         audit_log::list_audit_logs,
@@ -236,6 +237,10 @@ pub fn routes() -> Vec<rocket::Route> {
         logging::list_org_logs,
         logging::list_app_logs,
         logging::list_instance_logs,
-        logging::insert_logs
+        logging::insert_logs,
+
+        platforms::list_platforms,
+        platforms::add_platform,
+        platforms::remove_platform,
     ]
 }

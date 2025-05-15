@@ -2,7 +2,7 @@
 //
 // Core data model for the OmniCloud backup system
 
-pub use crate::db::v1::tables::Backup;
+pub use crate::db_manager::v1::tables::Backup;
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use std::path::PathBuf;

@@ -24,6 +24,8 @@ DROP TABLE IF EXISTS resource_types, cost_metrics, cost_projections, cost_budget
 
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- Create independent tables first (no foreign keys)
+
 CREATE TABLE roles (
     id BIGINT NOT NULL AUTO_INCREMENT,
     name VARCHAR(255) NOT NULL,

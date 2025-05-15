@@ -2,7 +2,7 @@
 //
 // Handles exporting and archiving of backup sets
 
-use crate::db::v1::tables::Backup;
+use crate::db_manager::v1::tables::Backup;
 use std::path::{Path, PathBuf};
 use std::fs;
 use log::{info, warn, error, debug};
