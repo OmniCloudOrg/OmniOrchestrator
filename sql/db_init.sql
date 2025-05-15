@@ -1,5 +1,10 @@
+-------------------------------------------------------------------------------
 -- OmniCloud platform database schema
--- This script creates the database schema for the OmniCloud platform.
+-------------------------------------------------------------------------------
+-- This script creates the database schema for the V1 schema for an OmniCloud
+-- platform. Multiple of these platforms can exist on a single deployment of
+-- OmniCloud and are referenced by the 'omni' database in the platforms table.
+-------------------------------------------------------------------------------
 
 -- Drop all tables first (in correct dependency order)
 SET FOREIGN_KEY_CHECKS = 0;
@@ -18,94 +23,6 @@ DROP TABLE IF EXISTS resource_types, cost_metrics, cost_projections, cost_budget
     alert_history, provider_audit_logs, apps;
 
 SET FOREIGN_KEY_CHECKS = 1;
-
--- Create independent tables first (no foreign keys)
-
--- Users split into three tables: users, user_meta, and user_pii
-CREATE TABLE users (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    email VARCHAR(255) NOT NULL,
-    email_verified TINYINT(1) DEFAULT 0,
-    password VARCHAR(255) NOT NULL,
-    salt VARCHAR(255) NOT NULL,
-    password_changed_at DATETIME,
-    login_attempts BIGINT DEFAULT 0,
-    locked_until DATETIME,
-    two_factor_enabled TINYINT(1) DEFAULT 0,
-    two_factor_verified TINYINT(1) DEFAULT 0,
-    active TINYINT(1) DEFAULT 1,
-    status ENUM('active', 'deactivated', 'suspended', 'pending') DEFAULT 'pending',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at DATETIME,
-    last_login_at DATETIME,
-    PRIMARY KEY (id),
-    UNIQUE KEY unique_email (email),
-    INDEX idx_users_email_verified (email_verified),
-    INDEX idx_users_active (active),
-    INDEX idx_users_deleted_at (deleted_at),
-    INDEX idx_users_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- User metadata - preferences and non-sensitive settings
-CREATE TABLE user_meta (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    user_id BIGINT NOT NULL,
-    timezone VARCHAR(50) DEFAULT 'UTC',
-    language VARCHAR(10) DEFAULT 'en',
-    theme VARCHAR(50) DEFAULT 'light',
-    notification_preferences JSON,
-    profile_image VARCHAR(255),
-    dashboard_layout JSON,
-    onboarding_completed TINYINT(1) DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY unique_user_id (user_id),
-    INDEX idx_user_meta_user_id (user_id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Personally Identifiable Information (PII) - sensitive data
-CREATE TABLE user_pii (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    user_id BIGINT NOT NULL,
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
-    full_name VARCHAR(255),
-    identity_verified TINYINT(1) DEFAULT 0,
-    identity_verification_date DATETIME,
-    identity_verification_method VARCHAR(100),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY unique_user_id (user_id),
-    INDEX idx_user_pii_user_id (user_id),
-    INDEX idx_user_pii_identity_verified (identity_verified),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- User sessions table for better session management
-CREATE TABLE user_sessions (
-    id BIGINT NOT NULL AUTO_INCREMENT,
-    user_id BIGINT NOT NULL,
-    session_token VARCHAR(255) NOT NULL,
-    refresh_token VARCHAR(255),
-    ip_address VARCHAR(45),
-    user_agent TEXT,
-    device_info JSON,
-    location_info JSON,
-    is_active TINYINT(1) DEFAULT 1,
-    last_activity DATETIME,
-    expires_at DATETIME NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    UNIQUE KEY unique_session_token (session_token),
-    INDEX idx_user_sessions_user_id (user_id),
-    INDEX idx_user_sessions_is_active (is_active),
-    INDEX idx_user_sessions_expires_at (expires_at),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE roles (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -238,7 +155,6 @@ CREATE TABLE role_user (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, role_id, scope_type, scope_id),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
     INDEX idx_role_user_scope (scope_type, scope_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -258,8 +174,7 @@ CREATE TABLE orgmember (
     KEY idx_orgmember_org_id (org_id),
     KEY idx_orgmember_user_id (user_id),
     KEY idx_orgmember_invitation_status (invitation_status),
-    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE api_keys (
@@ -275,7 +190,7 @@ CREATE TABLE api_keys (
     last_used_at DATETIME,
     revoked TINYINT(1) DEFAULT 0,
     revoked_at DATETIME,
-    revoked_by BIGINT,
+    revoked_by BIGINT, -- User ID
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
@@ -284,9 +199,7 @@ CREATE TABLE api_keys (
     KEY idx_api_keys_user_id (user_id),
     KEY idx_api_keys_revoked (revoked),
     KEY idx_api_keys_expires_at (expires_at),
-    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (revoked_by) REFERENCES users(id) ON DELETE SET NULL
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE quotas (
@@ -718,7 +631,7 @@ CREATE TABLE deployments (
     deployment_duration BIGINT COMMENT 'in seconds',
     error_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_by BIGINT,
+    created_by BIGINT, -- User ID
     PRIMARY KEY (id),
     KEY idx_deployments_app_id (app_id),
     KEY idx_deployments_build_id (build_id),
@@ -728,8 +641,7 @@ CREATE TABLE deployments (
     KEY idx_deployments_created_by (created_by),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (build_id) REFERENCES builds(id),
-    FOREIGN KEY (previous_deployment_id) REFERENCES deployments(id),
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    FOREIGN KEY (previous_deployment_id) REFERENCES deployments(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE rollbacks (
@@ -746,7 +658,7 @@ CREATE TABLE rollbacks (
     rollback_duration BIGINT COMMENT 'in seconds',
     error_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_by BIGINT,
+    created_by BIGINT, -- User ID
     PRIMARY KEY (id),
     KEY idx_rollbacks_app_id (app_id),
     KEY idx_rollbacks_status (status),
@@ -755,8 +667,7 @@ CREATE TABLE rollbacks (
     KEY idx_rollbacks_automatic (automatic),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (from_deployment_id) REFERENCES deployments(id),
-    FOREIGN KEY (to_deployment_id) REFERENCES deployments(id),
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    FOREIGN KEY (to_deployment_id) REFERENCES deployments(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE deployment_logs (
@@ -785,15 +696,13 @@ CREATE TABLE config_vars (
     description TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by BIGINT,
-    updated_by BIGINT,
+    created_by BIGINT, -- User ID
+    updated_by BIGINT, -- User ID
     PRIMARY KEY (id),
     UNIQUE KEY unique_app_key (app_id, `key`),
     KEY idx_config_vars_app_id (app_id),
     KEY idx_config_vars_is_secret (is_secret),
-    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(id),
-    FOREIGN KEY (updated_by) REFERENCES users(id)
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE tasks (
@@ -815,7 +724,7 @@ CREATE TABLE tasks (
     duration BIGINT COMMENT 'in seconds',
     error_message TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    created_by BIGINT,
+    created_by BIGINT, -- User ID
     PRIMARY KEY (id),
     KEY idx_tasks_app_id (app_id),
     KEY idx_tasks_status (status),
@@ -823,8 +732,7 @@ CREATE TABLE tasks (
     KEY idx_tasks_created_by (created_by),
     KEY idx_tasks_node_id (node_id),
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
-    FOREIGN KEY (node_id) REFERENCES workers(id),
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    FOREIGN KEY (node_id) REFERENCES workers(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE health_checks (
@@ -869,14 +777,13 @@ CREATE TABLE autoscaling_rules (
     enabled TINYINT(1) DEFAULT 1,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by BIGINT,
+    created_by BIGINT, -- User ID
     PRIMARY KEY (id),
     KEY idx_autoscaling_rules_app_id (app_id),
     KEY idx_autoscaling_rules_metric_type (metric_type),
     KEY idx_autoscaling_rules_enabled (enabled),
     KEY idx_autoscaling_rules_created_by (created_by),
-    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE network_policies (
@@ -891,7 +798,7 @@ CREATE TABLE network_policies (
     priority BIGINT DEFAULT 1000,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_by BIGINT,
+    created_by BIGINT, -- User ID
     PRIMARY KEY (id),
     UNIQUE KEY unique_policy (source_app_id, destination_app_id, protocol, port_range_start, port_range_end),
     KEY idx_network_policies_source (source_app_id),
@@ -900,8 +807,7 @@ CREATE TABLE network_policies (
     KEY idx_network_policies_enabled (enabled),
     KEY idx_network_policies_created_by (created_by),
     FOREIGN KEY (source_app_id) REFERENCES apps(id) ON DELETE CASCADE,
-    FOREIGN KEY (destination_app_id) REFERENCES apps(id) ON DELETE CASCADE,
-    FOREIGN KEY (created_by) REFERENCES users(id)
+    FOREIGN KEY (destination_app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Host credentials table for unified management of physical and virtual infrastructure
@@ -1014,7 +920,6 @@ CREATE TABLE audit_logs (
     KEY idx_audit_logs_action (action),
     KEY idx_audit_logs_resource_type (resource_type),
     KEY idx_audit_logs_status (status),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE SET NULL,
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1033,7 +938,6 @@ CREATE TABLE notifications (
     KEY idx_notifications_org_id (org_id),
     KEY idx_notifications_app_id (app_id),
     KEY idx_notifications_created_at (created_at),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -1096,7 +1000,6 @@ CREATE TABLE user_notifications (
     action_label VARCHAR(100),
     created_at DATETIME NOT NULL,
     expires_at DATETIME,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     INDEX idx_user_notifications_user_id (user_id),
@@ -1136,7 +1039,6 @@ CREATE TABLE notification_acknowledgments (
     notification_id BIGINT,
     role_notification_id BIGINT,
     acknowledged_at DATETIME NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (notification_id) REFERENCES user_notifications(id) ON DELETE CASCADE,
     FOREIGN KEY (role_notification_id) REFERENCES role_notifications(id) ON DELETE CASCADE,
     INDEX idx_notification_acks_user_id (user_id),
@@ -1158,14 +1060,13 @@ CREATE TABLE alerts (
     timestamp DATETIME NOT NULL,
     status ENUM('active', 'acknowledged', 'resolved', 'auto_resolved') NOT NULL DEFAULT 'active',
     resolved_at DATETIME,
-    resolved_by BIGINT,
+    resolved_by BIGINT, -- User ID
     metadata JSON,
     org_id BIGINT,
     app_id BIGINT,
     instance_id BIGINT,
     region_id BIGINT,
     node_id BIGINT,
-    FOREIGN KEY (resolved_by) REFERENCES users(id) ON DELETE SET NULL,
     FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
     FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
     FOREIGN KEY (instance_id) REFERENCES instances(id) ON DELETE CASCADE,
@@ -1191,7 +1092,6 @@ CREATE TABLE alert_acknowledgments (
     acknowledged_at DATETIME NOT NULL,
     notes TEXT,
     FOREIGN KEY (alert_id) REFERENCES alerts(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     INDEX idx_alert_acks_alert_id (alert_id),
     INDEX idx_alert_acks_user_id (user_id)
 );
@@ -1215,13 +1115,12 @@ CREATE TABLE alert_history (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     alert_id BIGINT NOT NULL,
     action VARCHAR(50) NOT NULL,
-    performed_by BIGINT,
+    performed_by BIGINT, -- User ID
     performed_at DATETIME NOT NULL,
     previous_state JSON,
     new_state JSON,
     notes TEXT,
     FOREIGN KEY (alert_id) REFERENCES alerts(id) ON DELETE CASCADE,
-    FOREIGN KEY (performed_by) REFERENCES users(id) ON DELETE SET NULL,
     INDEX idx_alert_history_alert_id (alert_id),
     INDEX idx_alert_history_performed_at (performed_at)
 );
@@ -1311,15 +1210,8 @@ CREATE INDEX idx_backups_created_at ON backups(created_at);
 
 -- New relation: Connect users with backups they've created
 ALTER TABLE backups
-ADD COLUMN creator_user_id BIGINT,
-ADD CONSTRAINT fk_backups_creator 
-FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE SET NULL;
+ADD COLUMN creator_user_id BIGINT;
 
--- New relation: Connect backups with applications they contain
-ALTER TABLE backups
-ADD COLUMN primary_app_id BIGINT,
-ADD CONSTRAINT fk_backups_primary_app
-FOREIGN KEY (primary_app_id) REFERENCES apps(id) ON DELETE SET NULL;
 
 -- New relation: Connect nodes with workers
 CREATE TABLE nodes (
@@ -1444,11 +1336,10 @@ CREATE TABLE cost_budgets (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  created_by BIGINT,
+  created_by BIGINT, -- User ID
   
   FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
   FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
   
   INDEX idx_cost_budgets_org (org_id),
   INDEX idx_cost_budgets_app (app_id),
