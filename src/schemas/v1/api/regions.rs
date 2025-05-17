@@ -1,3 +1,4 @@
+use crate::DatabaseManager;
 use crate::models::region::Region;
 use crate::models::provider::ProviderRegion;
 use crate::schemas::v1::db::queries::{self as db};
@@ -41,93 +42,337 @@ pub struct UpdateRegionRequest {
 }
 
 // List all regions paginated
-#[get("/regions?<page>&<per_page>")]
+#[get("/platform/<platform_id>/regions?<page>&<per_page>")]
 pub async fn list_regions(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-) -> Json<Vec<Region>> {
-    let regions = db::region::list_regions(pool, page, per_page)
-        .await
-        .expect("Failed to list regions");
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Vec<Region>>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    let regions = match db::region::list_regions(&pool, page, per_page).await {
+        Ok(regions) => regions,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to list regions"
+                }))
+            ));
+        }
+    };
+    
     println!("Found {} regions", regions.len());
     let regions_vec: Vec<Region> = regions.into_iter().collect();
     println!("Returning {} regions", regions_vec.len());
-    Json(regions_vec)
+    
+    Ok(Json(regions_vec))
 }
 
-#[get("/provider_regions")]
+#[get("/platform/<platform_id>/provider_regions")]
 pub async fn list_provider_regions(
-    pool: &State<sqlx::Pool<MySql>>,
-) -> Json<Vec<ProviderRegion>> {
-    let regions = db::region::list_provider_regions(pool)
-        .await
-        .expect("Failed to list provider regions");
+    platform_id: i64,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Vec<ProviderRegion>>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+
+    let regions = match db::region::list_provider_regions(&pool).await {
+        Ok(regions) => regions,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to list provider regions"
+                }))
+            ));
+        }
+    };
+    
     println!("Found {} provider regions", regions.len());
     let regions_vec: Vec<ProviderRegion> = regions.into_iter().collect();
     println!("Returning {} provider regions", regions_vec.len());
-    Json(regions_vec)
+    
+    Ok(Json(regions_vec))
 }
-// TODO: (@tristanpoland) Fix these API endpoints to accept the correct data and pass it through to the query engine
+
+// Here are the commented routes updated to be platform-specific:
 
 // // Get a single region by ID
-// #[get("/regions/<id>")]
-// pub async fn get_region(id: String, pool: &State<sqlx::
-// Pool<MySql>>) -> Result<Json<Region>, Status> {
-//     let region = db::region::get_region_by_id(pool, &id).await.unwrap();
-//     match region {
-//         Some(region) => Ok(Json(region)),
-//         None => Err(Status::NotFound),
-//     }
+// #[get("/platform/<platform_id>/regions/<id>")]
+// pub async fn get_region(
+//     platform_id: i64,
+//     id: String, 
+//     db_manager: &State<Arc<DatabaseManager>>
+// ) -> Result<Json<Region>, (Status, Json<Value>)> {
+//     // Get platform information
+//     let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+//         Ok(platform) => platform,
+//         Err(_) => {
+//             return Err((
+//                 Status::NotFound,
+//                 Json(json!({
+//                     "error": "Platform not found",
+//                     "message": format!("Platform with ID {} does not exist", platform_id)
+//                 }))
+//             ));
+//         }
+//     };
+//
+//     // Get platform-specific database pool
+//     let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+//         Ok(pool) => pool,
+//         Err(_) => {
+//             return Err((
+//                 Status::InternalServerError,
+//                 Json(json!({
+//                     "error": "Database error",
+//                     "message": "Failed to connect to platform database"
+//                 }))
+//             ));
+//         }
+//     };
+//
+//     let region = match db::region::get_region_by_id(&pool, &id).await {
+//         Ok(Some(region)) => region,
+//         Ok(None) => {
+//             return Err((
+//                 Status::NotFound,
+//                 Json(json!({
+//                     "error": "Region not found",
+//                     "message": format!("Region with ID {} does not exist", id)
+//                 }))
+//             ));
+//         },
+//         Err(_) => {
+//             return Err((
+//                 Status::InternalServerError,
+//                 Json(json!({
+//                     "error": "Database error",
+//                     "message": "Failed to retrieve region"
+//                 }))
+//             ));
+//         }
+//     };
+//     
+//     Ok(Json(region))
 // }
 //
 // // Create a new region
-// #[post("/regions", format = "json", data = "<region_request>")]
+// #[post("/platform/<platform_id>/regions", format = "json", data = "<region_request>")]
 // pub async fn create_region(
+//     platform_id: i64,
 //     region_request: Json<CreateRegionRequest>,
-//     pool: &State<sqlx::Pool<MySql>>
-// ) -> Result<Json<Region>, Status> {
-//     let region = db::region::create_region(
-//         pool,
+//     db_manager: &State<Arc<DatabaseManager>>
+// ) -> Result<Json<Region>, (Status, Json<Value>)> {
+//     // Get platform information
+//     let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+//         Ok(platform) => platform,
+//         Err(_) => {
+//             return Err((
+//                 Status::NotFound,
+//                 Json(json!({
+//                     "error": "Platform not found",
+//                     "message": format!("Platform with ID {} does not exist", platform_id)
+//                 }))
+//             ));
+//         }
+//     };
+//
+//     // Get platform-specific database pool
+//     let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+//         Ok(pool) => pool,
+//         Err(_) => {
+//             return Err((
+//                 Status::InternalServerError,
+//                 Json(json!({
+//                     "error": "Database error",
+//                     "message": "Failed to connect to platform database"
+//                 }))
+//             ));
+//         }
+//     };
+//
+//     let region = match db::region::create_region(
+//         &pool,
 //         &region_request.name,
 //         &region_request.description,
 //         &region_request.url,
 //         &region_request.org_id
-//     ).await;
-//     match region {
-//         Ok(region) => Ok(Json(region)),
-//         Err(_) => Err(Status::InternalServerError),
-//     }
+//     ).await {
+//         Ok(region) => region,
+//         Err(_) => {
+//             return Err((
+//                 Status::InternalServerError,
+//                 Json(json!({
+//                     "error": "Database error",
+//                     "message": "Failed to create region"
+//                 }))
+//             ));
+//         }
+//     };
+//     
+//     Ok(Json(region))
 // }
 //
 // // Update an existing region
-// #[put("/regions/<id>", format = "json", data = "<region_request>")]
+// #[put("/platform/<platform_id>/regions/<id>", format = "json", data = "<region_request>")]
 // pub async fn update_region(
+//     platform_id: i64,
 //     id: String,
 //     region_request: Json<UpdateRegionRequest>,
-//     pool: &State<sqlx::Pool<MySql>>
-// )-> Result<Json<Region>, Status> {
-//     let region = db::region::update_region(
-//         pool,
+//     db_manager: &State<Arc<DatabaseManager>>
+// ) -> Result<Json<Region>, (Status, Json<Value>)> {
+//     // Get platform information
+//     let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+//         Ok(platform) => platform,
+//         Err(_) => {
+//             return Err((
+//                 Status::NotFound,
+//                 Json(json!({
+//                     "error": "Platform not found",
+//                     "message": format!("Platform with ID {} does not exist", platform_id)
+//                 }))
+//             ));
+//         }
+//     };
+//
+//     // Get platform-specific database pool
+//     let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+//         Ok(pool) => pool,
+//         Err(_) => {
+//             return Err((
+//                 Status::InternalServerError,
+//                 Json(json!({
+//                     "error": "Database error",
+//                     "message": "Failed to connect to platform database"
+//                 }))
+//             ));
+//         }
+//     };
+//
+//     let region = match db::region::update_region(
+//         &pool,
 //         &id,
 //         &region_request.name,
 //         &region_request.description,
 //         &region_request.url,
 //         &region_request.org_id
-//     ).await;
-//     match region {
-//         Ok(region) => Ok(Json(region)),
-//         Err(_) => Err(Status::InternalServerError),
-//     }
+//     ).await {
+//         Ok(region) => region,
+//         Err(_) => {
+//             return Err((
+//                 Status::InternalServerError,
+//                 Json(json!({
+//                     "error": "Database error",
+//                     "message": "Failed to update region"
+//                 }))
+//             ));
+//         }
+//     };
+//     
+//     Ok(Json(region))
 // }
 //
 // // Delete a region
-// #[delete("/regions/<id>")]
-// pub async fn delete_region(id: String, pool: &State<sqlx::
-// Pool<MySql>>) -> Result<Status, Status> {
-//     let result = db::region::delete_region(pool, &id).await;
-//     match result {
+// #[delete("/platform/<platform_id>/regions/<id>")]
+// pub async fn delete_region(
+//     platform_id: i64,
+//     id: String, 
+//     db_manager: &State<Arc<DatabaseManager>>
+// ) -> Result<Status, (Status, Json<Value>)> {
+//     // Get platform information
+//     let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+//         Ok(platform) => platform,
+//         Err(_) => {
+//             return Err((
+//                 Status::NotFound,
+//                 Json(json!({
+//                     "error": "Platform not found",
+//                     "message": format!("Platform with ID {} does not exist", platform_id)
+//                 }))
+//             ));
+//         }
+//     };
+//
+//     // Get platform-specific database pool
+//     let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+//         Ok(pool) => pool,
+//         Err(_) => {
+//             return Err((
+//                 Status::InternalServerError,
+//                 Json(json!({
+//                     "error": "Database error",
+//                     "message": "Failed to connect to platform database"
+//                 }))
+//             ));
+//         }
+//     };
+//
+//     match db::region::delete_region(&pool, &id).await {
 //         Ok(_) => Ok(Status::NoContent),
-//         Err(_) => Err(Status::InternalServerError),
+//         Err(_) => {
+//             return Err((
+//                 Status::InternalServerError,
+//                 Json(json!({
+//                     "error": "Database error",
+//                     "message": "Failed to delete region"
+//                 }))
+//             ));
+//         }
 //     }
 // }
