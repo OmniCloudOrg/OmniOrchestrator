@@ -1,8 +1,10 @@
+use std::sync::Arc;
+use crate::DatabaseManager;
 use crate::schemas::v1::db::queries::storage;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
 use rocket::{get, State};
-use sqlx::MySql;
+use crate::schemas::v1::db::queries::{self as db};
 
 /// Query parameters for storage class listing
 #[derive(FromForm, Default, Debug)]
@@ -26,48 +28,151 @@ pub struct StorageVolumeQuery {
 }
 
 /// List all storage classes with optional filtering
-#[get("/storage/classes?<query..>")]
+#[get("/platform/<platform_id>/storage/classes?<query..>")]
 pub async fn list_storage_classes(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     query: StorageClassQuery,
-) -> Json<Value> {
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+    
     let filter = storage::StorageClassFilter {
         storage_type: query.storage_type,
         volume_binding_mode: query.volume_binding_mode,
         allow_volume_expansion: query.allow_volume_expansion,
     };
     
-    let storage_classes = storage::list_storage_classes(pool, filter)
-        .await
-        .expect("Failed to list storage classes");
-    
-    Json(json!({
-        "storage_classes": storage_classes
-    }))
+    match storage::list_storage_classes(&pool, filter).await {
+        Ok(storage_classes) => Ok(Json(json!({
+            "storage_classes": storage_classes
+        }))),
+        Err(_) => Err((
+            Status::InternalServerError,
+            Json(json!({
+                "error": "Database error",
+                "message": "Failed to list storage classes"
+            }))
+        )),
+    }
 }
 
 /// Get a specific storage class by ID
-#[get("/storage/classes/<id>")]
+#[get("/platform/<platform_id>/storage/classes/<id>")]
 pub async fn get_storage_class(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     id: i64,
-) -> Result<Json<Value>, Status> {
-    let storage_class = storage::get_storage_class_by_id(pool, id)
-        .await
-        .expect("Database error")
-        .ok_or(Status::NotFound)?;
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
     
-    Ok(Json(json!({
-        "storage_class": storage_class
-    })))
+    match storage::get_storage_class_by_id(&pool, id).await {
+        Ok(Some(storage_class)) => Ok(Json(json!({
+            "storage_class": storage_class
+        }))),
+        Ok(None) => Err((
+            Status::NotFound,
+            Json(json!({
+                "error": "Not found",
+                "message": format!("Storage class with ID {} does not exist", id)
+            }))
+        )),
+        Err(_) => Err((
+            Status::InternalServerError,
+            Json(json!({
+                "error": "Database error",
+                "message": "Failed to get storage class"
+            }))
+        )),
+    }
 }
 
 /// List storage volumes with comprehensive filtering
-#[get("/storage/volumes?<query..>")]
+#[get("/platform/<platform_id>/storage/volumes?<query..>")]
 pub async fn list_storage_volumes(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     query: StorageVolumeQuery,
-) -> Json<Value> {
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+    
     let page = query.page.unwrap_or(0);
     let per_page = query.per_page.unwrap_or(10);
     
@@ -80,17 +185,35 @@ pub async fn list_storage_volumes(
         write_concern: query.write_concern,
     };
     
-    let storage_volumes = storage::list_storage_volumes(pool, filter.clone(), page, per_page)
-        .await
-        .expect("Failed to list storage volumes");
+    let storage_volumes = match storage::list_storage_volumes(&pool, filter.clone(), page, per_page).await {
+        Ok(volumes) => volumes,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to list storage volumes"
+                }))
+            ));
+        }
+    };
     
-    let total_count = storage::count_storage_volumes_with_filter(pool, &filter)
-        .await
-        .expect("Failed to get total count of storage volumes");
+    let total_count = match storage::count_storage_volumes_with_filter(&pool, &filter).await {
+        Ok(count) => count,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to count storage volumes"
+                }))
+            ));
+        }
+    };
     
     let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
     
-    Json(json!({
+    Ok(Json(json!({
         "storage_volumes": storage_volumes,
         "pagination": {
             "page": page,
@@ -98,38 +221,102 @@ pub async fn list_storage_volumes(
             "total_count": total_count,
             "total_pages": total_pages
         }
-    }))
+    })))
 }
 
 /// Get volumes by storage class
-#[get("/storage/classes/<id>/volumes?<page>&<per_page>")]
+#[get("/platform/<platform_id>/storage/classes/<id>/volumes?<page>&<per_page>")]
 pub async fn get_volumes_by_storage_class(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-) -> Result<Json<Value>, Status> {
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+    
     // First check if storage class exists
-    storage::get_storage_class_by_id(pool, id)
-        .await
-        .expect("Database error")
-        .ok_or(Status::NotFound)?;
+    match storage::get_storage_class_by_id(&pool, id).await {
+        Ok(Some(_)) => {},
+        Ok(None) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Not found",
+                    "message": format!("Storage class with ID {} does not exist", id)
+                }))
+            ));
+        },
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to verify storage class existence"
+                }))
+            ));
+        }
+    };
     
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     
-    let volumes = storage::get_volumes_by_storage_class(pool, id, page, per_page)
-        .await
-        .expect("Failed to fetch volumes by storage class");
+    let volumes = match storage::get_volumes_by_storage_class(&pool, id, page, per_page).await {
+        Ok(volumes) => volumes,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to fetch volumes by storage class"
+                }))
+            ));
+        }
+    };
     
     let filter = storage::StorageVolumeFilter {
         storage_class_id: Some(id),
         ..Default::default()
     };
     
-    let total_count = storage::count_storage_volumes_with_filter(pool, &filter)
-        .await
-        .expect("Failed to count volumes");
+    let total_count = match storage::count_storage_volumes_with_filter(&pool, &filter).await {
+        Ok(count) => count,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to count volumes"
+                }))
+            ));
+        }
+    };
     
     let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
     
@@ -145,46 +332,127 @@ pub async fn get_volumes_by_storage_class(
 }
 
 /// Get QoS policies
-#[get("/storage/qos-policies")]
+#[get("/platform/<platform_id>/storage/qos-policies")]
 pub async fn list_qos_policies(
-    pool: &State<sqlx::Pool<MySql>>,
-) -> Json<Value> {
-    let policies = storage::list_storage_qos_policies(pool)
-        .await
-        .expect("Failed to fetch QoS policies");
+    platform_id: i64,
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
     
-    Json(json!({
-        "qos_policies": policies
-    }))
+    match storage::list_storage_qos_policies(&pool).await {
+        Ok(policies) => Ok(Json(json!({
+            "qos_policies": policies
+        }))),
+        Err(_) => Err((
+            Status::InternalServerError,
+            Json(json!({
+                "error": "Database error",
+                "message": "Failed to fetch QoS policies"
+            }))
+        )),
+    }
 }
 
 /// List volumes by write concern level
-#[get("/storage/write-concerns/<write_concern>/volumes?<page>&<per_page>")]
+#[get("/platform/<platform_id>/storage/write-concerns/<write_concern>/volumes?<page>&<per_page>")]
 pub async fn list_volumes_by_write_concern(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     write_concern: String,
     page: Option<i64>,
     per_page: Option<i64>,
-) -> Json<Value> {
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+    
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     
-    let volumes = storage::get_volumes_by_write_concern(pool, write_concern.clone(), page, per_page)
-        .await
-        .expect("Failed to fetch volumes by write concern");
+    let volumes = match storage::get_volumes_by_write_concern(&pool, write_concern.clone(), page, per_page).await {
+        Ok(volumes) => volumes,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to fetch volumes by write concern"
+                }))
+            ));
+        }
+    };
     
     let filter = storage::StorageVolumeFilter {
         write_concern: Some(write_concern),
         ..Default::default()
     };
     
-    let total_count = storage::count_storage_volumes_with_filter(pool, &filter)
-        .await
-        .expect("Failed to count volumes");
+    let total_count = match storage::count_storage_volumes_with_filter(&pool, &filter).await {
+        Ok(count) => count,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to count volumes"
+                }))
+            ));
+        }
+    };
     
     let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
     
-    Json(json!({
+    Ok(Json(json!({
         "volumes": volumes,
         "pagination": {
             "page": page,
@@ -192,36 +460,83 @@ pub async fn list_volumes_by_write_concern(
             "total_count": total_count,
             "total_pages": total_pages
         }
-    }))
+    })))
 }
 
 /// List volumes by persistence level
-#[get("/storage/persistence-levels/<persistence_level>/volumes?<page>&<per_page>")]
+#[get("/platform/<platform_id>/storage/persistence-levels/<persistence_level>/volumes?<page>&<per_page>")]
 pub async fn list_volumes_by_persistence_level(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     persistence_level: String,
     page: Option<i64>,
     per_page: Option<i64>,
-) -> Json<Value> {
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+    
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
     
-    let volumes = storage::get_volumes_by_persistence_level(pool, persistence_level.clone(), page, per_page)
-        .await
-        .expect("Failed to fetch volumes by persistence level");
+    let volumes = match storage::get_volumes_by_persistence_level(&pool, persistence_level.clone(), page, per_page).await {
+        Ok(volumes) => volumes,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to fetch volumes by persistence level"
+                }))
+            ));
+        }
+    };
     
     let filter = storage::StorageVolumeFilter {
         persistence_level: Some(persistence_level),
         ..Default::default()
     };
     
-    let total_count = storage::count_storage_volumes_with_filter(pool, &filter)
-        .await
-        .expect("Failed to count volumes");
+    let total_count = match storage::count_storage_volumes_with_filter(&pool, &filter).await {
+        Ok(count) => count,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to count volumes"
+                }))
+            ));
+        }
+    };
     
     let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
     
-    Json(json!({
+    Ok(Json(json!({
         "volumes": volumes,
         "pagination": {
             "page": page,
@@ -229,27 +544,74 @@ pub async fn list_volumes_by_persistence_level(
             "total_count": total_count,
             "total_pages": total_pages
         }
-    }))
+    })))
 }
 
 /// Get storage volumes for a specific region, grouped by region, with pagination
-#[get("/storage/regions/<region_id>/volumes?<page>&<per_page>")]
+#[get("/platform/<platform_id>/storage/regions/<region_id>/volumes?<page>&<per_page>")]
 pub async fn get_volumes_for_region_route(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     region_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-) -> Result<Json<Value>, Status> {
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+    
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
 
-    let region_volumes = storage::get_volumes_for_region(pool, region_id, page, per_page)
-        .await
-        .map_err(|_| Status::InternalServerError)?;
+    let region_volumes = match storage::get_volumes_for_region(&pool, region_id, page, per_page).await {
+        Ok(volumes) => volumes,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to fetch volumes for region"
+                }))
+            ));
+        }
+    };
 
-    let total_count = storage::count_volumes_for_region(pool, region_id)
-        .await
-        .map_err(|_| Status::InternalServerError)?;
+    let total_count = match storage::count_volumes_for_region(&pool, region_id).await {
+        Ok(count) => count,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to count volumes for region"
+                }))
+            ));
+        }
+    };
 
     let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
 
@@ -266,23 +628,70 @@ pub async fn get_volumes_for_region_route(
 }
 
 /// Get storage volumes for a specific provider, with pagination
-#[get("/storage/providers/<provider_id>/volumes?<page>&<per_page>")]
+#[get("/platform/<platform_id>/storage/providers/<provider_id>/volumes?<page>&<per_page>")]
 pub async fn get_storage_volumes_for_provider(
-    pool: &State<sqlx::Pool<MySql>>,
+    platform_id: i64,
     provider_id: i64,
     page: Option<i64>,
     per_page: Option<i64>,
-) -> Result<Json<Value>, Status> {
+    db_manager: &State<Arc<DatabaseManager>>,
+) -> Result<Json<Value>, (Status, Json<Value>)> {
+    // Get platform information
+    let platform = match db::platforms::get_platform_by_id(db_manager.get_main_pool(), platform_id).await {
+        Ok(platform) => platform,
+        Err(_) => {
+            return Err((
+                Status::NotFound,
+                Json(json!({
+                    "error": "Platform not found",
+                    "message": format!("Platform with ID {} does not exist", platform_id)
+                }))
+            ));
+        }
+    };
+
+    // Get platform-specific database pool
+    let pool = match db_manager.get_platform_pool(&platform.name, platform_id).await {
+        Ok(pool) => pool,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to connect to platform database"
+                }))
+            ));
+        }
+    };
+    
     let page = page.unwrap_or(0);
     let per_page = per_page.unwrap_or(10);
 
-    let volumes = storage::get_volumes_for_provider(pool, provider_id, page, per_page)
-        .await
-        .map_err(|_| Status::InternalServerError)?;
+    let volumes = match storage::get_volumes_for_provider(&pool, provider_id, page, per_page).await {
+        Ok(volumes) => volumes,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to fetch volumes for provider"
+                }))
+            ));
+        }
+    };
 
-    let total_count = storage::count_volumes_for_provider(pool, provider_id)
-        .await
-        .map_err(|_| Status::InternalServerError)?;
+    let total_count = match storage::count_volumes_for_provider(&pool, provider_id).await {
+        Ok(count) => count,
+        Err(_) => {
+            return Err((
+                Status::InternalServerError,
+                Json(json!({
+                    "error": "Database error",
+                    "message": "Failed to count volumes for provider"
+                }))
+            ));
+        }
+    };
 
     let total_pages = (total_count as f64 / per_page as f64).ceil() as i64;
 
