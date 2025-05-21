@@ -88,28 +88,36 @@ pub fn routes() -> Vec<rocket::Route> {
         users::invalidate_user_session, users::list_users,
 
         // permissions
-        permissions::list_permission,  permissions::get_permission_by_id, permissions::create_permission,
-        permissions::delete_permission,
+        permissions::list_permission,   permissions::get_permission_by_id,
+        permissions::create_permission, permissions::delete_permission,
         // update_permission,
 
         // Metadata
-        metadata::get_meta_value, metadata::set_meta_value,
+        metadata::get_meta_value,
+        metadata::set_meta_value,
 
         // Audit log
-        audit_log::create_audit_log, audit_log::list_audit_logs, audit_log::list_audit_logs_for_app,
+        audit_log::create_audit_log,
+        audit_log::list_audit_logs,
+        audit_log::list_audit_logs_for_app,
 
         //Builds
-        builds::list_builds, builds::list_builds_for_app, builds::get_build,
+        builds::list_builds,
+        builds::list_builds_for_app,
+        builds::get_build,
 
         // Regions
-        regions::list_regions, regions::list_provider_regions,
+        regions::list_regions,
+        regions::list_provider_regions,
         //        regions::get_region,
         //        regions::delete_region,
         //        regions::create_region,
         //        regions::update_region,
 
         // Providers
-        providers::list_providers, providers::get_provider_instances, providers::get_provider_audit_logs_paginated,
+        providers::list_providers,
+        providers::get_provider_instances,
+        providers::get_provider_audit_logs_paginated,
 
         // TODO: @tristanpoland Migration broke these
         //init_platform,
@@ -153,9 +161,11 @@ pub fn routes() -> Vec<rocket::Route> {
         deployments::delete_deployment,
 
         // Logging
-        logging::list_logs,          logging::list_platform_logs, logging::list_org_logs, logging::list_app_logs,
-        logging::list_instance_logs, logging::insert_logs,
+        logging::list_logs,     logging::list_platform_logs, logging::list_org_logs,
+        logging::list_app_logs, logging::list_instance_logs, logging::insert_logs,
 
-        platforms::list_platforms, platforms::add_platform, platforms::remove_platform,
+        platforms::list_platforms,
+        platforms::add_platform,
+        platforms::remove_platform,
     ]
 }
