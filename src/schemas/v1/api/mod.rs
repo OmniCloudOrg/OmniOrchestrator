@@ -64,8 +64,8 @@ pub fn routes() -> Vec<rocket::Route> {
 
         // alerts
         alerts::list_alerts,         alerts::get_alert,                     alerts::create_alert,
-        alerts::update_alert_status, alerts::acknowledge_alert,             alerts::resolve_alert,
         alerts::escalate_alert,      alerts::get_app_alerts,                alerts::get_org_active_alerts,
+        alerts::update_alert_status, alerts::acknowledge_alert,             alerts::resolve_alert,
         alerts::get_org_alert_stats, alerts::get_alerts_needing_escalation, alerts::auto_resolve_old_alerts,
         alerts::search_alerts,       alerts::bulk_update_alert_status,
 
