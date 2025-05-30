@@ -77,13 +77,6 @@ extern crate rocket;
 
 pub static PROJECT_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
-
-
-
-
-
-
-
 // +---------------------+
 // | CORS IMPLEMENTATION |
 // +---------------------+

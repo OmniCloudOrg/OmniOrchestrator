@@ -44,7 +44,6 @@ pub mod metadata;
 pub mod metrics;
 pub mod notifications;
 pub mod permissions;
-// pub mod platforms;
 pub mod deployments;
 pub mod index;
 pub mod logging;
@@ -58,74 +57,39 @@ pub mod platforms;
 pub fn routes() -> Vec<rocket::Route> {
     routes![
         // apps
-        apps::release,
-        apps::get_app,
-        apps::stop_app,
-        apps::list_apps,
-        apps::start_app,
-        apps::scale_app,
-        apps::count_apps,
-        apps::create_app,
-        apps::update_app,
-        apps::delete_app,
-        apps::get_app_stats,
-        apps::list_instances,
+        apps::release,    apps::get_app,    apps::stop_app,      apps::list_apps,
+        apps::start_app,  apps::scale_app,  apps::count_apps,    apps::create_app,
+        apps::update_app, apps::delete_app, apps::get_app_stats, apps::list_instances,
         apps::get_app_with_instances,
 
         // alerts
-        alerts::list_alerts,
-        alerts::get_alert,
-        alerts::create_alert,
-        alerts::update_alert_status,
-        alerts::acknowledge_alert,
-        alerts::resolve_alert,
-        alerts::escalate_alert,
-        alerts::get_app_alerts,
-        alerts::get_org_active_alerts,
-        alerts::get_org_alert_stats,
-        alerts::get_alerts_needing_escalation,
-        alerts::auto_resolve_old_alerts,
-        alerts::search_alerts,
-        alerts::bulk_update_alert_status,
+        alerts::list_alerts,         alerts::get_alert,                     alerts::create_alert,
+        alerts::escalate_alert,      alerts::get_app_alerts,                alerts::get_org_active_alerts,
+        alerts::update_alert_status, alerts::acknowledge_alert,             alerts::resolve_alert,
+        alerts::get_org_alert_stats, alerts::get_alerts_needing_escalation, alerts::auto_resolve_old_alerts,
+        alerts::search_alerts,       alerts::bulk_update_alert_status,
 
         // Notifications
-        notifications::list_user_notifications,
-        notifications::count_unread_user_notifications,
-        notifications::get_user_notification_by_id,
-        notifications::create_user_notification,
-        notifications::mark_user_notification_as_read,
-        notifications::mark_all_user_notifications_as_read,
-        notifications::delete_user_notification,
-        notifications::delete_read_user_notifications,
-        notifications::list_role_notifications,
-        notifications::create_role_notification,
-        notifications::acknowledge_notification,
-        notifications::get_all_user_notifications_with_count,
+        notifications::list_user_notifications,        notifications::count_unread_user_notifications,
+        notifications::get_user_notification_by_id,    notifications::create_user_notification,
+        notifications::mark_user_notification_as_read, notifications::mark_all_user_notifications_as_read,
+        notifications::delete_user_notification,       notifications::delete_read_user_notifications,
+        notifications::list_role_notifications,        notifications::create_role_notification,
+        notifications::acknowledge_notification,       notifications::get_all_user_notifications_with_count,
 
         // Instances
-        instances::list_instances_by_region,
-        instances::count_instances,
-        instances::get_instance,
+        instances::list_instances_by_region, instances::count_instances, instances::get_instance,
         // deploy
         deploy::deploy_permissions,
 
         // Users
-        users::handle_register,
-        users::handle_login,
-        users::update_profile,
-        users::get_current_user,
-        users::change_password,
-        users::logout,
-        users::get_user_profile,
-        users::list_user_sessions,
-        users::invalidate_user_session,
-        users::list_users,
+        users::handle_register,         users::handle_login, users::update_profile,   users::get_current_user,
+        users::change_password,         users::logout,       users::get_user_profile, users::list_user_sessions,
+        users::invalidate_user_session, users::list_users,
 
         // permissions
-        permissions::list_permission,
-        permissions::get_permission_by_id,
-        permissions::create_permission,
-        permissions::delete_permission,
+        permissions::list_permission,   permissions::get_permission_by_id,
+        permissions::create_permission, permissions::delete_permission,
         // update_permission,
 
         // Metadata
@@ -162,60 +126,29 @@ pub fn routes() -> Vec<rocket::Route> {
         //configure_network,
         //setup_monitoring,
         //setup_backups,
+
         // Workers
-        workers::list_workers,
-        workers::get_worker_by_id,
+        workers::list_workers, workers::get_worker_by_id,
+
         // Metrics
-        metrics::get_metrics,
-        metrics::get_metrics_by_app_id,
+        metrics::get_metrics, metrics::get_metrics_by_app_id,
 
         // Storage
-        storage::list_storage_classes,
-        storage::get_storage_class,
-        storage::list_storage_volumes,
-        storage::get_volumes_by_storage_class,
-        storage::list_qos_policies,
-        storage::list_volumes_by_write_concern,
-        storage::list_volumes_by_persistence_level,
-        storage::get_volumes_for_region_route,
-        storage::get_storage_volumes_for_provider,
+        storage::list_storage_classes,              storage::get_storage_class,            storage::list_storage_volumes,
+        storage::get_volumes_by_storage_class,      storage::list_qos_policies,            storage::list_volumes_by_write_concern,
+        storage::list_volumes_by_persistence_level, storage::get_volumes_for_region_route, storage::get_storage_volumes_for_provider,
 
         // Cost
-        // Resource Type routes
-        cost::list_resource_types,
-        cost::count_resource_types,
-        cost::get_resource_type,
-        cost::create_resource_type,
-        cost::update_resource_type,
-        cost::delete_resource_type,
-        // Cost Metric routes
-        cost::list_cost_metrics,
-        cost::get_cost_metric,
-        cost::create_cost_metric,
-        cost::delete_cost_metric,
-        cost::analyze_costs_by_dimension,
-        cost::analyze_cost_over_time,
-        // Cost Budget routes
-        cost::list_cost_budgets,
-        cost::get_cost_budget,
-        cost::create_cost_budget,
-        cost::update_cost_budget,
-        cost::delete_cost_budget,
-        // Cost Projection routes
-        cost::list_cost_projections,
-        cost::get_cost_projection,
-        cost::create_cost_projection,
-        cost::delete_cost_projection,
-        // Resource Pricing routes
-        cost::list_resource_pricing,
-        cost::get_resource_pricing,
-        cost::create_resource_pricing,
-        cost::update_resource_pricing,
-        cost::delete_resource_pricing,
-        // Cost Allocation Tag routes
-        cost::get_cost_allocation_tags,
-        cost::create_cost_allocation_tag,
-        cost::delete_cost_allocation_tag,
+        cost::list_resource_types,       cost::count_resource_types,       cost::get_resource_type,
+        cost::create_resource_type,      cost::update_resource_type,       cost::delete_resource_type,
+        cost::list_cost_metrics,         cost::get_cost_metric,            cost::create_cost_metric,
+        cost::delete_cost_metric,        cost::analyze_costs_by_dimension, cost::analyze_cost_over_time,
+        cost::list_cost_budgets,         cost::get_cost_budget,            cost::create_cost_budget,
+        cost::update_cost_budget,        cost::delete_cost_budget,         cost::list_cost_projections,
+        cost::get_cost_projection,       cost::create_cost_projection,     cost::delete_cost_projection,
+        cost::list_resource_pricing,     cost::get_resource_pricing,       cost::create_resource_pricing,
+        cost::update_resource_pricing,   cost::delete_resource_pricing,    cost::get_cost_allocation_tags,
+        cost::create_cost_allocation_tag,cost::delete_cost_allocation_tag,
 
         // CLI
         // control::backup::get_backup,
@@ -223,21 +156,13 @@ pub fn routes() -> Vec<rocket::Route> {
         // control::backup::create_backup,
         // control::backup::list_backups_by_app_id,
 
-        deployments::list_deployments,
-        deployments::count_deployments,
-        deployments::get_deployment,
-        deployments::list_app_deployments,
-        deployments::create_deployment,
-        deployments::update_deployment_status,
+        deployments::list_deployments,     deployments::count_deployments, deployments::get_deployment,
+        deployments::list_app_deployments, deployments::create_deployment, deployments::update_deployment_status,
         deployments::delete_deployment,
 
         // Logging
-        logging::list_logs,
-        logging::list_platform_logs,
-        logging::list_org_logs,
-        logging::list_app_logs,
-        logging::list_instance_logs,
-        logging::insert_logs,
+        logging::list_logs,     logging::list_platform_logs, logging::list_org_logs,
+        logging::list_app_logs, logging::list_instance_logs, logging::insert_logs,
 
         platforms::list_platforms,
         platforms::add_platform,

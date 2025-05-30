@@ -28,6 +28,8 @@ use crate::DatabaseManager;
 
 // Types
 
+// TODO: @tristanpoland Review if we actually need this or should drop in favor of using a central struct. Regardless we will need to move these to the modals module and eventually to LibOmni.
+
 /// Represents an application in the system.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Application {
