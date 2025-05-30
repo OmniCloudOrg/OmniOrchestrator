@@ -139,16 +139,16 @@ pub fn routes() -> Vec<rocket::Route> {
         storage::list_volumes_by_persistence_level, storage::get_volumes_for_region_route, storage::get_storage_volumes_for_provider,
 
         // Cost
-        cost::list_resource_types,       cost::count_resource_types,       cost::get_resource_type,
-        cost::create_resource_type,      cost::update_resource_type,       cost::delete_resource_type,
-        cost::list_cost_metrics,         cost::get_cost_metric,            cost::create_cost_metric,
-        cost::delete_cost_metric,        cost::analyze_costs_by_dimension, cost::analyze_cost_over_time,
-        cost::list_cost_budgets,         cost::get_cost_budget,            cost::create_cost_budget,
-        cost::update_cost_budget,        cost::delete_cost_budget,         cost::list_cost_projections,
-        cost::get_cost_projection,       cost::create_cost_projection,     cost::delete_cost_projection,
-        cost::list_resource_pricing,     cost::get_resource_pricing,       cost::create_resource_pricing,
-        cost::update_resource_pricing,   cost::delete_resource_pricing,    cost::get_cost_allocation_tags,
-        cost::create_cost_allocation_tag,cost::delete_cost_allocation_tag,
+        cost::list_resource_types,        cost::count_resource_types,       cost::get_resource_type,
+        cost::create_resource_type,       cost::update_resource_type,       cost::delete_resource_type,
+        cost::list_cost_metrics,          cost::get_cost_metric,            cost::create_cost_metric,
+        cost::delete_cost_metric,         cost::analyze_costs_by_dimension, cost::analyze_cost_over_time,
+        cost::list_cost_budgets,          cost::get_cost_budget,            cost::create_cost_budget,
+        cost::update_cost_budget,         cost::delete_cost_budget,         cost::list_cost_projections,
+        cost::get_cost_projection,        cost::create_cost_projection,     cost::delete_cost_projection,
+        cost::list_resource_pricing,      cost::get_resource_pricing,       cost::create_resource_pricing,
+        cost::update_resource_pricing,    cost::delete_resource_pricing,    cost::get_cost_allocation_tags,
+        cost::create_cost_allocation_tag, cost::delete_cost_allocation_tag,
 
         // CLI
         // control::backup::get_backup,
