@@ -1388,3 +1388,23 @@ CREATE TABLE cost_allocation_tags (
   INDEX idx_cost_tags_key_value (tag_key, tag_value),
   INDEX idx_cost_tags_resource (resource_id, resource_type)
 );
+
+-- TODO: @tristanpoland We need to track statistics for pipelines, including stages, execution times, and success rates.
+CREATE TABLE pipelines (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    app_id BIGINT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    status ENUM('draft', 'active', 'paused', 'archived') DEFAULT 'draft',
+    stages JSON, -- JSON array of stage definitions
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by BIGINT, -- User ID
+    updated_by BIGINT, -- User ID
+    PRIMARY KEY (id),
+    KEY idx_pipelines_app_id (app_id),
+    KEY idx_pipelines_status (status),
+    KEY idx_pipelines_created_at (created_at),
+    KEY idx_pipelines_updated_at (updated_at),
+    FOREIGN KEY (app_id) REFERENCES apps(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
