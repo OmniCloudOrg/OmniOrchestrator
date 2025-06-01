@@ -2,10 +2,13 @@ use crate::db_manager;
 use crate::db_manager::connection::ConnectionManager;
 use crate::db_manager::error::DatabaseError;
 use crate::db_manager::migration::MigrationManager;
-use crate::schemas::v1::models::platform::{self, Platform};
 use log::{error, info, warn};
 use sqlx::{MySql, Pool};
 use std::sync::Arc;
+
+// Import the types we need
+use libomni::types::db::v1 as types;
+use types::platform::{self, Platform};
 
 /// Central manager for all database operations
 pub struct DatabaseManager {

@@ -1,6 +1,8 @@
-use crate::models::audit_log::AuditLog;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::audit_log::AuditLog;
 
 /// Creates a new audit log entry in the system.
 ///

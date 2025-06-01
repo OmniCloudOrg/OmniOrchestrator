@@ -9,7 +9,6 @@
 //! - Scaling workers
 //! - Deleting workers
 
-use crate::models::worker::Worker;
 use super::super::db::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
@@ -19,6 +18,9 @@ use sqlx::MySql;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+use libomni::types::db::v1 as types;
+use types::worker::Worker;
 
 /// List all workers with pagination support.
 #[get("/workers?<page>&<per_page>")]

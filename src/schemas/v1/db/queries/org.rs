@@ -1,6 +1,8 @@
-use crate::models::org::Org;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::org::Org;
 
 /// Retrieves all organizations in the system, ordered by creation time.
 ///

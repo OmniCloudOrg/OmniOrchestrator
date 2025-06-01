@@ -1,7 +1,9 @@
-use crate::models::region::Region;
-use crate::models::provider::ProviderRegion;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::region::Region;
+use types::provider::ProviderRegion;
 
 /// Retrieves a paginated list of deployment regions.
 ///

@@ -1,6 +1,8 @@
-use crate::models::instance::Instance;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::instance::Instance;
 
 /// List instances by `region_id` and `app_id` paginated by `page` and `per_page` using a where clause.
 pub async fn list_instances_by_region(

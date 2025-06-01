@@ -1,6 +1,4 @@
 use crate::DatabaseManager;
-use crate::models::region::Region;
-use crate::models::provider::ProviderRegion;
 use crate::schemas::v1::db::queries::{self as db};
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
@@ -10,6 +8,10 @@ use sqlx::MySql;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+use libomni::types::db::v1 as types;
+use types::region::Region;
+use types::provider::ProviderRegion;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateRegionRequest {

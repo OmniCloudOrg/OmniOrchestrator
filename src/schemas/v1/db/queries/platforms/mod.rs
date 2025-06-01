@@ -1,8 +1,7 @@
-use crate::models::platform::{Platform};
-use crate::models::instance::Instance;
-use anyhow::Context;
-use serde::Serialize;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::platform::Platform;
 
 // Get all platforms
 pub async fn get_all_platforms(pool: &Pool<MySql>) -> Result<Vec<Platform>, sqlx::Error> {

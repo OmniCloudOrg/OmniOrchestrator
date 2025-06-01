@@ -1,10 +1,12 @@
-use crate::models::cost::{CostMetric, CostMetricWithType, ResourcePricing, CostBudget, CostProjection, CostAllocationTag};
-use crate::models::util_tables::ResourceType;
 use anyhow::Context;
 use serde::Serialize;
 use sqlx::{MySql, Pool};
 use sqlx::Row;
 use chrono::{DateTime, Utc};
+
+use libomni::types::db::v1 as types;
+use types::cost::{CostMetric, CostMetricWithType, ResourcePricing, CostBudget, CostProjection, CostAllocationTag};
+use types::util_tables::ResourceType;
 
 /// Retrieves a paginated list of resource types from the database.
 ///

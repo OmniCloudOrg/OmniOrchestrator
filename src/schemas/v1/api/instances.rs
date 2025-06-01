@@ -1,11 +1,13 @@
 use std::sync::Arc;
 use crate::DatabaseManager;
-use crate::models::instance::Instance;
 use rocket::get;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
 use rocket::State;
 use crate::schemas::v1::db::queries::{self as db};
+
+use libomni::types::db::v1 as types;
+use types::instance::Instance;
 
 /// List all instances by `region_id` and `app_id`
 #[get("/platform/<platform_id>/apps/<app_id>/instances/region/<region_id>?<page>&<per_page>")]

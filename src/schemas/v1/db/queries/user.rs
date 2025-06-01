@@ -1,6 +1,8 @@
-use crate::models::user::{UserMeta, UserPii, UserSession, User};
 use anyhow::Context;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::user::{UserMeta, UserPii, UserSession, User};
 
 /// Retrieves all users in the system, ordered by creation time.
 ///

@@ -4,7 +4,10 @@ use log::{info, warn, error};
 use colored::Colorize;
 use crate::db_manager;
 use crate::db_manager::error::DatabaseError;
-use crate::schemas::v1::models::platform::{self, Platform};
+
+// Import the types we need
+use libomni::types::db::v1 as types;
+use types::platform::{self, Platform};
 
 /// Manages database schema migrations
 pub struct MigrationManager;

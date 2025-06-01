@@ -1,7 +1,9 @@
 // db/queries/deployment.rs
-use crate::models::deployment::Deployment;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::deployment::Deployment;
 
 /// Retrieves a paginated list of deployments from the database.
 pub async fn list_deployments(pool: &Pool<MySql>, page: i64, per_page: i64) -> anyhow::Result<Vec<Deployment>> {

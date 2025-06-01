@@ -11,7 +11,15 @@
 use std::sync::Arc;
 use super::super::super::auth::User;
 use crate::DatabaseManager;
-use crate::models::{
+use super::super::db::queries as db;
+use rocket::http::Status;
+use rocket::serde::json::{json, Json, Value};
+use rocket::{delete, get, post, put, State};
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+
+use libomni::types::db::v1 as types;
+use types::{
     util_tables::ResourceType,
     cost::{
         CostBudget,
@@ -22,12 +30,6 @@ use crate::models::{
         CostMetricWithType,
     }
 };
-use super::super::db::queries as db;
-use rocket::http::Status;
-use rocket::serde::json::{json, Json, Value};
-use rocket::{delete, get, post, put, State};
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 
 /// Request data for creating a new resource type.
 #[derive(Debug, Serialize, Deserialize)]

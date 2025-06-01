@@ -18,7 +18,7 @@ thiserror = "2.0.12"
 parking_lot = "0.12.4"
 chrono = { version = "0.4.41", features = ["serde"] }
 futures = "0.3.31"
-colored = "3.0.0"
+colored = "3.0.0"   
 anyhow = "1.0.98"
 lazy_static = "1.5.0"
 rocket-multipart-form-data = "0.10.7"
@@ -31,7 +31,7 @@ sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "mysql", "chrono
 tracing = { version = "0.1.41", features = ["log"] }
 hadris-iso = "0.0.2"
 ssh2 = { version = "0.9.5" }
-libomni = "0.2.3"
+libomni = { path = "../LibOmni" }
 dotenv = { version = "0.15.0"}
 paxakos = "0.13.0"
 jsonwebtoken = "9.3.1"

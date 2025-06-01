@@ -1,6 +1,8 @@
-use crate::models::build::Build;
 use anyhow::Context;
 use sqlx::{FromRow, MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::build::Build;
 
 /// Retrieves a paginated list of all builds in the system.
 ///

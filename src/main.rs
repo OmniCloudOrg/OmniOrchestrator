@@ -35,8 +35,6 @@ use anyhow::Result;
 use anyhow::Error;
 use clickhouse;
 use colored::Colorize;
-use schemas::v1::models::platform;
-use schemas::v1::models::platform::Platform;
 use core::panic;
 use env_logger::Builder;
 use lazy_static::lazy_static;
@@ -67,7 +65,11 @@ use crate::leader::LeaderElection;
 use crate::state::SharedState;
 use crate::db_manager::DatabaseManager; // New database manager import
 
-use schemas::v1::{api, models};
+use libomni::types::db::v1 as types;
+use types::platform;
+use types::platform::Platform;
+
+use schemas::v1::api;
 
 // We ignore this import as it always says
 // unused even when that is not the case

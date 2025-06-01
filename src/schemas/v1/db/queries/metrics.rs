@@ -1,5 +1,7 @@
 use sqlx::{FromRow, MySql, Pool};
-use crate::models::metrics::Metric;
+
+use libomni::types::db::v1 as types;
+use types::metrics::Metric;
 
 pub async fn get_metrics_by_app_id(pool: &Pool<MySql>, app_id: Option<i64>) -> anyhow::Result<Vec<Metric>> {
     let query = if let Some(app_id) = app_id {

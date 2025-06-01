@@ -1,7 +1,9 @@
-use crate::models::permission::Permission;
-use crate::models::role::Role;
 use sqlx::{MySql, Pool};
 use anyhow::Context;
+
+use libomni::types::db::v1 as types;
+use types::permission::Permission;
+use types::role::Role;
 
 //=============================================================================
 // Role Operations

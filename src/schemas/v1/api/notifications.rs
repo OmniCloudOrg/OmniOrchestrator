@@ -6,7 +6,16 @@
 
 use std::sync::Arc;
 use crate::DatabaseManager;
-use crate::models::{
+
+use crate::schemas::v1::db::queries::{self as db};
+use rocket::http::Status;
+use rocket::serde::json::{json, Json, Value};
+use rocket::{delete, get, post, put, State};
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+
+use libomni::types::db::v1 as types;
+use types::{
     user::User,
     notification::{
         NotificationAcknowledgment,
@@ -16,12 +25,6 @@ use crate::models::{
         UserNotificationWithRoleNotifications
     },
 };
-use crate::schemas::v1::db::queries::{self as db};
-use rocket::http::Status;
-use rocket::serde::json::{json, Json, Value};
-use rocket::{delete, get, post, put, State};
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 
 // Request and response structs
 

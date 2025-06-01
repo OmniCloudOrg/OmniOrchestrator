@@ -10,23 +10,18 @@
 //! - Deleting applications
 //! - Releasing new versions of applications
 
-use crate::models::app::{App, AppWithInstanceCount, AppWithInstances};
-use crate::models::instance::Instance;
 use super::super::db::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
 use rocket::{delete, get, http::ContentType, post, put, Data, State};
 use serde::{Deserialize, Serialize};
-use sqlx::MySql;
-use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
-use anyhow::Error;
 
 // Import DatabaseManager
 use crate::DatabaseManager;
 
-// Types
+use libomni::types::db::v1 as types;
+use types::app::{App, AppWithInstances};
 
 // TODO: @tristanpoland Review if we actually need this or should drop in favor of using a central struct. Regardless we will need to move these to the modals module and eventually to LibOmni.
 

@@ -1,8 +1,9 @@
-use crate::models::worker::Worker;
 use anyhow::Context;
 use sqlx::{MySql, Pool};
 use tracing;
 
+use libomni::types::db::v1 as types;
+use types::worker::Worker;
 /// Retrieves a paginated list of workers from the database.
 ///
 /// This function fetches workers from the database with optional pagination support.

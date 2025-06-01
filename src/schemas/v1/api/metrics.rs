@@ -1,8 +1,10 @@
 use std::sync::Arc;
 use crate::DatabaseManager;
 use crate::schemas::v1::db::queries::{self as db};
-use crate::models::metrics::Metric;
 use rocket::{get, http::Status, serde::json::{json, Json, Value}, State};
+
+use libomni::types::db::v1 as types;
+use types::metrics::Metric;
 
 #[get("/platform/<platform_id>/metrics/<instance_id>")]
 pub async fn get_metrics_by_app_id(

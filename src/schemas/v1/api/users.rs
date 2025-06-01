@@ -4,10 +4,8 @@ use super::super::db::queries::user::{
     get_user_sessions, get_user_meta, get_user_pii
 };
 
-use super::super::super::auth::{AuthConfig, Claims};
 use crate::schemas::v1::db::queries;
 use super::super::db::queries::user::invalidate_all_user_sessions;
-use super::super::models::user::User;
 use chrono::{Duration, Utc};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use log;
@@ -21,6 +19,10 @@ use rocket::State;
 use sha2::{Digest, Sha256};
 use sqlx::mysql::MySqlPool as Pool;
 use uuid::Uuid;
+
+use libomni::types::db::v1 as types;
+use libomni::types::db::auth::{AuthConfig, Claims};
+use types::user::User;
 
 /// Register a new user
 #[post("/auth/register", data = "<data>")]

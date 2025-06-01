@@ -1,9 +1,11 @@
 use std::sync::Arc;
 use crate::DatabaseManager;
-use crate::models::build::Build;
 use super::super::db::queries as db;
 use rocket::serde::json::{self, json, Json, Value};
 use rocket::{delete, get, http::{ContentType, Status}, post, put, Data, State};
+
+use libomni::types::db::v1 as types;
+use types::build::Build;
 
 /// List all builds with pagination support.
 #[get("/platform/<platform_id>/builds?<page>&<per_page>")]

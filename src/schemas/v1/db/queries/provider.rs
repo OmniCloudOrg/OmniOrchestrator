@@ -1,8 +1,10 @@
-use crate::models::provider::{Provider, ProviderAuditLog};
-use crate::models::instance::Instance;
 use serde::{Deserialize, Serialize};
 use sqlx::{MySql, Pool};
 use anyhow::Context;
+
+use libomni::types::db::v1 as types;
+use types::provider::{Provider, ProviderAuditLog};
+use types::instance::Instance;
 
 /// Retrieves a paginated  list of providers from the database.
 pub async fn get_providers_paginated(

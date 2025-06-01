@@ -5,7 +5,10 @@ use rocket::{http::Status, serde::json::{self, Json}};
 use rocket::serde::json::json;
 use sqlx::{Acquire, MySql};
 use utils::split_sql_statements;
-use crate::{models::platform::Platform, PROJECT_ROOT};
+
+use libomni::types::db::v1 as types;
+use types::platform::Platform;
+use crate::PROJECT_ROOT;
 
 pub async fn init_deployment_schema(version: i64, pool: &sqlx::Pool<MySql>) -> Result<(), sqlx::Error> {
     println!("Initializing schema version {}", version);

@@ -1,7 +1,10 @@
 use crate::schemas::v1::db::queries::{self as db};
-use crate::models::permission::Permission;
 use rocket::{delete, get, post, serde::json::Json, State};
 use sqlx::MySql;
+
+use libomni::types::db::v1 as types;
+use types::permission::Permission;
+
 // #[post("/app")]
 
 // pub async fn update_permission() {

@@ -1,12 +1,14 @@
 use std::sync::Arc;
 use crate::DatabaseManager;
-use crate::models::audit_log::AuditLog;
 use super::super::db::queries as db;
 use rocket::get;
 use rocket::post;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
 use rocket::State;
+
+use libomni::types::db::v1 as types;
+use types::audit_log::AuditLog;
 
 /// Creates a new audit log entry in the system.
 #[post("/platform/<platform_id>/audit_log", format = "json", data = "<audit_log>")]

@@ -1,6 +1,8 @@
 use rocket::{serde::json::Json, State};
 use sqlx::MySql;
-use crate::models::backup::Backup;
+
+use libomni::types::db::v1 as types;
+use types::backup::Backup;
 
 /// Paginated backups list
 pub async fn list_backups_paginated(

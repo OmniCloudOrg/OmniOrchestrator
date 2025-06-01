@@ -1,8 +1,10 @@
-use crate::models::app::{App, AppWithInstanceCount, AppWithInstances};
-use crate::models::instance::Instance;
 use anyhow::Context;
 use serde::Serialize;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::app::{App, AppWithInstanceCount, AppWithInstances};
+use types::instance::Instance;
 
 /// Retrieves a paginated list of applications from the database.
 ///

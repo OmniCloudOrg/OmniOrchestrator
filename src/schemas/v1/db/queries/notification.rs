@@ -1,10 +1,12 @@
-use crate::models::notification::{
-    Notification, NotificationWithCount, UserNotification, RoleNotification, 
-    NotificationAcknowledgment, UserNotificationWithRoleNotifications
-};
 use anyhow::Context;
 use serde::Serialize;
 use sqlx::{MySql, Pool};
+
+use libomni::types::db::v1 as types;
+use types::notification::{
+    Notification, NotificationWithCount, UserNotification, RoleNotification, 
+    NotificationAcknowledgment, UserNotificationWithRoleNotifications
+};
 
 // =================== User Notifications ===================
 

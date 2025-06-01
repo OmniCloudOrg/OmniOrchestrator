@@ -4,9 +4,6 @@
 //! alerts in the system. It includes endpoints for managing alerts
 //! associated with applications and organizations.
 
-use crate::models::alert::{
-    Alert, AlertWithRelatedData, AlertAcknowledgment, AlertEscalation
-};
 use super::super::db::queries as db;
 use chrono::{DateTime, Utc};
 use rocket::http::Status;
@@ -17,7 +14,9 @@ use rocket::time::OffsetDateTime;
 use std::collections::HashMap;
 use std::sync::Arc;
 use crate::DatabaseManager;
-use crate::models::user::User; // Add this at the top if not already present
+
+use libomni::types::db::v1 as types;
+use types::user::User; // Add this at the top if not already present
 
 // Request and response structs
 

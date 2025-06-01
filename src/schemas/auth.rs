@@ -1,4 +1,3 @@
-pub use super::v1::models::user::User;
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::serde::{Deserialize, Serialize};
@@ -11,6 +10,8 @@ use serde_json::json;
 use rocket::serde::json::Json;
 use rocket::{post, get, routes};
 
+use libomni::types::db::v1 as types;
+pub use types::user::User;
 
 // JWT claims struct
 #[derive(Debug, Serialize, Deserialize)]

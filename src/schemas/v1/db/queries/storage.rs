@@ -1,15 +1,17 @@
-use crate::models::provider::Provider;
-use crate::models::storage::{
+use anyhow::Context;
+use sqlx::{MySql, Pool};
+use sqlx::Row;
+
+use libomni::types::db::v1 as types;
+use types::provider::Provider;
+use types::region::Region;
+use types::storage::{
     StorageClass,
     StorageVolume,
     StorageSnapshot,
     StorageQosPolicy,    
     StorageMigration,
 };
-use crate::models::region::Region;
-use anyhow::Context;
-use sqlx::{MySql, Pool};
-use sqlx::Row;
 
 /// Storage class query filters
 #[derive(Default, Debug)]

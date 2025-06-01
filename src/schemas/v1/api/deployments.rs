@@ -1,11 +1,13 @@
 use std::sync::Arc;
 use crate::DatabaseManager;
-use crate::models::deployment::Deployment;
 use super::super::db::queries as db;
 use rocket::http::Status;
 use rocket::serde::json::{json, Json, Value};
 use rocket::{delete, get, post, put, State};
 use serde::{Deserialize, Serialize};
+
+use libomni::types::db::v1 as types;
+use types::deployment::Deployment;
 
 /// Request body for creating a deployment.
 #[derive(Debug, Clone, Serialize, Deserialize)]

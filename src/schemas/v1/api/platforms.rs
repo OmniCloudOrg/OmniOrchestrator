@@ -1,4 +1,3 @@
-use crate::schemas::v1::models::platform::Platform;
 use crate::db_manager::{self, DatabaseManager};
 use rocket::{get, post, delete};
 use rocket::serde::json::Json;
@@ -6,6 +5,10 @@ use rocket::http::Status;
 use std::sync::Arc;
 use rocket::State;
 use log::{info, error}; // Add logging
+
+// Import the types we need
+use libomni::types::db::v1 as types;
+use types::platform::Platform;
 
 #[get("/platforms")]
 pub async fn list_platforms(db_manager: &State<Arc<DatabaseManager>>) -> Json<Vec<Platform>> {

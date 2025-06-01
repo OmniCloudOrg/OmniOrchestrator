@@ -5,14 +5,16 @@
 //! It is designed to be used primarily by the dashboard to add new providers and manage existing ones.
 //! The resulting database table is read at runtime by the various directories to determine which provider configs they need to have access to.
 
-use crate::models::provider::{ProviderAuditLog, Provider};
 use crate::schemas::v1::db::queries::{self as db};
 use rocket::serde::json::{Json, Value};
-use crate::models::instance::Instance;
 use rocket::http::Status;
 use serde_json::json;
 use std::sync::Arc;
 use crate::DatabaseManager;
+
+use libomni::types::db::v1 as types;
+use types::provider::{ProviderAuditLog, Provider};
+use types::instance::Instance;
 
 /// List all providers in the system with pagination support.
 /// 

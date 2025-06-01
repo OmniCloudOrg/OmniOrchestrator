@@ -1,12 +1,14 @@
-use crate::models::alert::{
-    Alert, AlertWithAcknowledgments, AlertAcknowledgment, 
-    AlertEscalation, AlertHistory, AlertWithRelatedData
-};
 use anyhow::Context;
 use serde::Serialize;
 use sqlx::{MySql, Pool, Row};
 use chrono::{DateTime, Utc};
 use serde_json::Value as JsonValue;
+
+use libomni::types::db::v1 as types;
+use types::alert::{
+    Alert, AlertWithAcknowledgments, AlertAcknowledgment, 
+    AlertEscalation, AlertHistory, AlertWithRelatedData
+};
 
 // =================== Alert Management ===================
 
