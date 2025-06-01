@@ -39,11 +39,18 @@ use core::panic;
 use env_logger::Builder;
 use lazy_static::lazy_static;
 use reqwest::Client;
-use rocket::fairing::{Fairing, Info, Kind};
-use rocket::http::Header;
-use rocket::Build;
-use rocket::Rocket;
-use rocket::{Request, Response};
+use rocket::{
+    Request,
+    Response,
+    Rocket,
+    Build,
+    http::Header,
+    fairing::{
+        Fairing,
+        Info,
+        Kind
+    }
+};
 use libomni::types::db::auth::AuthConfig;
 use serde::{Deserialize, Serialize};
 use sqlx::mysql::MySqlPool;
