@@ -44,7 +44,7 @@ use rocket::http::Header;
 use rocket::Build;
 use rocket::Rocket;
 use rocket::{Request, Response};
-use schemas::auth::AuthConfig;
+use libomni::types::db::auth::AuthConfig;
 use serde::{Deserialize, Serialize};
 use sqlx::mysql::MySqlPool;
 use sqlx::{MySql, Pool};
