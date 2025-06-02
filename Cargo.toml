@@ -39,7 +39,7 @@ clickhouse = { version = "0.13.3"}
 
 
 # OmniCloud internal dependencies
-libomni =    { git = "https://github.com/OmniCloudOrg/LibOmni",     tag = "v0.1.0" }
+libomni =    { git = "https://github.com/OmniCloudOrg/LibOmni",     tag = "v0.3.0" }
 lighthouse = { git = "https://github.com/OmniCloudOrg/Lighthouse" , tag = "v0.1.0" }
 
 [profile.dev]
