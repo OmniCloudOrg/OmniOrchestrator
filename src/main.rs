@@ -19,10 +19,8 @@
 mod config;
 mod leader;
 mod state;
-mod app_autoscaler;
 mod cluster;
 mod network;
-mod worker_autoscaler;
 mod db_manager;
 mod schemas;
 
@@ -32,7 +30,6 @@ mod schemas;
 // Third-party dependencies
 use anyhow::anyhow;
 use anyhow::Result;
-use anyhow::Error;
 use clickhouse;
 use colored::Colorize;
 use core::panic;
@@ -60,9 +57,6 @@ use std::io::Write;
 use std::time::Duration;
 use std::{env, sync::Arc};
 use tokio::sync::RwLock;
-use worker_autoscaler::create_default_cpu_memory_scaling_policy;
-use worker_autoscaler::WorkerAutoscaler;
-use worker_autoscaler::{CloudDirector, VMConfig, VMTemplate};
 
 // Internal imports
 use crate::cluster::{ClusterManager, NodeInfo};
@@ -549,104 +543,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "╚═══════════════════════════════════════════════════════════════╝".bright_magenta()
     );
 
-    // Initialize worker autoscaler with default policy
-    log::info!(
-        "{}",
-        "Creating worker autoscaler with default policy".yellow()
-    );
-    let policy = create_default_cpu_memory_scaling_policy();
-    let mut autoscaler = WorkerAutoscaler::new(1, 1, policy);
-
-    // Add cloud director for managing VMs
-    log::info!("{}", "Adding cloud director (AWS/us-east-1)".yellow());
-    let cloud_director = Arc::new(CloudDirector::new(
-        "cloud-1".to_string(),
-        "aws".to_string(),
-        "us-east-1".to_string(),
-    ));
-    autoscaler.add_director(cloud_director);
-
-    // Set up VM template for worker nodes
-    log::info!("{}", "Setting up VM template for worker nodes".yellow());
-    let mut vm_template = VMTemplate::default();
-    vm_template.base_name = "omni-worker".to_string();
-    vm_template.config = VMConfig {
-        cpu: 2,
-        memory: 4096, // 4GB
-        storage: 80,  // 80GB
-        options: HashMap::new(),
-    };
-    autoscaler.set_vm_template(vm_template);
-    log::info!("{}", "✓ Worker autoscaler configured".green());
-
-    // Start discovery tasks
-    log::info!("{}", "Starting worker autoscaler discovery tasks".yellow());
-    tokio::spawn({
-        let mut autoscaler = autoscaler;
-        async move {
-            // Sleep for 1.5 seconds before starting discovery
-            log::debug!("Sleeping for 1.5 seconds before discovery...");
-            tokio::time::sleep(Duration::from_millis(1500)).await;
-            loop {
-                log::info!("{}", "Discovering nodes and VMs...".yellow());
-                if let Err(e) = autoscaler.discover_nodes().await {
-                    log::error!("{}", format!("Node discovery error: {}", e).red());
-                }
-                if let Err(e) = autoscaler.discover_vms().await {
-                    log::error!("{}", format!("VM discovery error: {}", e).red());
-                }
-                let metrics: HashMap<String, f32> = HashMap::new(); // TODO: populate with actual metrics
-                if let Err(e) = autoscaler.check_scaling(&metrics) {
-                    log::error!("{}", format!("Worker scaling error: {}", e).red());
-                }
-                // Sleep for 3 seconds before next discovery
-                log::debug!("Sleeping autoscaling thread for 3 seconds...");
-                tokio::time::sleep(Duration::from_secs(3)).await;
-            }
-        }
-    });
-
-    // Initialize the app autoscaler
-    log::info!(
-        "{}",
-        "Creating application autoscaler with default policy".yellow()
-    );
-    let app_policy = app_autoscaler::policy::create_default_cpu_memory_scaling_policy();
-    let app_autoscaler = app_autoscaler::app_autoscaler::AppAutoscaler::new(
-        1,  // min instances
-        10, // max instances
-        app_policy,
-    );
-    log::info!("{}", "✓ Application autoscaler configured".green());
-
-    // Spawn a task to run the app autoscaler discovery and scaling loop
-    log::info!(
-        "{}",
-        "Starting application autoscaler discovery tasks".yellow()
-    );
-    tokio::spawn({
-        let mut app_autoscaler = app_autoscaler;
-        async move {
-            // Sleep for 1.5 seconds before starting discovery
-            log::debug!("Sleeping for 1.5 seconds before app autoscaler discovery...");
-            tokio::time::sleep(Duration::from_millis(1500)).await;
-            loop {
-                log::info!("{}", "Discovering app instances...".yellow());
-                if let Err(e) = app_autoscaler.discover_app_instances().await {
-                    log::error!("{}", format!("App instance discovery error: {}", e).red());
-                }
-
-                let metrics: HashMap<String, f32> = HashMap::new(); // TODO: populate with actual metrics
-                if let Err(e) = app_autoscaler.check_scaling(&metrics) {
-                    log::error!("{}", format!("App scaling error: {}", e).red());
-                }
-
-                // Sleep for 3 seconds before next discovery
-                log::debug!("Sleeping app autoscaling thread for 3 seconds...");
-                tokio::time::sleep(Duration::from_secs(3)).await;
-            }
-        }
-    });
+    // TODO: Implement autoscaler setup via Lighthouse: https://github.com/OmniCloudOrg/Lighthouse
 
     // ====================== LEADER ELECTION ======================
     println!(
