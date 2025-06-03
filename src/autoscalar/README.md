@@ -16,8 +16,8 @@ graph TB
         end
         
         subgraph PlatformApps ["Platform Applications"]
-            PlatformApp1[OmniCloud Controller<br/>API server instances<br/>Scheduler instances]
-            PlatformApp2[Monitoring Stack<br/>Prometheus instances<br/>Grafana instances]
+            PlatformApp1[OmniOrchestrator<br/>OmniDirector<br/>OmniForge]
+            PlatformApp2[Momitoring<br/>Megatrix Instances]
             PlatformApp3[Storage Layer<br/>etcd instances<br/>Object storage instances]
         end
         
@@ -449,6 +449,6 @@ The worker manager component abstracts cloud provider differences and implements
 
 ### Cost Optimization
 
-The autoscaler integrates with Omni's cost optimization module, which itself integrates with compatible CPIs to implement cost-aware scaling policies. Real-time cost tracking prevents budget overruns by blocking expensive scaling actions when spending rates exceed configured limits.
+The autoscaler integrates with OmniCloud's cost optimization module, which itself integrates with compatible CPIs to implement cost-aware scaling policies. Real-time cost tracking prevents budget overruns by blocking expensive scaling actions when spending rates exceed configured limits.
 
 Cost optimization features include preferential scaling of cheaper resource types, automatic termination of idle resources, and integration with spot instance markets for workloads that can tolerate interruptions.
