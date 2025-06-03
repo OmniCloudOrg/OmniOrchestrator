@@ -16,13 +16,14 @@
 // +-------------+
 // | MODULES     |
 // +-------------+
-mod config;
-mod leader;
-mod state;
+mod autoscalar;
 mod cluster;
-mod network;
+mod config;
 mod db_manager;
+mod leader;
+mod network;
 mod schemas;
+mod state;
 
 // +-------------+
 // | IMPORTS     |
@@ -35,41 +36,31 @@ use colored::Colorize;
 use core::panic;
 use env_logger::Builder;
 use lazy_static::lazy_static;
+use libomni::types::db::auth::AuthConfig;
 use reqwest::Client;
 use rocket::{
-    Request,
-    Response,
-    Rocket,
-    Build,
+    fairing::{Fairing, Info, Kind},
     http::Header,
-    fairing::{
-        Fairing,
-        Info,
-        Kind
-    }
+    Build, Request, Response, Rocket,
 };
-use libomni::types::db::auth::AuthConfig;
 use serde::{Deserialize, Serialize};
-use sqlx::mysql::MySqlPool;
-use sqlx::{MySql, Pool};
-use std::collections::HashMap;
-use std::io::Write;
 use std::time::Duration;
 use std::{env, sync::Arc};
 use tokio::sync::RwLock;
+use std::io::Write;
 
 // Internal imports
 use crate::cluster::{ClusterManager, NodeInfo};
 use crate::config::ServerConfig;
 use crate::config::SERVER_CONFIG;
+use crate::db_manager::DatabaseManager;
 use crate::leader::LeaderElection;
-use crate::state::SharedState;
-use crate::db_manager::DatabaseManager; // New database manager import
+use crate::state::SharedState; // New database manager import
 
 use libomni::types::db::v1 as types;
-use types::platform;
-use types::platform::Platform;
-
+use lighthouse::{
+    policies, LighthouseConfig, ResourceConfig, ScalingPolicy, ScalingThreshold
+};
 use schemas::v1::api;
 
 // We ignore this import as it always says
@@ -385,7 +376,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize database manager
     log::info!("{}", format!("Database URL: {}", database_url).blue());
     let db_manager = Arc::new(DatabaseManager::new(&database_url).await?);
-    
+
     // Get main database pool for further operations
     let pool = db_manager.get_main_pool();
 
@@ -416,7 +407,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             )
             .blue()
         );
-        db_manager.get_platform_pool(&platform.name, platform.id.unwrap_or(0)).await?;
+        db_manager
+            .get_platform_pool(&platform.name, platform.id.unwrap_or(0))
+            .await?;
     }
 
     // ======================= ClickHouse SETUP ======================
@@ -543,8 +536,55 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "╚═══════════════════════════════════════════════════════════════╝".bright_magenta()
     );
 
-    // TODO: Implement autoscaler setup via Lighthouse: https://github.com/OmniCloudOrg/Lighthouse
+    // Initialize the autoscaler engine
+    let (engine, handle) = autoscalar::init();
+    log::info!("{}", "Autoscaler engine initialized successfully".yellow());
 
+    let config = LighthouseConfig::builder()
+        .evaluation_interval(30) // Check every 30 seconds
+        .add_resource_config(
+            "web-tier",
+            ResourceConfig {
+                resource_type: "kubernetes-deployment".to_string(),
+                policies: vec![
+                    // Multi-metric policy
+                    policies::multi_metric_policy(
+                        "web-scaling",
+                        (75.0, 25.0), // CPU thresholds
+                        (80.0, 30.0), // Memory thresholds
+                        1.5,          // Scale factor
+                        300,          // 5 minute cooldown
+                    ),
+                    // Custom policy for request rate
+                    ScalingPolicy {
+                        name: "request-rate".to_string(),
+                        thresholds: vec![ScalingThreshold {
+                            metric_name: "requests_per_second".to_string(),
+                            scale_up_threshold: 1000.0,
+                            scale_down_threshold: 200.0,
+                            scale_factor: 2.0,
+                            cooldown_seconds: 180,
+                        }],
+                        min_capacity: Some(2),
+                        max_capacity: Some(50),
+                        enabled: true,
+                    },
+                ],
+                default_policy: Some("web-scaling".to_string()),
+                settings: [
+                    ("cluster_name".to_string(), "prod-us-west".to_string()),
+                    ("namespace".to_string(), "web-services".to_string()),
+                ]
+                .into(),
+            },
+        )
+        .global_setting("environment", "production")
+        .enable_logging(true)
+        .build();
+
+    // Update configuration live
+    handle.update_config(config).await?;
+    
     // ====================== LEADER ELECTION ======================
     println!(
         "{}",
@@ -612,8 +652,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         // Add database manager to Rocket's state
         .manage(db_manager.clone())
-        .manage(pool.clone())  // This is the pool for the core deployment
-                               // database. This is meant to store SYSTEM METADATA and not platform-specific data.
+        .manage(pool.clone()) // This is the pool for the core deployment
+        // database. This is meant to store SYSTEM METADATA and not platform-specific data.
         .manage(CLUSTER_MANAGER.clone())
         .manage(clickhouse_client)
         .manage(shared_state)
