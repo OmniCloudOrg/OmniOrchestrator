@@ -53,8 +53,10 @@ impl DatabaseManager {
             .platform_pool(platform_id, &platform_name)
             .await?;
 
-        // TODO: @Caznix @tristanpoland We need to find a new home for this
-        // Initialize the schema
+        // TODO: Platform schema initialization needs to be relocated
+        // Currently commented out pending architectural decisions about where
+        // platform-specific schema initialization should be handled.
+        // Consider moving to a dedicated platform management service.
         // MigrationManager::initialize_platform_schema(&pool, platform).await?;
 
         Ok(pool)

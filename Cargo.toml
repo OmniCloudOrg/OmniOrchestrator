@@ -3,45 +3,50 @@ name = "omni-orchestrator"
 version = "0.1.4"
 edition = "2021"
 
+
 [dependencies]
-rocket = { version = "0.5.1", features = ["json", "uuid"] }
-uuid = { version = "1.17.0", features = ["v4", "serde"] }
-tokio = { version = "1.45.1", features = ["full"] }
-serde = { version = "1.0.219", features = ["derive", "rc"] }
-serde_json5 = "0.2.1"
-serde_json = "1.0.140"
+# Core async/runtime
+tokio = { version = "1.45", features = ["full"] }
 async-trait = "0.1.88"
-reqwest = { version = "0.12.18", features = ["json", "native-tls-vendored", "rustls-tls"] }
-log = "0.4.27"
-env_logger = "0.11.8"
-thiserror = "2.0.12"
-parking_lot = "0.12.4"
-chrono = { version = "0.4.41", features = ["serde"] }
 futures = "0.3.31"
-colored = "3.0.0"   
-anyhow = "1.0.98"
-lazy_static = "1.5.0"
+
+# Web framework & API
+rocket = { version = "0.5.1", features = ["json", "uuid"] }
 rocket-multipart-form-data = "0.10.7"
+reqwest = { version = "0.12", features = ["json", "native-tls-vendored", "rustls-tls"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
+serde_json5 = "0.2.1"
+
+# Database
+mysql = "26.0.0"
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "mysql", "chrono", "uuid"] }
+clickhouse = { version = "0.13.3"}
+libomni = { path = "../LibOmni" }
+lighthouse = { git = "https://github.com/OmniCloudOrg/Lighthouse", features = ["metrics-persistence", "predictive-scaling"], rev = "de72b5365bdc1a28e89ffbf06b3c92957ad3403d"}
+
+# Crypto & Security
 sha2 = "0.10.9"
 rand = "0.9.1"
 hex = "0.4.3"
-mysql = "26.0.0"
+jsonwebtoken = "9.3.1"
+
+# Utilities
+anyhow = "1.0.98"
+thiserror = "2.0.12"
+colored = "3.0.0"
+lazy_static = "1.5.0"
 once_cell = "1.21.3"
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "mysql", "chrono", "uuid"] }
+dotenv = { version = "0.15.0" }
+parking_lot = "0.12.4"
+chrono = { version = "0.4.41", features = ["serde"] }
+uuid = { version = "1.17.0", features = ["v4", "serde"] }
 tracing = { version = "0.1.41", features = ["log"] }
+env_logger = "0.11.8"
+log = "0.4.27"
 hadris-iso = "0.0.2"
 ssh2 = { version = "0.9.5" }
-libomni = { path = "../LibOmni" }
-dotenv = { version = "0.15.0"}
 paxakos = "0.13.0"
-jsonwebtoken = "9.3.1"
 rust_decimal = "1.37.1"
-clickhouse = { version = "0.13.3"}
-
-[profile.dev]
-codegen-units = 32
-incremental = true
-debug-assertions = false
-overflow-checks = false
-opt-level = 0
-lto = "thin"

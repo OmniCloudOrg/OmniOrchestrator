@@ -1,10 +1,14 @@
+use anyhow::{anyhow, Result};
 use colored::Colorize;
 use log::debug;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 
+use crate::config::ServerConfig;
 use crate::state::SharedState;
 
 /// Represents a node in the OmniOrchestrator cluster.
@@ -238,5 +242,71 @@ impl ClusterManager {
     pub async fn is_node_alive(&self, node_uid: Arc<str>) -> bool {
         let nodes = self.nodes.read().await;
         nodes.contains_key(&node_uid)
+    }
+
+    pub async fn discover_peers(&self, config: &ServerConfig, my_port: u16) -> Result<()> {
+        let client = Client::new();
+        log::info!("{}", "Starting peer discovery...".cyan());
+
+        for instance in &config.instances {
+            let string = format!("{:#?}", instance);
+            log::info!("{}", format!("Discovered: {}", string).blue().bold());
+            if instance.port == my_port {
+                log::debug!("Skipping self-connection at port {}", my_port);
+                continue;
+            }
+
+            let node_address: Arc<str> = format!("{}:{}", instance.address, instance.port).into();
+            let node_uri = format!("{}", node_address);
+
+            match self.connect_to_peer(&client, &node_uri.clone()).await {
+                Ok(_) => log::info!(
+                    "{}",
+                    format!("Successfully connected to peer: {}", node_uri).green()
+                ),
+                Err(e) => {
+                    log::warn!(
+                        "{}",
+                        format!("Failed to connect to peer: {} {}", node_uri, e).yellow()
+                    );
+                    self.remove_node(node_uri.into()).await;
+                }
+            }
+        }
+
+        log::info!("{}", "Peer discovery completed".cyan());
+        Ok(())
+    }
+
+    async fn connect_to_peer(&self, client: &Client, node_address: &str) -> Result<()> {
+        let health_url = format!("{}/health", node_address);
+        log::debug!("Checking health at: {}", health_url);
+
+        let response = client
+            .get(&health_url)
+            .timeout(Duration::from_secs(5))
+            .send()
+            .await?;
+
+        if response.status().is_success() {
+            let port = node_address
+                .split(':')
+                .next_back()
+                .unwrap_or("80")
+                .parse::<u16>()
+                .unwrap_or(80);
+
+            let node_info = NodeInfo {
+                id: node_address.into(),
+                address: node_address.into(),
+                port,
+            };
+
+            self.register_node(node_info).await;
+            log::debug!("Node registered: {}", node_address);
+            Ok(())
+        } else {
+            Err(anyhow!("Node health check failed"))
+        }
     }
 }

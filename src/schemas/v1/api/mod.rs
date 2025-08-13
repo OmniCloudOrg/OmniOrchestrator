@@ -57,9 +57,9 @@ pub mod platforms;
 pub fn routes() -> Vec<rocket::Route> {
     routes![
         // apps
-        apps::release,    apps::get_app,    apps::stop_app,      apps::list_apps,
-        apps::start_app,  apps::scale_app,  apps::count_apps,    apps::create_app,
-        apps::update_app, apps::delete_app, apps::get_app_stats, apps::list_instances,
+        apps::update_app,     apps::get_app,    apps::stop_app,      apps::list_apps,
+        apps::start_app,      apps::scale_app,  apps::count_apps,    apps::create_app,
+        apps::create_release, apps::delete_app, apps::get_app_stats, apps::list_instances,
         apps::get_app_with_instances,
 
         // alerts
