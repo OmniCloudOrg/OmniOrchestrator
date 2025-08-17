@@ -28,7 +28,7 @@ rocket-multipart-form-data = "0.10.7"
 mysql = "26.0.1"
 sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "mysql", "chrono", "uuid"] }
 clickhouse = { version = "0.13.3"}
-libomni = { path = "../LibOmni" }
+libomni = { git = "https://github.com/OmniCloudOrg/LibOmni" }
 lighthouse = { git = "https://github.com/OmniCloudOrg/Lighthouse", features = ["metrics-persistence", "predictive-scaling"], rev = "de72b5365bdc1a28e89ffbf06b3c92957ad3403d"}
 
 # Crypto & Security
